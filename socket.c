@@ -89,9 +89,9 @@ getaddr (unsigned int flags,
       && !signal_received)
     signal_received = &sigrec;
 
-  status = inet_aton (hostname, &ia); /* parse ascii IP address */
+  status = openvpn_inet_aton (hostname, &ia); /* parse ascii IP address */
 
-  if (!status) /* parse as IP address failed? */
+  if (status != OIA_IP) /* parse as IP address failed? */
     {
       const int fail_wait_interval = 5; /* seconds */
       int resolve_retries = resolve_retry_seconds / fail_wait_interval;
@@ -106,7 +106,7 @@ getaddr (unsigned int flags,
 	  && !resolve_retry_seconds)
 	fmt = "RESOLVE: Cannot resolve host address: %s: %s (I would have retried this name query if you had specified the --resolv-retry option.)";
 
-      if (!(flags & GETADDR_RESOLVE))
+      if (!(flags & GETADDR_RESOLVE) || status == OIA_ERROR)
 	{
 	  msg (msglevel, "RESOLVE: Cannot parse IP address: %s", hostname);
 	  goto done;
@@ -209,6 +209,30 @@ getaddr (unsigned int flags,
     }
 
   return (flags & GETADDR_HOST_ORDER) ? ntohl (ia.s_addr) : ia.s_addr;
+}
+
+/*
+ * We do our own inet_aton because the glibc function
+ * isn't very good about error checking.
+ */
+int
+openvpn_inet_aton (const char *dotted_quad, struct in_addr *addr)
+{
+  unsigned int a, b, c, d;
+
+  CLEAR (*addr);
+  if (sscanf (dotted_quad, "%u.%u.%u.%u", &a, &b, &c, &d) == 4)
+    {
+      if (a < 256 && b < 256 && c < 256 && d < 256)
+	{
+	  addr->s_addr = htonl (a<<24 | b<<16 | c<<8 | d);
+	  return OIA_IP; /* good dotted quad */
+	}
+    }
+  if (string_class (dotted_quad, CC_DIGIT|CC_DOT, 0))
+    return OIA_ERROR;    /* probably a badly formatted dotted quad */
+  else
+    return OIA_HOSTNAME; /* probably a hostname */
 }
 
 static void

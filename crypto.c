@@ -1287,7 +1287,7 @@ must_have_n_keys (const char *filename, const char *option, const struct key2 *k
 }
 
 int
-ascii2keydirection (const char *str)
+ascii2keydirection (int msglevel, const char *str)
 {
   if (!str)
     return KEY_DIRECTION_BIDIRECTIONAL;
@@ -1296,8 +1296,10 @@ ascii2keydirection (const char *str)
   else if (!strcmp (str, "1"))
     return KEY_DIRECTION_INVERSE;
   else
-    msg (M_USAGE, "Unknown key direction '%s' -- must be '0' or '1'",
-	 str);
+    {
+      msg (msglevel, "Unknown key direction '%s' -- must be '0' or '1'", str);
+      return -1;
+    }
   return KEY_DIRECTION_BIDIRECTIONAL; /* NOTREACHED */
 }
 

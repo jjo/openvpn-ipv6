@@ -48,6 +48,10 @@
 
 #include "memdbg.h"
 
+#ifdef TARGET_SOLARIS
+static void solaris_error_close (struct tuntap *tt, const struct env_set *es, const char *actual);
+#endif
+
 bool
 is_dev_type (const char *dev, const char *dev_type, const char *match_type)
 {
@@ -601,28 +605,37 @@ do_ifconfig (struct tuntap *tt,
 #endif /*CONFIG_FEATURE_IPROUTE*/
 #elif defined(TARGET_SOLARIS)
 
-      /* example: ifconfig tun2 10.2.0.2 10.2.0.1 mtu 1450 netmask 255.255.255.255 up */
+      /* Solaris 2.6 (and 7?) cannot set all parameters in one go...
+       * example:
+       *    ifconfig tun2 10.2.0.2 10.2.0.1 mtu 1450 up
+       *    ifconfig tun2 netmask 255.255.255.255
+       */
       if (tun)
-	openvpn_snprintf (command_line, sizeof (command_line),
-			  IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
-			  actual,
-			  ifconfig_local,
-			  ifconfig_remote_netmask,
-			  tun_mtu
-			  );
-      else
-	no_tap_ifconfig ();
-      msg (M_INFO, "%s", command_line);
-      if (!system_check (command_line, es, 0, "Solaris ifconfig failed"))
 	{
 	  openvpn_snprintf (command_line, sizeof (command_line),
-			    IFCONFIG_PATH " %s unplumb",
+			    IFCONFIG_PATH " %s %s %s mtu %d up",
+			    actual,
+			    ifconfig_local,
+			    ifconfig_remote_netmask,
+			    tun_mtu
+			    );
+
+	  msg (M_INFO, "%s", command_line);
+	  if (!system_check (command_line, es, 0, "Solaris ifconfig phase-1 failed"))
+	    solaris_error_close (tt, es, actual);
+
+	  openvpn_snprintf (command_line, sizeof (command_line),
+			    IFCONFIG_PATH " %s netmask 255.255.255.255",
 			    actual
 			    );
-	  msg (M_INFO, "%s", command_line);
-	  system_check (command_line, es, 0, "Solaris ifconfig unplumb failed");
-	  msg (M_FATAL, "ifconfig failed");
 	}
+      else
+	no_tap_ifconfig ();
+
+      msg (M_INFO, "%s", command_line);
+      if (!system_check (command_line, es, 0, "Solaris ifconfig phase-2 failed"))
+	solaris_error_close (tt, es, actual);
+
       tt->did_ifconfig = true;
 
 #elif defined(TARGET_OPENBSD)
@@ -1246,39 +1259,69 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
   msg (M_INFO, "TUN/TAP device %s opened", tt->actual_name);
 }
 
+static void
+solaris_close_tun (struct tuntap *tt)
+{
+  if (tt)
+    {
+      if (tt->ip_fd >= 0)
+	{
+	  struct ifreq ifr;
+	  CLEAR (ifr);
+	  strncpynt (ifr.ifr_name, tt->actual_name, sizeof (ifr.ifr_name));
+
+	  if (ioctl (tt->ip_fd, SIOCGIFFLAGS, &ifr) < 0)
+	    msg (M_WARN | M_ERRNO, "Can't get iface flags");
+
+	  if (ioctl (tt->ip_fd, SIOCGIFMUXID, &ifr) < 0)
+	    msg (M_WARN | M_ERRNO, "Can't get multiplexor id");
+
+	  if (ioctl (tt->ip_fd, I_PUNLINK, ifr.ifr_ip_muxid) < 0)
+	    msg (M_WARN | M_ERRNO, "Can't unlink interface");
+
+	  close (tt->ip_fd);
+	  tt->ip_fd = -1;
+	}
+
+      if (tt->fd >= 0)
+	{
+	  close (tt->fd);
+	  tt->fd = -1;
+	}
+    }
+}
+
 /*
  * Close TUN device. 
  */
 void
 close_tun (struct tuntap *tt)
 {
-  if (tt && tt->fd >= 0)
-    {
-      struct ifreq ifr;
-
-      CLEAR (ifr);
-      strncpynt (ifr.ifr_name, tt->actual_name, sizeof (ifr.ifr_name));
-
-     if (ioctl (tt->ip_fd, SIOCGIFFLAGS, &ifr) < 0)
-	msg (M_WARN | M_ERRNO, "Can't get iface flags");
-
-      if (ioctl (tt->ip_fd, SIOCGIFMUXID, &ifr) < 0)
-	msg (M_WARN | M_ERRNO, "Can't get multiplexor id");
-
-      if (ioctl (tt->ip_fd, I_PUNLINK, ifr.ifr_ip_muxid) < 0)
-	msg (M_WARN | M_ERRNO, "Can't unlink interface");
-
-      close (tt->ip_fd);
-      close (tt->fd);
-    }
   if (tt)
     {
+      solaris_close_tun (tt);
+
       if (tt->actual_name)
 	free (tt->actual_name);
       
       clear_tuntap (tt);
       free (tt);
     }
+}
+
+static void
+solaris_error_close (struct tuntap *tt, const struct env_set *es, const char *actual)
+{
+  char command_line[256];
+
+  openvpn_snprintf (command_line, sizeof (command_line),
+		    IFCONFIG_PATH " %s unplumb",
+		    actual);
+
+  msg (M_INFO, "%s", command_line);
+  system_check (command_line, es, 0, "Solaris ifconfig unplumb failed");
+  close_tun (tt);
+  msg (M_FATAL, "Solaris ifconfig failed");
 }
 
 int

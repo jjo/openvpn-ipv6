@@ -3,6 +3,20 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.12.14 -- Version 2.0-rc4
+
+* SuSE only -- Fixed interaction between openvpn.spec and
+  suse/openvpn.init where the .spec file was writing the
+  OpenVPN binary to a different location than where the
+  .init script was referencing it (Stefan Engel).
+* Solaris only -- Split Solaris ifconfig command into two parts
+  (Jan Just Keijser).
+* Some cleanup in add_option().
+* Better error checking on input dotted quad IP addresses.
+* Verify that --push argument is quoted, if there is
+  more than one.
+* More miscellaneous option sanity checks.
+
 2004.12.13 -- Version 2.0-rc3
 
 * On Windows, when --log or --log-append is used,

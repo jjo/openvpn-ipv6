@@ -120,7 +120,6 @@ OBJS =  base64.obj \
         fragment.obj \
 	gremlin.obj \
 	helper.obj \
-	inet_aton.obj \
 	init.obj \
 	interval.obj \
         list.obj \

@@ -467,11 +467,11 @@ struct options
 #define PLUGIN_OPTION_LIST(opt) (NULL)
 #endif
 
-void parse_argv (struct options* options,
-		 int argc,
+void parse_argv (struct options *options,
+		 const int argc,
 		 char *argv[],
-		 int msglevel,
-		 unsigned int permission_mask,
+		 const int msglevel,
+		 const unsigned int permission_mask,
 		 unsigned int *option_types_found,
 		 struct env_set *es);
 
@@ -531,6 +531,12 @@ void pre_pull_default (struct options *o);
 
 void rol_check_alloc (struct options *options);
 
-int parse_line (const char *line, char *p[], int n, const char *file, int line_num, int msglevel, struct gc_arena *gc);
+int parse_line (const char *line,
+		char *p[],
+		const int n,
+		const char *file,
+		const int line_num,
+		int msglevel,
+		struct gc_arena *gc);
 
 #endif

@@ -225,8 +225,6 @@ struct link_socket
 
 #define openvpn_close_socket(s) closesocket(s)
 
-int inet_aton (const char *name, struct in_addr *addr);
-
 int socket_recv_queue (struct link_socket *sock, int maxsize);
 
 int socket_send_queue (struct link_socket *sock,
@@ -340,6 +338,12 @@ void remote_list_randomize (struct remote_list *l);
 /*
  * Low-level functions
  */
+
+/* return values of openvpn_inet_aton */
+#define OIA_HOSTNAME   0
+#define OIA_IP         1
+#define OIA_ERROR     -1
+int openvpn_inet_aton (const char *dotted_quad, struct in_addr *addr);
 
 socket_descriptor_t create_socket_tcp (void);
 

@@ -132,7 +132,6 @@ OBJS =  base64.o \
         fragment.o \
 	gremlin.o \
 	helper.o \
-	inet_aton.o \
 	init.o \
 	interval.o \
         list.o \
