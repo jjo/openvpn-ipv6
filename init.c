@@ -128,6 +128,7 @@ context_init_1 (struct context *c)
 					 c->options.http_proxy_retry,
 					 c->options.http_proxy_auth_method,
 					 c->options.http_proxy_auth_file,
+					 c->options.http_proxy_timeout,
 					 &c->gc);
     }
 #endif
@@ -777,8 +778,6 @@ do_open_tun (struct context *c)
 		     NULL,
 		     "up",
 		     c->c2.es);
-
-      initialization_sequence_completed (c, false);
     }
   gc_free (&gc);
   return ret;
@@ -922,9 +921,15 @@ do_up (struct context *c, bool pulled_options, unsigned int option_types_found)
 	      event_timeout_init (&c->c2.route_wakeup_expire, c->options.route_delay + c->options.route_delay_window, now);
 	    }
 	  else
-	    initialization_sequence_completed (c, false);
+	    {
+	      initialization_sequence_completed (c, false); /* client/p2p --route-delay undefined */
+	    }
 	}
-
+      else if (c->options.mode == MODE_POINT_TO_POINT)
+	{
+	  initialization_sequence_completed (c, false); /* client/p2p restart with --persist-tun */
+	}
+	
       c->c2.do_up_ran = true;
     }
 }
@@ -2053,18 +2058,21 @@ open_management (struct context *c)
     {
       if (c->options.management_addr)
 	{
-	  management_open (management,
-			   c->options.management_addr,
-			   c->options.management_port,
-			   c->options.management_user_pass,
-			   c->options.management_query_passwords,
-			   c->options.management_log_history_cache,
-			   c->options.management_echo_buffer_size);
-
-	  management_set_state (management,
-				OPENVPN_STATE_CONNECTING,
-				NULL,
-				(in_addr_t)0);
+	  if (management_open (management,
+			       c->options.management_addr,
+			       c->options.management_port,
+			       c->options.management_user_pass,
+			       c->options.mode == MODE_SERVER,
+			       c->options.management_query_passwords,
+			       c->options.management_log_history_cache,
+			       c->options.management_echo_buffer_size,
+			       c->options.management_state_buffer_size))
+	    {
+	      management_set_state (management,
+				    OPENVPN_STATE_CONNECTING,
+				    NULL,
+				    (in_addr_t)0);
+	    }
 	}
       else
 	close_management ();

@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [2.0_beta19], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [2.0_beta20], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -102,25 +102,36 @@ AC_ARG_ENABLE(small,
 )
 
 AC_ARG_ENABLE(pthread,
-   [  --enable-pthread        Enable pthread support],
+   [  --enable-pthread        Enable pthread support (Experimental for OpenVPN 2.0)],
    [PTHREAD="$enableval"],
    [PTHREAD="no"]
 )
 
+AC_ARG_ENABLE(password-save,
+   [  --enable-password-save  Allow --askpass and --auth-user-pass passwords to be read from a file],
+   [PASSWORD_SAVE="$enableval"],
+   [PASSWORD_SAVE="no"]
+)
+
+AC_ARG_ENABLE(iproute2,
+   [  --enable-iproute2       Enable support for iproute2],
+   AC_DEFINE(CONFIG_FEATURE_IPROUTE, 1, [enable iproute2 support])   
+)
+
 AC_ARG_ENABLE(strict,
-   [  --enable-strict         Enable strict compiler warnings],
+   [  --enable-strict         Enable strict compiler warnings (debugging option)],
    [STRICT="$enableval"],
    [STRICT="no"]
 )
 
 AC_ARG_ENABLE(profiling,
-   [  --enable-profiling      Enable profiling],
+   [  --enable-profiling      Enable profiling (debugging option)],
    [PROFILE="$enableval"],
    [PROFILE="no"]
 )
 
 AC_ARG_ENABLE(strict-options,
-   [  --enable-strict-options Enable strict options check between peers],
+   [  --enable-strict-options Enable strict options check between peers (debugging option)],
    [STRICT_OPTIONS="$enableval"],
    [STRICT_OPTIONS="no"]
 )
@@ -173,13 +184,6 @@ AC_ARG_WITH(mem-check,
    [  --with-mem-check=TYPE  Build with debug memory checking, TYPE = dmalloc or valgrind],
    [MEMCHECK="$withval"]
 )
-
-AC_ARG_ENABLE(iproute2,
-   [  --enable-iproute2       Enable support for iproute2],
-   AC_DEFINE(CONFIG_FEATURE_IPROUTE, 1, [enable iproute2 support])
-   
-)
-
 
 dnl Guess host type.
 AC_CANONICAL_HOST
@@ -583,6 +587,11 @@ fi
 dnl enable strict options check between peers
 if test "$STRICT_OPTIONS" = "yes"; then
    AC_DEFINE(STRICT_OPTIONS_CHECK, 1, [Enable strict options check between peers])
+fi
+
+dnl enable password save
+if test "$PASSWORD_SAVE" = "yes"; then
+   AC_DEFINE(ENABLE_PASSWORD_SAVE, 1, [Allow --askpass and --auth-user-pass passwords to be read from a file])
 fi
 
 AC_OUTPUT(Makefile openvpn.spec config-win32.h install-win32/openvpn.nsi)

@@ -101,7 +101,8 @@ static const char usage_message[] =
   "                  up is a file containing username/password on 2 lines, or\n"
   "                  'stdin' to prompt from console.  Add auth='ntlm' if\n"
   "                  the proxy requires NTLM authentication.\n"
-  "--http-proxy-retry : Retry indefinitely on HTTP proxy errors.\n"
+  "--http-proxy-retry     : Retry indefinitely on HTTP proxy errors.\n"
+  "--http-proxy-timeout n : Proxy timeout in seconds, default=5.\n"
 #endif
 #ifdef ENABLE_SOCKS
   "--socks-proxy s [p]: Connect to remote host through a Socks5 proxy at address\n"
@@ -521,15 +522,19 @@ init_options (struct options *o)
   o->tun_mtu = TUN_MTU_DEFAULT;
   o->link_mtu = LINK_MTU_DEFAULT;
   o->mtu_discover_type = -1;
-#ifdef ENABLE_OCC
-  o->occ = true;
-#endif
   o->mssfix = MSSFIX_DEFAULT;
   o->route_delay_window = 30;
   o->resolve_retry_seconds = RESOLV_RETRY_INFINITE;
+#ifdef ENABLE_HTTP_PROXY
+  o->http_proxy_timeout = 5;
+#endif
+#ifdef ENABLE_OCC
+  o->occ = true;
+#endif
 #ifdef ENABLE_MANAGEMENT
-  o->management_log_history_cache = 1000;
+  o->management_log_history_cache = 250;
   o->management_echo_buffer_size = 100;
+  o->management_state_buffer_size = 100;
 #endif
 #ifdef TUNSETPERSIST
   o->persist_mode = 1;
@@ -1008,6 +1013,7 @@ show_settings (const struct options *o)
   SHOW_STR (http_proxy_auth_method);
   SHOW_STR (http_proxy_auth_file);
   SHOW_BOOL (http_proxy_retry);
+  SHOW_INT (http_proxy_timeout);
 #endif
 
 #ifdef ENABLE_SOCKS
@@ -1352,6 +1358,17 @@ options_postprocess (struct options *options, bool first_time)
    */
   if (options->mode == MODE_SERVER)
     {
+#ifdef WIN32
+      /*
+       * We need to explicitly set --tap-sleep because
+       * we do not schedule event timers in the top-level context.
+       */
+      options->tuntap_options.tap_sleep = 10;
+      if (options->route_delay_defined && options->route_delay)
+	options->tuntap_options.tap_sleep = options->route_delay;	
+      options->route_delay_defined = false;
+#endif
+
       if (!(dev == DEV_TYPE_TUN || dev == DEV_TYPE_TAP))
 	msg (M_USAGE, "--mode server only works with --dev tun or --dev tap");
       if (options->pull)
@@ -1392,6 +1409,8 @@ options_postprocess (struct options *options, bool first_time)
 #endif
       if (options->routes && options->routes->redirect_default_gateway)
 	msg (M_USAGE, "--redirect-gateway cannot be used with --mode server (however --push \"redirect-gateway\" is fine)");
+      if (options->route_delay_defined)
+	msg (M_USAGE, "--route-delay cannot be used with --mode server");
       if (options->up_delay)
 	msg (M_USAGE, "--up-delay cannot be used with --mode server");
       if (!options->ifconfig_pool_defined && options->ifconfig_pool_persist_filename)
@@ -1408,18 +1427,6 @@ options_postprocess (struct options *options, bool first_time)
 	  if (options->username_as_common_name && !options->auth_user_pass_verify_script)
 	    msg (M_USAGE, "--username-as-common-name must be used with an --auth-user-pass-verify script");
 	}
-
-#ifdef WIN32
-      /*
-       * We need to explicitly set --tap-sleep because
-       * we do not schedule event timers in the top-level context.
-       */
-      options->tuntap_options.tap_sleep = 10;
-      if (options->route_delay_defined && options->route_delay)
-	options->tuntap_options.tap_sleep = options->route_delay;	
-      options->route_delay_defined = false;
-#endif
-
     }
   else
     {
@@ -3003,6 +3010,11 @@ add_option (struct options *options,
     {
       VERIFY_PERMISSION (OPT_P_GENERAL);
       options->http_proxy_retry = true;
+    }
+  else if (streq (p[0], "http-proxy-timeout<") && p[1])
+    {
+      VERIFY_PERMISSION (OPT_P_GENERAL);
+      options->http_proxy_timeout = positive (atoi (p[1]));
     }
 #endif
 #ifdef ENABLE_SOCKS

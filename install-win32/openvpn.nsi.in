@@ -11,7 +11,7 @@
 !include "MUI.nsh"
 !include "setpath.nsi"
 
-!define MASTER "x:\openvpn\20\openvpn"
+!define MASTER "y:\openvpn\20\openvpn"
 
 !define HOME "c:\src\openvpn"
 !define BIN "${HOME}\bin"

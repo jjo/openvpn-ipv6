@@ -40,6 +40,7 @@
 #include "route.h"
 #include "misc.h"
 #include "socket.h"
+#include "manage.h"
 
 #include "memdbg.h"
 
@@ -520,6 +521,17 @@ add_routes (struct route_list *rl, const struct tuntap *tt, unsigned int flags, 
   if (!rl->routes_added)
     {
       int i;
+
+#ifdef ENABLE_MANAGEMENT
+      if (management && rl->n)
+	{
+	  management_set_state (management,
+				OPENVPN_STATE_ADD_ROUTES,
+				NULL,
+				0);
+	}
+#endif
+      
       for (i = 0; i < rl->n; ++i)
 	{
 	  if (flags & ROUTE_DELETE_FIRST)

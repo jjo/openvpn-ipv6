@@ -145,6 +145,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-hash\-size\fR\ \fIr\ v\fR\ ]
 [\ \fB\-\-help\fR\ ]
 [\ \fB\-\-http\-proxy\-retry\fR\ ]
+[\ \fB\-\-http\-proxy\-timeout\fR\ \fIn\fR\ ]
 [\ \fB\-\-http\-proxy\fR\ \fIserver\ port\ [authfile]\ [auth\-method]\fR\ ]
 [\ \fB\-\-ifconfig\-noexec\fR\ ]
 [\ \fB\-\-ifconfig\-nowarn\fR\ ]
@@ -547,6 +548,12 @@ should be one of "none", "basic", or "ntlm".
 .B --http-proxy-retry
 Retry indefinitely on HTTP proxy errors.  If an HTTP proxy error
 occurs, simulate a SIGUSR1 reset.
+.\"*********************************************************
+.TP
+.B --http-proxy-timeout n
+Set proxy timeout to
+.B n
+seconds, default=5.
 .\"*********************************************************
 .TP
 .B --socks-proxy server [port]

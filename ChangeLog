@@ -3,6 +3,22 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.12.05 -- Version 2.0-beta20
+
+* The ability to read --askpass and --auth-user-pass
+  passwords from a file has been disabled by default.
+  To re-enable, use ./configure --enable-password-save.
+* Added additional pre-connected states to management
+  interface.  See management/management-notes.txt
+  for more info.
+* State history is now recorded by the management
+  interface, and the "state" command now works like
+  the log or echo commands.
+* State history and real-time state change notifications
+  are now prepended with an integer unix timestamp.
+* Added --http-proxy-timeout option, previously
+  the timeout was hardcoded to 5 seconds.
+	
 2004.12.02 -- Version 2.0-beta19
 
 * Fixed bug in management interface line termination

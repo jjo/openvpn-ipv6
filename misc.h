@@ -231,6 +231,7 @@ struct user_pass
 bool get_console_input (const char *prompt, const bool echo, char *input, const int capacity);
 
 #define GET_USER_PASS_MANAGEMENT  (1<<0)
+#define GET_USER_PASS_SENSITIVE   (1<<1)
 
 void get_user_pass (struct user_pass *up,
 		    const char *auth_file,

@@ -89,7 +89,7 @@ static int tls_packets_sent;      /* GLOBAL */
 void
 show_tls_performance_stats(void)
 {
-  dmsg (D_TLS_DEBUG_LOW, "TLS Handshakes, success=%f%% (good=%d, bad=%d), retransmits=%f%%",
+  msg (D_TLS_DEBUG_LOW, "TLS Handshakes, success=%f%% (good=%d, bad=%d), retransmits=%f%%",
        (double) tls_handshake_success / (tls_handshake_success + tls_handshake_error) * 100.0,
        tls_handshake_success, tls_handshake_error,
        (double) (tls_packets_sent - tls_packets_generated) / tls_packets_generated * 100.0);
@@ -266,7 +266,7 @@ void
 pem_password_setup (const char *auth_file)
 {
   if (!strlen (passbuf.password))
-    get_user_pass (&passbuf, auth_file, true, UP_TYPE_PRIVATE_KEY, GET_USER_PASS_MANAGEMENT);
+    get_user_pass (&passbuf, auth_file, true, UP_TYPE_PRIVATE_KEY, GET_USER_PASS_MANAGEMENT|GET_USER_PASS_SENSITIVE);
 }
 
 int
@@ -296,7 +296,7 @@ auth_user_pass_setup (const char *auth_file)
 {
   auth_user_pass_enabled = true;
   if (!auth_user_pass.defined)
-    get_user_pass (&auth_user_pass, auth_file, false, UP_TYPE_AUTH, GET_USER_PASS_MANAGEMENT);
+    get_user_pass (&auth_user_pass, auth_file, false, UP_TYPE_AUTH, GET_USER_PASS_MANAGEMENT|GET_USER_PASS_SENSITIVE);
 }
 
 /*
@@ -750,7 +750,7 @@ init_ssl (const struct options *options)
 	msg (M_SSLERR, "Cannot load DH parameters from %s", options->dh_file);
       if (!SSL_CTX_set_tmp_dh (ctx, dh))
 	msg (M_SSLERR, "SSL_CTX_set_tmp_dh");
-      dmsg (D_TLS_DEBUG_LOW, "Diffie-Hellman initialized with %d bit key",
+      msg (D_TLS_DEBUG_LOW, "Diffie-Hellman initialized with %d bit key",
 	   8 * DH_size (dh));
       DH_free (dh);
     }
@@ -1526,7 +1526,7 @@ tls_session_free (struct tls_session *session, bool clear)
 static void
 move_session (struct tls_multi* multi, int dest, int src, bool reinit_src)
 {
-  dmsg (D_TLS_DEBUG_LOW, "TLS: move_session: dest=%s src=%s reinit_src=%d",
+  msg (D_TLS_DEBUG_LOW, "TLS: move_session: dest=%s src=%s reinit_src=%d",
        session_index_name(dest),
        session_index_name(src),
        reinit_src);
@@ -1564,7 +1564,7 @@ initiate_untrusted_session (struct tls_multi *multi, struct sockaddr_in *to)
 
   reset_session (multi, session);
   ks->remote_addr = *to;
-  dmsg (D_TLS_DEBUG_LOW, "TLS: initiate_untrusted_session: addr=%s", print_sockaddr (to));
+  msg (D_TLS_DEBUG_LOW, "TLS: initiate_untrusted_session: addr=%s", print_sockaddr (to));
 }
 #endif
 
@@ -2741,7 +2741,7 @@ tls_process (struct tls_multi *multi,
 	   && ks->n_packets >= session->opt->renegotiate_packets)
        || (packet_id_close_to_wrapping (&ks->packet_id.send))))
     {
-      dmsg (D_TLS_DEBUG_LOW, "TLS: soft reset sec=%d bytes=%d/%d pkts=%d/%d",
+      msg (D_TLS_DEBUG_LOW, "TLS: soft reset sec=%d bytes=%d/%d pkts=%d/%d",
 	   (int)(ks->established + session->opt->renegotiate_seconds - now),
 	   ks->n_bytes, session->opt->renegotiate_bytes,
 	   ks->n_packets, session->opt->renegotiate_packets);
@@ -2751,7 +2751,7 @@ tls_process (struct tls_multi *multi,
   /* Kill lame duck key transition_window seconds after primary key negotiation */
   if (lame_duck_must_die (session, wakeup)) {
 	key_state_free (ks_lame, true);
-	dmsg (D_TLS_DEBUG_LOW, "TLS: tls_process: killed expiring key");
+	msg (D_TLS_DEBUG_LOW, "TLS: tls_process: killed expiring key");
   }
 
   //mutex_cycle (multi->mutex);
@@ -2794,6 +2794,16 @@ tls_process (struct tls_multi *multi,
 		  state_change = true;
 		  dmsg (D_TLS_DEBUG, "TLS: Initial Handshake, sid=%s",
 		       session_id_print (&session->session_id, &gc));
+
+#ifdef ENABLE_MANAGEMENT
+		  if (management)
+		    {
+		      management_set_state (management,
+					    OPENVPN_STATE_WAIT,
+					    NULL,
+					    0);
+		    }
+#endif
 		}
 	    }
 
@@ -3170,7 +3180,7 @@ tls_multi_process (struct tls_multi *multi,
    */
   if (lame_duck_must_die (&multi->session[TM_LAME_DUCK], wakeup)) {
     tls_session_free (&multi->session[TM_LAME_DUCK], true);
-    dmsg (D_TLS_DEBUG_LOW, "TLS: tls_multi_process: killed expiring key");
+    msg (D_TLS_DEBUG_LOW, "TLS: tls_multi_process: killed expiring key");
   }
 
   /*
@@ -3184,7 +3194,7 @@ tls_multi_process (struct tls_multi *multi,
    */
   if (DECRYPT_KEY_ENABLED (multi, &multi->session[TM_UNTRUSTED].key[KS_PRIMARY])) {
     move_session (multi, TM_ACTIVE, TM_UNTRUSTED, true);
-    dmsg (D_TLS_DEBUG_LOW, "TLS: tls_multi_process: untrusted session promoted to %strusted",
+    msg (D_TLS_DEBUG_LOW, "TLS: tls_multi_process: untrusted session promoted to %strusted",
 	 tls_authenticated (multi) ? "" : "semi-");
   }
 
@@ -3449,10 +3459,21 @@ tls_pre_decrypt (struct tls_multi *multi,
 		      goto error;
 		    }
 
-		  dmsg (D_TLS_DEBUG_LOW,
+#ifdef ENABLE_MANAGEMENT
+		  if (management)
+		    {
+		      management_set_state (management,
+					    OPENVPN_STATE_AUTH,
+					    NULL,
+					    0);
+		    }
+#endif
+
+		  msg (D_TLS_DEBUG_LOW,
 		       "TLS: Initial packet from %s, sid=%s",
 		       print_sockaddr (from, &gc),
 		       session_id_print (&sid, &gc));
+
 		  do_burst = true;
 		  new_link = true;
 		  i = TM_ACTIVE;
@@ -3497,7 +3518,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 	       *
 	       * Without --tls-auth, we leave authentication entirely up to TLS.
 	       */
-	      dmsg (D_TLS_DEBUG_LOW,
+	      msg (D_TLS_DEBUG_LOW,
 		   "TLS: new session incoming connection from %s",
 		   print_sockaddr (from, &gc));
 

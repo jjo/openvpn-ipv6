@@ -240,6 +240,7 @@ struct options
   const char *http_proxy_auth_method;
   const char *http_proxy_auth_file;
   bool http_proxy_retry;
+  int http_proxy_timeout;
 #endif
 
 #ifdef ENABLE_SOCKS
@@ -260,6 +261,7 @@ struct options
   const char *management_user_pass;
   int management_log_history_cache;
   int management_echo_buffer_size;
+  int management_state_buffer_size;
   bool management_query_passwords;
 #endif
 

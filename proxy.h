@@ -40,6 +40,7 @@
 struct http_proxy_info {
   bool defined;
   bool retry;
+  int timeout;
 
   char server[128];
   int port;
@@ -49,10 +50,11 @@ struct http_proxy_info {
 };
 
 struct http_proxy_info *new_http_proxy (const char *server,
-					int port,
-					bool retry,
+					const int port,
+					const bool retry,
 					const char *auth_method,
 					const char *auth_file,
+					const int timeout,
 					struct gc_arena *gc);
 
 void establish_http_proxy_passthru (struct http_proxy_info *p,

@@ -247,27 +247,42 @@ Command example:
 COMMAND -- state
 ----------------
 
-Show the current OpenVPN state, or enable real-time notification
-of state changes.
+Show the current OpenVPN state, show state history, or
+enable real-time notification of state changes.
 
-Currently, OpenVPN has 4 states:
+These are the OpenVPN states:
 
-CONNECTING    -- OpenVPN is in its initial startup sequence
-CONNECTED     -- Initialization Sequence Completed
-RECONNECTING  -- A restart has occurred
-EXITING       -- A graceful exit is in progress
+CONNECTING    -- OpenVPN's initial state.
+WAIT          -- (Client only) Waiting for initial response
+                 from server.
+AUTH          -- (Client only) Authenticating with server.
+GET_CONFIG    -- (Client only) Downloading configuration options
+                 from server.
+ASSIGN_IP     -- Assigning IP address to virtual network
+                 interface.
+ADD_ROUTES    -- Adding routes to system.
+CONNECTED     -- Initialization Sequence Completed.
+RECONNECTING  -- A restart has occurred.
+EXITING       -- A graceful exit is in progress.
 
 Command examples:
 
-  state     -- print current OpenVPN state
-  state on  -- enable real-time notification of state changes
-  state off -- disable real-time notification of state changes
+  state        -- Print current OpenVPN state.
+  state on     -- Enable real-time notification of state changes.
+  state off    -- Disable real-time notification of state changes.
+  state all    -- Print current state history.
+  state 3      -- Print the 3 most recent state transitions.
+  state on all -- Atomically show state history while at the
+                  same time enable real-time state notification
+		  of future state transitions.
 
-The output format consists of 3 comma separated parameters: 
-  (a) the state name,
-  (b) optional descriptive string (used mostly on RECONNECTING
+The output format consists of 4 comma-separated parameters: 
+  (a) the integer unix date/time,
+  (b) the state name,
+  (c) optional descriptive string (used mostly on RECONNECTING
       and EXITING to show the reason for the disconnect), and
-  (c) optional TUN/TAP local IP address (only shown for CONNECTED).
+  (d) optional TUN/TAP local IP address (shown for ASSIGN_IP
+      and CONNECTED).
 
 Real-time state notifications will have a ">STATE:" prefix
 prepended to them.

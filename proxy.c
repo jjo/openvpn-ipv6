@@ -249,10 +249,11 @@ username_password_as_base64 (const struct http_proxy_info *p,
 
 struct http_proxy_info *
 new_http_proxy (const char *server,
-		int port,
-		bool retry,
+		const int port,
+		const bool retry,
 		const char *auth_method,
 		const char *auth_file,
+		const int timeout,
 		struct gc_arena *gc)
 {
   struct http_proxy_info *p;
@@ -264,6 +265,7 @@ new_http_proxy (const char *server,
   strncpynt (p->server, server, sizeof (p->server));
   p->port = port;
   p->retry = retry;
+  p->timeout = timeout;
   p->auth_method = HTTP_AUTH_NONE;
 
   /* parse authentication method */
@@ -361,7 +363,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
     goto error;
 
   /* receive reply from proxy */
-  if (!recv_line (sd, buf, sizeof(buf), 5, true, NULL, signal_received))
+  if (!recv_line (sd, buf, sizeof(buf), p->timeout, true, NULL, signal_received))
     goto error;
 
   /* remove trailing CR, LF */
@@ -385,7 +387,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
 
           while (true)
             {
-              if (!recv_line (sd, buf, sizeof(buf), 5, true, NULL, signal_received))
+              if (!recv_line (sd, buf, sizeof(buf), p->timeout, true, NULL, signal_received))
                 goto error;
               chomp (buf);
               msg (D_PROXY, "HTTP proxy returned: '%s'", buf);
@@ -406,7 +408,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
           msg (D_PROXY, "Received NTLM Proxy-Authorization phase 2 response");
 
           /* receive and discard everything else */
-          while (recv_line (sd, NULL, 0, 5, true, NULL, signal_received))
+          while (recv_line (sd, NULL, 0, p->timeout, true, NULL, signal_received))
             ;
 
           /* now send the phase 3 reply */
@@ -440,7 +442,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
             goto error;
 
           /* receive reply from proxy */
-          if (!recv_line (sd, buf, sizeof(buf), 5, true, NULL, signal_received))
+          if (!recv_line (sd, buf, sizeof(buf), p->timeout, true, NULL, signal_received))
             goto error;
 
           /* remove trailing CR, LF */
@@ -466,7 +468,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
       /* DEBUGGING -- show a multi-line HTTP error response */
       while (true)
 	{
-	  if (!recv_line (sd, buf, sizeof (buf), 5, true, NULL, signal_received))
+	  if (!recv_line (sd, buf, sizeof (buf), p->timeout, true, NULL, signal_received))
 	    goto error;
 	  chomp (buf);
 	  msg (D_PROXY, "HTTP proxy returned: '%s'", buf);
@@ -476,7 +478,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
     }
 
   /* receive line from proxy and discard */
-  if (!recv_line (sd, NULL, 0, 5, true, NULL, signal_received))
+  if (!recv_line (sd, NULL, 0, p->timeout, true, NULL, signal_received))
     goto error;
 
   /*

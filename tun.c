@@ -44,6 +44,7 @@
 #include "common.h"
 #include "misc.h"
 #include "socket.h"
+#include "manage.h"
 
 #include "memdbg.h"
 
@@ -525,6 +526,17 @@ do_ifconfig (struct tuntap *tt,
        */
       if (!tun)
 	ifconfig_broadcast = print_in_addr_t (tt->broadcast, 0, &gc);
+
+#ifdef ENABLE_MANAGEMENT
+  if (management)
+    {
+      management_set_state (management,
+			    OPENVPN_STATE_ASSIGN_IP,
+			    NULL,
+			    tt->local);
+    }
+#endif
+
 
 #if defined(TARGET_LINUX)
 #ifdef CONFIG_FEATURE_IPROUTE

@@ -236,7 +236,7 @@ tunnel_server_udp_single_threaded (struct context *top)
   init_management_callback_multi (&multi);
 
   /* finished with initialization */
-  initialization_sequence_completed (top, false);
+  initialization_sequence_completed (top, false); /* --mode server --proto udp */
 
   /* per-packet event loop */
   while (true)

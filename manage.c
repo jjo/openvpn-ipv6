@@ -67,7 +67,7 @@ man_help ()
   msg (M_CLIENT, "password type p  : Enter password p for a queried OpenVPN password.");
   msg (M_CLIENT, "signal s         : Send signal s to daemon,");
   msg (M_CLIENT, "                   s = SIGHUP|SIGTERM|SIGUSR1|SIGUSR2.");
-  msg (M_CLIENT, "state [on|off]   : Show state, or turn on/off realtime state notification.");
+  msg (M_CLIENT, "state [on|off] [N|all] : Like log, but show state history.");
   msg (M_CLIENT, "status [n]       : Show current daemon status info using format #n.");
   msg (M_CLIENT, "test n           : Produce n lines of output for testing/debugging.");
   msg (M_CLIENT, "username type u  : Enter username u for a queried OpenVPN username.");
@@ -76,10 +76,41 @@ man_help ()
   msg (M_CLIENT, "END");
 }
 
+static const char *
+man_state_name (const int state)
+{
+  switch (state)
+    {
+    case OPENVPN_STATE_INITIAL:
+      return "INITIAL";
+    case OPENVPN_STATE_CONNECTING:
+      return "CONNECTING";
+    case OPENVPN_STATE_WAIT:
+      return "WAIT";
+    case OPENVPN_STATE_AUTH:
+      return "AUTH";
+    case OPENVPN_STATE_GET_CONFIG:
+      return "GET_CONFIG";
+    case OPENVPN_STATE_ASSIGN_IP:
+      return "ASSIGN_IP";
+    case OPENVPN_STATE_ADD_ROUTES:
+      return "ADD_ROUTES";
+    case OPENVPN_STATE_CONNECTED:
+      return "CONNECTED";
+    case OPENVPN_STATE_RECONNECTING:
+      return "RECONNECTING";
+    case OPENVPN_STATE_EXITING:
+      return "EXITING";
+    default:
+      return "?";
+    }
+}
+
 static void
 man_welcome (struct management *man)
 {
-  msg (M_CLIENT, ">INFO:OpenVPN Management Interface Version %d -- type 'help' for more info", MANAGEMENT_VERSION);
+  msg (M_CLIENT, ">INFO:OpenVPN Management Interface Version %d -- type 'help' for more info",
+       MANAGEMENT_VERSION);
 }
 
 static inline bool
@@ -167,9 +198,10 @@ virtual_output_callback_func (void *arg, const unsigned int flags, const char *s
 
       ++recursive_level;
 
+      CLEAR (e);
       update_time ();
       e.timestamp = now;
-      e.msg_flags = flags;
+      e.u.msg_flags = flags;
       e.string = str;
 
       if (flags & M_FATAL)
@@ -183,7 +215,10 @@ virtual_output_callback_func (void *arg, const unsigned int flags, const char *s
 	  if (flags == M_CLIENT)
 	    out = log_entry_print (&e, LOG_PRINT_CRLF, &gc);
 	  else if (man->connection.log_realtime)
-	    out = log_entry_print (&e, LOG_PRINT_INT_DATE|LOG_PRINT_MSG_FLAGS|LOG_PRINT_PREFIX|LOG_PRINT_CRLF, &gc);
+	    out = log_entry_print (&e, LOG_PRINT_INT_DATE
+				   |   LOG_PRINT_MSG_FLAGS
+				   |   LOG_PRINT_LOG_PREFIX
+				   |   LOG_PRINT_CRLF, &gc);
 	  if (out)
 	    man_output_list_push (man, out);
 	  if (flags & M_FATAL)
@@ -307,96 +342,6 @@ man_kill (struct management *man, struct status_output *so, const char *victim)
   gc_free (&gc);
 }
 
-static const char *
-man_state_name (const int state)
-{
-  switch (state)
-    {
-    case OPENVPN_STATE_INITIAL:
-      return "INITIAL";
-    case OPENVPN_STATE_CONNECTING:
-      return "CONNECTING";
-    case OPENVPN_STATE_CONNECTED:
-      return "CONNECTED";
-    case OPENVPN_STATE_RECONNECTING:
-      return "RECONNECTING";
-    case OPENVPN_STATE_EXITING:
-      return "EXITING";
-    default:
-      return "?";
-    }
-}
-
-static const char *
-man_state_string (const int state,
-		  const char *detail,
-		  const in_addr_t tun_local_ip,
-		  struct gc_arena *gc)
-{
-  struct buffer out = alloc_buf_gc (256, gc);
-  buf_printf (&out, "%s,", man_state_name (state));
-  if (detail)
-    buf_printf (&out, "%s", detail);
-  buf_printf (&out, ",");
-  if (tun_local_ip)
-    buf_printf (&out, "%s", print_in_addr_t (tun_local_ip, 0, gc));
-  return BSTR (&out);
-}
-
-static void
-man_set_state (struct man_persist *mp, const char *state_string)
-{
-  if (mp->state_string)
-    {
-      free (mp->state_string);
-      mp->state_string = NULL;
-    }
-  if (state_string)
-    mp->state_string = string_alloc (state_string, NULL);
-}
-
-static void
-man_output_state_realtime (struct management *man)
-{
-  if (man->connection.state_realtime && man->persist.state_string)
-    msg (M_CLIENT, ">STATE:%s", man->persist.state_string);
-}
-
-static void
-man_state (struct management *man, struct status_output *so, const char *onoff)
-{
-  if (onoff)
-    {
-      if (streq (onoff, "on"))
-	{
-	  man->connection.state_realtime = true;
-	  msg (M_CLIENT, "SUCCESS: real-time state notification set to ON");
-	  man_output_state_realtime (man);
-	}
-      else if (streq (onoff, "off"))
-	{
-	  man->connection.state_realtime = false;
-	  msg (M_CLIENT, "SUCCESS: real-time state notification set to OFF");
-	}
-      else
-	{
-	  msg (M_CLIENT, "ERROR: state parameter must be 'on' or 'off'");
-	}
-    }
-  else
-    {
-      if (man->persist.state_string)
-	{
-	  msg (M_CLIENT, "%s", man->persist.state_string);
-	  msg (M_CLIENT, "END");
-	}
-      else
-	{
-	  msg (M_CLIENT, "ERROR: state is undefined");
-	}
-    }
-}
-
 /*
  * General-purpose history command handler
  * for the log and echo commands.
@@ -425,8 +370,10 @@ man_history (struct management *man,
   else if (streq (parm, "all") || (n = atoi (parm)) > 0)
     {
       const int size = log_history_size (log);
+      const int start = (n ? n : size) - 1;
       int i;
-      for (i = size - 1; i >= 0; --i)
+
+      for (i = start; i >= 0; --i)
 	{
 	  const struct log_entry *e = log_history_ref (log, i);
 	  if (e)
@@ -465,6 +412,17 @@ man_echo (struct management *man, struct status_output *so, const char *parm)
 	       man->persist.echo,
 	       &man->connection.echo_realtime,
 	       LOG_PRINT_INT_DATE);
+}
+
+static void
+man_state (struct management *man, struct status_output *so, const char *parm)
+{
+  man_history (man,
+	       parm,
+	       "state",
+	       man->persist.state,
+	       &man->connection.state_realtime,
+	       LOG_PRINT_INT_DATE|LOG_PRINT_STATE|LOG_PRINT_LOCAL_IP);
 }
 
 static void
@@ -530,7 +488,9 @@ man_query_username (struct management *man, const char *type, const char *string
 static void
 man_query_password (struct management *man, const char *type, const char *string)
 {
-  const bool needed = ((man->connection.up_query_mode == UP_QUERY_USER_PASS || man->connection.up_query_mode == UP_QUERY_PASS) && man->connection.up_query_type);
+  const bool needed = ((man->connection.up_query_mode == UP_QUERY_USER_PASS
+			|| man->connection.up_query_mode == UP_QUERY_PASS)
+		       && man->connection.up_query_type);
   man_query_user_pass (man, type, string, needed, "password", man->connection.up_query.password, USER_PASS_LEN);
 }
 
@@ -635,7 +595,17 @@ man_dispatch_command (struct management *man, struct status_output *so, const ch
     }
   else if (streq (p[0], "state"))
     {
-      man_state (man, so, p[1]);
+      if (!p[1])
+	{
+	  man_state (man, so, "1");
+	}
+      else
+	{
+	  if (p[1])
+	    man_state (man, so, p[1]);
+	  if (p[2])
+	    man_state (man, so, p[2]);
+	}
     }
   else if (streq (p[0], "log"))
     {
@@ -858,8 +828,8 @@ man_process_command (struct management *man, const char *line)
       else
 	msg (D_MANAGEMENT, "MANAGEMENT: CMD '%s'", line);
 
-#if 1
-      // DEBUGGING -- print args JYFIXME
+#if 0
+      // DEBUGGING -- print args
       {
 	int i;
 	for (i = 0; i < nparms; ++i)
@@ -1004,7 +974,8 @@ man_connection_clear (struct man_connection *mc)
 static void
 man_persist_init (struct management *man,
 		  const int log_history_cache,
-		  const int echo_buffer_size)
+		  const int echo_buffer_size,
+		  const int state_buffer_size)
 {
   struct man_persist *mp = &man->persist;
   if (!mp->defined)
@@ -1029,6 +1000,11 @@ man_persist_init (struct management *man,
        */
       man->persist.echo = log_history_init (echo_buffer_size);
 
+      /*
+       * Initialize --state list
+       */
+      man->persist.state = log_history_init (state_buffer_size);
+
       mp->defined = true;
     }
 }
@@ -1045,7 +1021,9 @@ man_persist_close (struct man_persist *mp)
   if (mp->echo)
     log_history_close (mp->echo);
 
-  man_set_state (mp, NULL);
+  if (mp->state)
+    log_history_close (mp->state);
+
   CLEAR (*mp);
 }
       
@@ -1054,13 +1032,21 @@ man_settings_init (struct man_settings *ms,
 		   const char *addr,
 		   const int port,
 		   const char *pass_file,
+		   const bool server,
 		   const bool query_passwords,
 		   const int log_history_cache,
-		   const int echo_buffer_size)
+		   const int echo_buffer_size,
+		   const int state_buffer_size)
 {
   if (!ms->defined)
     {
       CLEAR (*ms);
+
+      /*
+       * Are we a server?  If so, it will influence
+       * the way we handle state transitions.
+       */
+      ms->server = server;
 
       /*
        * Get username/password
@@ -1091,7 +1077,8 @@ man_settings_init (struct man_settings *ms,
 	}
       else
 	{
-	  ms->local.sin_addr.s_addr = getaddr (GETADDR_RESOLVE|GETADDR_WARN_ON_SIGNAL|GETADDR_FATAL, addr, 0, NULL, NULL);
+	  ms->local.sin_addr.s_addr = getaddr
+	    (GETADDR_RESOLVE|GETADDR_WARN_ON_SIGNAL|GETADDR_FATAL, addr, 0, NULL, NULL);
 	}
       
       /*
@@ -1099,6 +1086,7 @@ man_settings_init (struct man_settings *ms,
        */
       ms->log_history_cache = log_history_cache;
       ms->echo_buffer_size = echo_buffer_size;
+      ms->state_buffer_size = state_buffer_size;
 
       ms->defined = true;
     }
@@ -1174,22 +1162,27 @@ management_init (void)
 
   man_persist_init (man,
 		    MANAGEMENT_LOG_HISTORY_INITIAL_SIZE,
-		    MANAGEMENT_ECHO_BUFFER_SIZE);
+		    MANAGEMENT_ECHO_BUFFER_SIZE,
+		    MANAGEMENT_STATE_BUFFER_SIZE);
 
   man_connection_clear (&man->connection);
 
   return man;
 }
 
-void
+bool
 management_open (struct management *man,
 		 const char *addr,
 		 const int port,
 		 const char *pass_file,
+		 const bool server,
 		 const bool query_passwords,
 		 const int log_history_cache,
-		 const int echo_buffer_size)
+		 const int echo_buffer_size,
+		 const int state_buffer_size)
 {
+  bool ret = false;
+
   /*
    * Save the settings only if they have not
    * been saved before.
@@ -1198,16 +1191,19 @@ management_open (struct management *man,
 		     addr,
 		     port,
 		     pass_file,
+		     server,
 		     query_passwords,
 		     log_history_cache,
-		     echo_buffer_size);
+		     echo_buffer_size,
+		     state_buffer_size);
 
   /*
    * The log is initially sized to MANAGEMENT_LOG_HISTORY_INITIAL_SIZE,
-   * but may be changed here.  Ditto for echo buffer.
+   * but may be changed here.  Ditto for echo and state buffers.
    */
   log_history_resize (man->persist.log, man->settings.log_history_cache);
   log_history_resize (man->persist.echo, man->settings.echo_buffer_size);
+  log_history_resize (man->persist.state, man->settings.state_buffer_size);
 
   /*
    * If connection object is uninitialized and we are not doing
@@ -1218,8 +1214,11 @@ management_open (struct management *man,
       if (!man->settings.management_over_tunnel)
 	{
 	  man_connection_init (man);
+	  ret = true;
 	}
     }
+
+  return ret;
 }
 
 void
@@ -1253,16 +1252,33 @@ management_set_state (struct management *man,
 		      const char *detail,
 		      const in_addr_t tun_local_ip)
 {
-  struct gc_arena gc = gc_new ();
-  const char *current = man_state_string (state, detail, tun_local_ip, &gc);
-  ASSERT (state > OPENVPN_STATE_INITIAL);
-  if (state != OPENVPN_STATE_CONNECTING || man->persist.state == OPENVPN_STATE_INITIAL)
+  if (man->persist.state && (!man->settings.server || state < OPENVPN_STATE_CLIENT_BASE))
     {
-      man_set_state (&man->persist, current);
-      man_output_state_realtime (man);
-      man->persist.state = state;
+      struct gc_arena gc = gc_new ();
+      struct log_entry e;
+      const char *out = NULL;
+
+      update_time ();
+      CLEAR (e);
+      e.timestamp = now;
+      e.u.state = state;
+      e.string = detail;
+      e.local_ip = tun_local_ip;
+      
+      log_history_add (man->persist.state, &e);
+
+      if (man->connection.state_realtime)
+	out = log_entry_print (&e, LOG_PRINT_STATE_PREFIX
+			       |   LOG_PRINT_INT_DATE
+                               |   LOG_PRINT_STATE
+			       |   LOG_PRINT_LOCAL_IP
+                               |   LOG_PRINT_CRLF, &gc);
+
+      if (out)
+	man_output_list_push (man, out);
+
+      gc_free (&gc);
     }
-  gc_free (&gc);
 }
 
 void
@@ -1275,8 +1291,9 @@ management_echo (struct management *man, const char *string)
       const char *out = NULL;
 
       update_time ();
+      CLEAR (e);
       e.timestamp = now;
-      e.msg_flags = 0;
+      e.u.msg_flags = 0;
       e.string = string;
       
       log_history_add (man->persist.echo, &e);
@@ -1403,11 +1420,11 @@ management_io (struct management *man)
 	      if (net_events & FD_WRITE)
 		{
 		  int status;
-		  //msg (M_INFO, "FD_WRITE set"); // JYFIXME
+		  //dmsg (M_INFO, "FD_WRITE set");
 		  status = man_write (man);
 		  if (status < 0 && WSAGetLastError() == WSAEWOULDBLOCK)
 		    {
-		      //msg (M_INFO, "FD_WRITE cleared"); // JYFIXME
+		      //dmsg (M_INFO, "FD_WRITE cleared");
 		      net_event_win32_clear_selected_events (&man->connection.ne32, FD_WRITE);
 		    }
 		}
@@ -1857,15 +1874,22 @@ log_entry_print (const struct log_entry *e, unsigned int flags, struct gc_arena 
   struct buffer out = alloc_buf_gc (ERR_BUF_SIZE, gc);
   if (flags & LOG_FATAL_NOTIFY)
     buf_printf (&out, ">FATAL:");    
-  if (flags & LOG_PRINT_PREFIX)
+  if (flags & LOG_PRINT_LOG_PREFIX)
     buf_printf (&out, ">LOG:");
   if (flags & LOG_PRINT_ECHO_PREFIX)
     buf_printf (&out, ">ECHO:");
+  if (flags & LOG_PRINT_STATE_PREFIX)
+    buf_printf (&out, ">STATE:");
   if (flags & LOG_PRINT_INT_DATE)
     buf_printf (&out, "%u,", (unsigned int)e->timestamp);
   if (flags & LOG_PRINT_MSG_FLAGS)
-    buf_printf (&out, "%s,", msg_flags_string (e->msg_flags, gc));
-  buf_printf (&out, "%s", e->string);
+    buf_printf (&out, "%s,", msg_flags_string (e->u.msg_flags, gc));
+  if (flags & LOG_PRINT_STATE)
+    buf_printf (&out, "%s,", man_state_name (e->u.state));
+  if (e->string)
+    buf_printf (&out, "%s", e->string);
+  if (flags & LOG_PRINT_LOCAL_IP)
+    buf_printf (&out, ",%s", print_in_addr_t (e->local_ip, IA_EMPTY_IF_UNDEF, gc));
   if (flags & LOG_PRINT_CRLF)
     buf_printf (&out, "\r\n");
   return BSTR (&out);
@@ -1940,8 +1964,7 @@ log_history_add (struct log_history *h, const struct log_entry *le)
       ++h->size;
     }
 
-  e->timestamp = le->timestamp;
-  e->msg_flags = le->msg_flags;
+  *e = *le;
   e->string = string_alloc (le->string, NULL);
 }
 

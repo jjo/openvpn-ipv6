@@ -34,8 +34,9 @@
 
 #define MANAGEMENT_VERSION                      1
 #define MANAGEMENT_N_PASSWORD_RETRIES           3
-#define MANAGEMENT_LOG_HISTORY_INITIAL_SIZE  1000
-#define MANAGEMENT_ECHO_BUFFER_SIZE           256
+#define MANAGEMENT_LOG_HISTORY_INITIAL_SIZE   100
+#define MANAGEMENT_ECHO_BUFFER_SIZE           100
+#define MANAGEMENT_STATE_BUFFER_SIZE          100
 
 /*
  * Manage build-up of command line
@@ -86,19 +87,30 @@ void output_list_advance (struct output_list *ol, int n);
  * Manage log file history
  */
 
+union log_entry_union {
+  unsigned int msg_flags;
+  int state;
+};
+
 struct log_entry
 {
   time_t timestamp;
-  unsigned int msg_flags;
   const char *string;
+  in_addr_t local_ip;
+  union log_entry_union u;
 };
 
-#define LOG_PRINT_INT_DATE    (1<<0)
-#define LOG_PRINT_MSG_FLAGS   (1<<1)
-#define LOG_PRINT_PREFIX      (1<<2)
-#define LOG_PRINT_ECHO_PREFIX (1<<3)
-#define LOG_PRINT_CRLF        (1<<4)
-#define LOG_FATAL_NOTIFY      (1<<5)
+#define LOG_PRINT_LOG_PREFIX   (1<<0)
+#define LOG_PRINT_ECHO_PREFIX  (1<<1)
+#define LOG_PRINT_STATE_PREFIX (1<<2)
+
+#define LOG_PRINT_INT_DATE     (1<<3)
+#define LOG_PRINT_MSG_FLAGS    (1<<4)
+#define LOG_PRINT_STATE        (1<<5)
+#define LOG_PRINT_LOCAL_IP     (1<<6)
+
+#define LOG_PRINT_CRLF         (1<<7)
+#define LOG_FATAL_NOTIFY       (1<<8)
 
 const char *log_entry_print (const struct log_entry *e, unsigned int flags, struct gc_arena *gc);
 
@@ -160,13 +172,11 @@ struct man_persist {
   struct log_history *log;
   struct virtual_output vout;
 
-  int state; /* OPENVPN_STATE_x */
-  char *state_string;
-
   bool standalone_disabled;
   struct management_callback callback;
 
   struct log_history *echo; /* saved --echo strings */
+  struct log_history *state;
 };
 
 struct man_settings {
@@ -177,6 +187,8 @@ struct man_settings {
   struct user_pass up;
   int log_history_cache;
   int echo_buffer_size;
+  int state_buffer_size;
+  bool server;
 };
 
 /* up_query modes */
@@ -232,13 +244,15 @@ struct user_pass;
 
 struct management *management_init (void);
 
-void management_open (struct management *man,
+bool management_open (struct management *man,
 		      const char *addr,
 		      const int port,
 		      const char *pass_file,
+		      const bool server,
 		      const bool query_passwords,
 		      const int log_history_cache,
-		      const int echo_buffer_size);
+		      const int echo_buffer_size,
+		      const int state_buffer_size);
 
 
 void management_close (struct management *man);
@@ -279,11 +293,21 @@ management_query_user_pass_enabled (const struct management *man)
  * OpenVPN tells the management layer what state it's in
  */
 
-#define OPENVPN_STATE_INITIAL       0
-#define OPENVPN_STATE_CONNECTING    1
-#define OPENVPN_STATE_CONNECTED     2
-#define OPENVPN_STATE_RECONNECTING  3
-#define OPENVPN_STATE_EXITING       4
+/* client/server states */
+#define OPENVPN_STATE_INITIAL       0  /* Initial, undefined state */
+#define OPENVPN_STATE_CONNECTING    1  /* Management interface has been initialized */
+#define OPENVPN_STATE_ASSIGN_IP     2  /* Assigning IP address to virtual network interface */
+#define OPENVPN_STATE_ADD_ROUTES    3  /* Adding routes to system */
+#define OPENVPN_STATE_CONNECTED     4  /* Initialization sequence completed */
+#define OPENVPN_STATE_RECONNECTING  5  /* Restart */
+#define OPENVPN_STATE_EXITING       6  /* Exit */
+
+/* client-only states */
+#define OPENVPN_STATE_WAIT          7  /* Waiting for initial response from server */
+#define OPENVPN_STATE_AUTH          8  /* Authenticating with server */
+#define OPENVPN_STATE_GET_CONFIG    9  /* Downloading configuration from server */
+
+#define OPENVPN_STATE_CLIENT_BASE   7  /* Base index of client-only states */
 
 void management_set_state (struct management *man,
 			   const int state,

@@ -189,6 +189,15 @@ check_connection_established_dowork (struct context *c)
 	  /* if --pull was specified, send a push request to server */
 	  if (c->c2.tls_multi && c->options.pull)
 	    {
+#ifdef ENABLE_MANAGEMENT
+	      if (management)
+		{
+		  management_set_state (management,
+					OPENVPN_STATE_GET_CONFIG,
+					NULL,
+					0);
+		}
+#endif
 	      send_push_request (c);
 
 	      /* if no reply, try again in 5 sec */
@@ -248,7 +257,7 @@ check_add_routes_action (struct context *c, const bool errors)
   update_time ();
   event_timeout_clear (&c->c2.route_wakeup);
   event_timeout_clear (&c->c2.route_wakeup_expire);
-  initialization_sequence_completed (c, errors);
+  initialization_sequence_completed (c, errors); /* client/p2p --route-delay was defined */
 }
 
 void

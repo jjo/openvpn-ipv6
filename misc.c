@@ -1182,11 +1182,20 @@ get_user_pass (struct user_pass *up,
 	   */
 	  FILE *fp;
       
+#ifndef ENABLE_PASSWORD_SAVE
+	  /*
+	   * Unless ENABLE_PASSWORD_SAVE is defined, don't allow sensitive passwords
+	   * to be read from a file.
+	   */
+	  if (flags & GET_USER_PASS_SENSITIVE)
+	    msg (M_FATAL, "Sorry, '%s' password cannot be read from a file", prefix);
+#endif
+
 	  warn_if_group_others_accessible (auth_file);
 
 	  fp = fopen (auth_file, "r");
 	  if (!fp)
-	    msg (M_ERR, "Error opening %s auth file: %s", prefix, auth_file);
+	    msg (M_ERR, "Error opening '%s' auth file: %s", prefix, auth_file);
 
 	  if (password_only)
 	    {
