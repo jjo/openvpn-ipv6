@@ -1,6 +1,11 @@
 OpenVPN
 Copyright 2002 by James Yonan <jim@yonan.net>
 
+2002.04.xx -- Version 1.0.3
+
+* Fixed a problem in configure with library ordering on the
+  command line.
+
 2002.03.28 -- Version 1.0.2
 
 * Improved the efficiency of the inner event loop.

@@ -25,7 +25,7 @@
 
 #include "basic.h"
 
-#define TITLE "OpenVPN 1.0.2 Built On " __DATE__
+#define TITLE "OpenVPN 1.0.3 Built On " __DATE__
 
 /* Command line options */
 struct options

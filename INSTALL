@@ -24,8 +24,16 @@ OPTIONAL (for debugging only):
   (1) Dmalloc library
       -- available from http://dmalloc.com/
 
-BUILD commands:
+BUILD commands (from .tar.gz file):
 
+	./configure
+	make
+	make install
+
+BUILD commands (from CVS):
+
+	autoconf
+	autoheader
 	./configure
 	make
 	make install

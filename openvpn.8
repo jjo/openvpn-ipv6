@@ -665,7 +665,7 @@ any mediation.  The result is the best of both worlds: a fast data channel
 that forwards over UDP with only the overhead of encrypt,
 decrypt, and HMAC functions,
 and a control channel that provides all of the security features of TLS,
-including perfect forward security.
+including certificate-based authentication and perfect forward security.
 .TP
 .B --tls-server
 Enable TLS and assume server role during TLS handshake.  Note that
@@ -1182,10 +1182,9 @@ over the secure tunnel (or vice versa).
 .SH PROTOCOL
 For a description of OpenVPN's underlying protocol,
 see the file ssl.h included in the OpenVPN source distribution.
-.SH BUGS
-Report all bugs to James Yonan <jim@yonan.net>.  Be sure to put
-"openvpn"
-in the subject line.
+.SH SUPPORT
+Report all bugs to the OpenVPN users list <openvpn-users@lists.sourceforge.net>.  To subscribe to the list or see the archives, go to
+.I http://lists.sourceforge.net/lists/listinfo/openvpn-users
 .SH "SEE ALSO"
 .BR dhcpcd (8),
 .BR ifconfig (8),
