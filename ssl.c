@@ -615,6 +615,8 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
     end:
 
       BIO_free(in);
+      if (crl)
+	X509_CRL_free (crl);
       if (!retval)
 	goto err;
     }

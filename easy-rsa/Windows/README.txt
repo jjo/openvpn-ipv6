@@ -2,7 +2,9 @@ Extract all zip'd files to the OpenVPN home directory,
 including the openssl.cnf file from the top-level
 "easy-rsa" directory.
 
-Edit vars.bat to adapt it to your environment.
+First run init-config.bat
+
+Next, edit vars.bat to adapt it to your environment.
 
 To generate TLS keys:
 

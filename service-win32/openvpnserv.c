@@ -53,6 +53,12 @@
 #define ABOVE_NORMAL_PRIORITY_CLASS 0x00008000
 #endif
 
+struct security_attributes
+{
+  SECURITY_ATTRIBUTES sa;
+  SECURITY_DESCRIPTOR sd;
+};
+
 /*
  * This event is initially created in the non-signaled
  * state.  It will transition to the signaled state when
@@ -61,6 +67,12 @@
  * of ServiceStop below.
  */
 #define EXIT_EVENT_NAME "openvpn_exit_1"
+
+/*
+ * Which registry key in HKLM should
+ * we get config info from?
+ */
+#define REG_KEY "SOFTWARE\\OpenVPN"
 
 static HANDLE exit_event = NULL;
 
@@ -74,12 +86,19 @@ static HANDLE exit_event = NULL;
            out [sizeof (out) - 1] = '\0'; \
         }
 
+/*
+ * Message handling
+ */
+#define M_INFO    (0)                                  // informational
+#define M_SYSERR  (MSG_FLAGS_ERROR|MSG_FLAGS_SYS_CODE) // error + system code
+#define M_ERR     (MSG_FLAGS_ERROR)                    // error
+
 /* write error to event log */
-#define ERR(args...) \
+#define MSG(flags, args...) \
         { \
            char x_msg[256]; \
            mysnprintf (x_msg, args); \
-           AddToMessageLog (x_msg); \
+           AddToMessageLog ((flags), x_msg); \
         }
 
 /* get a registry string */
@@ -90,11 +109,61 @@ static HANDLE exit_event = NULL;
     if (status != ERROR_SUCCESS || type != REG_SZ) \
       { \
         SetLastError (status); \
-        ERR (error_format, name); \
+        MSG (M_SYSERR, error_format_str, name); \
 	RegCloseKey (openvpn_key); \
 	goto finish; \
       } \
   }
+
+/* get a registry string */
+#define QUERY_REG_DWORD(name, data) \
+  { \
+    len = sizeof (DWORD); \
+    status = RegQueryValueEx(openvpn_key, name, NULL, &type, (LPBYTE)&data, &len); \
+    if (status != ERROR_SUCCESS || type != REG_DWORD || len != sizeof (DWORD)) \
+      { \
+        SetLastError (status); \
+        MSG (M_SYSERR, error_format_dword, name); \
+	RegCloseKey (openvpn_key); \
+	goto finish; \
+      } \
+  }
+
+bool
+init_security_attributes_allow_all (struct security_attributes *obj)
+{
+  CLEAR (*obj);
+
+  obj->sa.nLength = sizeof (SECURITY_ATTRIBUTES);
+  obj->sa.lpSecurityDescriptor = &obj->sd;
+  obj->sa.bInheritHandle = TRUE;
+  if (!InitializeSecurityDescriptor (&obj->sd, SECURITY_DESCRIPTOR_REVISION))
+    return false;
+  if (!SetSecurityDescriptorDacl (&obj->sd, TRUE, NULL, FALSE))
+    return false;
+  return true;
+}
+
+HANDLE
+create_event (const char *name, bool allow_all, bool initial_state, bool manual_reset)
+{
+  if (allow_all)
+    {
+      struct security_attributes sa;
+      if (!init_security_attributes_allow_all (&sa))
+	return NULL;
+      return CreateEvent (&sa.sa, (BOOL)manual_reset, (BOOL)initial_state, name);
+    }
+  else
+    return CreateEvent (NULL, (BOOL)manual_reset, (BOOL)initial_state, name);
+}
+
+void
+close_if_open (HANDLE h)
+{
+  if (h != NULL)
+    CloseHandle (h);
+}
 
 static bool
 match (const WIN32_FIND_DATA *find, const char *ext)
@@ -111,7 +180,7 @@ match (const WIN32_FIND_DATA *find, const char *ext)
   if (i < 1)
     return false;
 
-  return find->cFileName[i] == '.' && !strcmp (find->cFileName + i + 1, ext);
+  return find->cFileName[i] == '.' && !strcasecmp (find->cFileName + i + 1, ext);
 }
 
 /*
@@ -160,19 +229,21 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
   DWORD priority;
   bool append;
 
+  ResetError ();
+
   if (!ReportStatusToSCMgr(SERVICE_START_PENDING, NO_ERROR, 3000))
     {
-      ERR ("ReportStatusToSCMgr #1 failed");
+      MSG (M_ERR, "ReportStatusToSCMgr #1 failed");
       goto finish;
     }
 
   /*
    * Create our exit event
    */
-  exit_event = CreateEvent (NULL, TRUE, FALSE, EXIT_EVENT_NAME);
-  if (exit_event == NULL)
+  exit_event = create_event (EXIT_EVENT_NAME, false, false, true);
+  if (!exit_event)
     {
-      ERR ("CreateEvent failed on exit event: %s", EXIT_EVENT_NAME);
+      MSG (M_ERR, "CreateEvent failed");
       goto finish;
     }
 
@@ -182,13 +253,13 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
    */
   if (WaitForSingleObject (exit_event, 0) != WAIT_TIMEOUT)
     {
-      ERR ("Exit event is already signaled -- we were not shut down properly");
+      MSG (M_ERR, "Exit event is already signaled -- we were not shut down properly");
       goto finish;
     }
 
   if (!ReportStatusToSCMgr(SERVICE_START_PENDING, NO_ERROR, 3000))
     {
-      ERR ("ReportStatusToSCMgr #2 failed");
+      MSG (M_ERR, "ReportStatusToSCMgr #2 failed");
       goto finish;
     }
 
@@ -201,11 +272,16 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
     DWORD len;
     DWORD type;
     char error_string[256];
-    static const char error_format[] = "Error querying registry key of type REG_SZ: HKLM\\SOFTWARE\\OpenVPN\\%s";
+
+    static const char error_format_str[] =
+      "Error querying registry key of type REG_SZ: HKLM\\" REG_KEY "\\%s";
+
+    static const char error_format_dword[] =
+      "Error querying registry key of type REG_DWORD: HKLM\\" REG_KEY "\\%s";
 
     status = RegOpenKeyEx(
 			  HKEY_LOCAL_MACHINE,
-			  "SOFTWARE\\OpenVPN",
+			  REG_KEY,
 			  0,
 			  KEY_READ,
 			  &openvpn_key);
@@ -213,7 +289,7 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
     if (status != ERROR_SUCCESS)
       {
 	SetLastError (status);
-	ERR ("Registry key HKLM\\SOFTWARE\\OpenVPN not found");
+	MSG (M_SYSERR, "Registry key HKLM\\" REG_KEY " not found");
 	goto finish;
       }
 
@@ -240,19 +316,19 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
 
   /* set process priority */
   priority = NORMAL_PRIORITY_CLASS;
-  if (!strcmp (priority_string, "IDLE_PRIORITY_CLASS"))
+  if (!strcasecmp (priority_string, "IDLE_PRIORITY_CLASS"))
     priority = IDLE_PRIORITY_CLASS;
-  else if (!strcmp (priority_string, "BELOW_NORMAL_PRIORITY_CLASS"))
+  else if (!strcasecmp (priority_string, "BELOW_NORMAL_PRIORITY_CLASS"))
     priority = BELOW_NORMAL_PRIORITY_CLASS;
-  else if (!strcmp (priority_string, "NORMAL_PRIORITY_CLASS"))
+  else if (!strcasecmp (priority_string, "NORMAL_PRIORITY_CLASS"))
     priority = NORMAL_PRIORITY_CLASS;
-  else if (!strcmp (priority_string, "ABOVE_NORMAL_PRIORITY_CLASS"))
+  else if (!strcasecmp (priority_string, "ABOVE_NORMAL_PRIORITY_CLASS"))
     priority = ABOVE_NORMAL_PRIORITY_CLASS;
-  else if (!strcmp (priority_string, "HIGH_PRIORITY_CLASS"))
+  else if (!strcasecmp (priority_string, "HIGH_PRIORITY_CLASS"))
     priority = HIGH_PRIORITY_CLASS;
   else
     {
-      ERR ("Unknown priority name: %s", priority_string);
+      MSG (M_ERR, "Unknown priority name: %s", priority_string);
       goto finish;
     }
 
@@ -264,7 +340,7 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
     append = true;
   else
     {
-      ERR ("Log file append flag (given as '%s') must be '0' or '1'", append_string);
+      MSG (M_ERR, "Log file append flag (given as '%s') must be '0' or '1'", append_string);
       goto finish;
     }
 
@@ -283,7 +359,7 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
     find_handle = FindFirstFile (find_string, &find_obj);
     if (find_handle == INVALID_HANDLE_VALUE)
       {
-        ERR ("Cannot get configuration file list using: %s", find_string);
+        MSG (M_ERR, "Cannot get configuration file list using: %s", find_string);
 	goto finish;
       }
 
@@ -294,8 +370,7 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
       HANDLE log_handle = NULL;
       STARTUPINFO start_info;
       PROCESS_INFORMATION proc_info;
-      SECURITY_ATTRIBUTES sa;
-      SECURITY_DESCRIPTOR sd;
+      struct security_attributes sa;
       char log_file[MAX_PATH];
       char log_path[MAX_PATH];
       char command_line[256];
@@ -303,11 +378,10 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
       CLEAR (start_info);
       CLEAR (proc_info);
       CLEAR (sa);
-      CLEAR (sd);
 
       if (!ReportStatusToSCMgr(SERVICE_START_PENDING, NO_ERROR, 3000))
 	{
-	  ERR ("ReportStatusToSCMgr #3 failed");
+	  MSG (M_ERR, "ReportStatusToSCMgr #3 failed");
 	  FindClose (find_handle);
 	  goto finish;
 	}
@@ -318,7 +392,7 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
 	  /* get log file pathname */
 	  if (!modext (log_file, sizeof (log_file), find_obj.cFileName, "log"))
 	    {
-	      ERR ("Cannot construct logfile name based on: %s", find_obj.cFileName);
+	      MSG (M_ERR, "Cannot construct logfile name based on: %s", find_obj.cFileName);
 	      FindClose (find_handle);
 	      goto finish;
 	    }
@@ -331,19 +405,9 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
 
 	  /* Make security attributes struct for logfile handle so it can
 	     be inherited. */
-	  sa.nLength = sizeof (sa);
-	  sa.lpSecurityDescriptor = &sd;
-	  sa.bInheritHandle = TRUE;
-	  if (!InitializeSecurityDescriptor (&sd, SECURITY_DESCRIPTOR_REVISION))
+	  if (!init_security_attributes_allow_all (&sa))
 	    {
-	      ERR ("InitializeSecurityDescriptor failed");
-	      FindClose (find_handle);
-	      goto finish;
-	    }
-	  if (!SetSecurityDescriptorDacl (&sd, TRUE, NULL, FALSE))
-	    {
-	      ERR ("SetSecurityDescriptorDacl failed");
-	      FindClose (find_handle);
+	      MSG (M_SYSERR, "InitializeSecurityDescriptor start_openvpn failed");
 	      goto finish;
 	    }
 
@@ -351,14 +415,14 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
 	  log_handle = CreateFile (log_path,
 				   GENERIC_WRITE,
 				   FILE_SHARE_READ,
-				   &sa,
+				   &sa.sa,
 				   append ? OPEN_ALWAYS : CREATE_ALWAYS,
 				   FILE_ATTRIBUTE_NORMAL,
 				   NULL);
 
 	  if (log_handle == INVALID_HANDLE_VALUE)
 	    {
-	      ERR ("Cannot open logfile: %s", log_path);
+	      MSG (M_SYSERR, "Cannot open logfile: %s", log_path);
 	      FindClose (find_handle);
 	      goto finish;
 	    }
@@ -368,7 +432,7 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
 	    {
 	      if (SetFilePointer (log_handle, 0, NULL, FILE_END) == INVALID_SET_FILE_POINTER)
 		{
-		  ERR ("Cannot seek to end of logfile: %s", log_path);
+		  MSG (M_SYSERR, "Cannot seek to end of logfile: %s", log_path);
 		  FindClose (find_handle);
 		  goto finish;
 		}
@@ -394,7 +458,7 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
 			     &start_info,
 			     &proc_info))
 	    {
-	      ERR ("CreateProcess failed, exe='%s' cmdline='%s' dir='%s'",
+	      MSG (M_SYSERR, "CreateProcess failed, exe='%s' cmdline='%s' dir='%s'",
 		   exe_path,
 		   command_line,
 		   config_dir);
@@ -411,7 +475,7 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
 	      || !CloseHandle (proc_info.hThread)
 	      || !CloseHandle (log_handle))
 	    {
-	      ERR ("CloseHandle failed");
+	      MSG (M_SYSERR, "CloseHandle failed");
 	      goto finish;
 	    }
 	}
@@ -427,14 +491,14 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
   /* we are now fully started */
   if (!ReportStatusToSCMgr(SERVICE_RUNNING, NO_ERROR, 0))
     {
-      ERR ("ReportStatusToSCMgr SERVICE_RUNNING failed");
+      MSG (M_ERR, "ReportStatusToSCMgr SERVICE_RUNNING failed");
       goto finish;
     }
 
   /* wait for our shutdown signal */
   if (WaitForSingleObject (exit_event, INFINITE) != WAIT_OBJECT_0)
     {
-      ERR ("wait for shutdown signal failed");
+      MSG (M_ERR, "wait for shutdown signal failed");
     }
 
  finish:

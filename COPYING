@@ -1,4 +1,4 @@
-OpenVPN -- An Open Source VPN daemon
+OpenVPN (TM) -- An Open Source VPN daemon
 
 Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
@@ -8,11 +8,16 @@ or any of the bundled components enumerated below, you
 agree to be bound by the conditions of the license for
 each respective component.
 
+OpenVPN trademark
+-----------------
+
+  "OpenVPN" is a trademark of OpenVPN Solutions LLC.
+
+
 OpenVPN license:
 ----------------
 
-  OpenVPN is distributed under GPL license.
-  (See Below).
+  OpenVPN is distributed under GPL license (see Below).
 
   Special exception for linking OpenVPN with OpenSSL:
 

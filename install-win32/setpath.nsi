@@ -4,6 +4,17 @@
 ; and an un.RemoveFromPath which are basically
 ; copies of each other.  Why does NSIS demand
 ; this nonsense?
+;
+; Modified Feb 14, 2005 by Mathias Sundman:
+;   Added code to remove the semicolon at the end of the path
+;   when uninstalling.
+;
+;   Added code to make sure we don't insert an extra semicolon
+;   before our path if there already exist one at the end of
+;   the original path.
+;
+;   Removed duplicated "un. and install" functions and made
+;   macros to duplicate the code instead.
 
 ; example usage
 ;
@@ -33,6 +44,7 @@
 Function AddToPath
   Exch $0
   Push $1
+  Push $2
   
   Call IsNT
   Pop $1
@@ -48,6 +60,10 @@ Function AddToPath
 
   AddToPath_NT:
     ReadRegStr $1 HKCU "Environment" "PATH"
+    StrCpy $2 $1 1 -1 # copy last char
+    StrCmp $2 ";" 0 +2 # if last char == ;
+      StrCpy $1 $1 -1 # remove last char
+
     StrCmp $1 "" AddToPath_NTdoIt
       StrCpy $0 "$1;$0"
       Goto AddToPath_NTdoIt
@@ -56,6 +72,7 @@ Function AddToPath
       SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
   
   AddToPath_done:
+    Pop $2
     Pop $1
     Pop $0
 FunctionEnd
@@ -64,14 +81,16 @@ FunctionEnd
 ; RemoveFromPath - Remove a given dir from the path
 ;     Input: head of the stack
 ;====================================================
-Function RemoveFromPath
+!macro RemoveFromPath un
+Function ${un}RemoveFromPath
   Exch $0
   Push $1
   Push $2
   Push $3
   Push $4
+  Push $5
   
-  Call IsNT
+  Call ${un}IsNT
   Pop $1
   StrCmp $1 1 RemoveFromPath_NT
     ; Not on NT
@@ -107,7 +126,7 @@ Function RemoveFromPath
     ReadRegStr $1 HKCU "Environment" "PATH"
     Push $1
     Push $0
-    Call StrStr ; Find $0 in $1
+    Call ${un}StrStr ; Find $0 in $1
     Pop $0 ; pos of our dir
     IntCmp $0 -1 RemoveFromPath_done
       ; else, it is in path
@@ -118,16 +137,25 @@ Function RemoveFromPath
       StrCpy $1 $1 $0 $2
       StrCpy $3 "$3$1"
 
+      StrCpy $5 $3 1 -1 # copy last char
+      StrCmp $5 ";" 0 +2 # if last char == ;
+        StrCpy $3 $3 -1 # remove last char
+
       WriteRegExpandStr HKCU "Environment" "PATH" $3
       SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
   
   RemoveFromPath_done:
+    Pop $5
     Pop $4
     Pop $3
     Pop $2
     Pop $1
     Pop $0
 FunctionEnd
+!macroend
+!insertmacro RemoveFromPath ""
+!insertmacro RemoveFromPath "un."
+
 
 ;====================================================
 ; StrStr - Finds a given string in another given string.
@@ -136,7 +164,8 @@ FunctionEnd
 ;                      second in the stack - string to find in
 ;          Output: head of the stack
 ;====================================================
-Function StrStr
+!macro StrStr un
+Function ${un}StrStr
   Push $0
   Exch
   Pop $0 ; $0 now have the string to find
@@ -172,13 +201,17 @@ Function StrStr
     Pop $0
     Pop $1
 FunctionEnd
+!macroend
+!insertmacro StrStr ""
+!insertmacro StrStr "un."
 
 ;====================================================
 ; IsNT - Returns 1 if the current system is NT, 0
 ;        otherwise.
 ;     Output: head of the stack
 ;====================================================
-Function IsNT
+!macro IsNT un
+Function ${un}IsNT
   Push $0
   ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" CurrentVersion
   StrCmp $0 "" 0 IsNT_yes
@@ -192,140 +225,7 @@ Function IsNT
     Pop $0
     Push 1
 FunctionEnd
+!macroend
+!insertmacro IsNT ""
+!insertmacro IsNT "un."
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Uninstall stuff
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;====================================================
-; RemoveFromPath - Remove a given dir from the path
-;     Input: head of the stack
-;====================================================
-Function un.RemoveFromPath
-  Exch $0
-  Push $1
-  Push $2
-  Push $3
-  Push $4
-  
-  Call un.IsNT
-  Pop $1
-  StrCmp $1 1 unRemoveFromPath_NT
-    ; Not on NT
-    StrCpy $1 $WINDIR 2
-    FileOpen $1 "$1\autoexec.bat" r
-    GetTempFileName $4
-    FileOpen $2 $4 w
-    GetFullPathName /SHORT $0 $0
-    StrCpy $0 "SET PATH=%PATH%;$0"
-    SetRebootFlag true
-    Goto unRemoveFromPath_dosLoop
-    
-    unRemoveFromPath_dosLoop:
-      FileRead $1 $3
-      StrCmp $3 "$0$\r$\n" unRemoveFromPath_dosLoop
-      StrCmp $3 "$0$\n" unRemoveFromPath_dosLoop
-      StrCmp $3 "$0" unRemoveFromPath_dosLoop
-      StrCmp $3 "" unRemoveFromPath_dosLoopEnd
-      FileWrite $2 $3
-      Goto unRemoveFromPath_dosLoop
-    
-    unRemoveFromPath_dosLoopEnd:
-      FileClose $2
-      FileClose $1
-      StrCpy $1 $WINDIR 2
-      Delete "$1\autoexec.bat"
-      CopyFiles /SILENT $4 "$1\autoexec.bat"
-      Delete $4
-      Goto unRemoveFromPath_done
-
-  unRemoveFromPath_NT:
-    StrLen $2 $0
-    ReadRegStr $1 HKCU "Environment" "PATH"
-    Push $1
-    Push $0
-    Call un.StrStr ; Find $0 in $1
-    Pop $0 ; pos of our dir
-    IntCmp $0 -1 unRemoveFromPath_done
-      ; else, it is in path
-      StrCpy $3 $1 $0 ; $3 now has the part of the path before our dir
-      IntOp $2 $2 + $0 ; $2 now contains the pos after our dir in the path (';')
-      IntOp $2 $2 + 1 ; $2 now containts the pos after our dir and the semicolon.
-      StrLen $0 $1
-      StrCpy $1 $1 $0 $2
-      StrCpy $3 "$3$1"
-
-      WriteRegExpandStr HKCU "Environment" "PATH" $3
-      SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
-  
-  unRemoveFromPath_done:
-    Pop $4
-    Pop $3
-    Pop $2
-    Pop $1
-    Pop $0
-FunctionEnd
-
-;====================================================
-; StrStr - Finds a given string in another given string.
-;               Returns -1 if not found and the pos if found.
-;          Input: head of the stack - string to find
-;                      second in the stack - string to find in
-;          Output: head of the stack
-;====================================================
-Function un.StrStr
-  Push $0
-  Exch
-  Pop $0 ; $0 now have the string to find
-  Push $1
-  Exch 2
-  Pop $1 ; $1 now have the string to find in
-  Exch
-  Push $2
-  Push $3
-  Push $4
-  Push $5
-
-  StrCpy $2 -1
-  StrLen $3 $0
-  StrLen $4 $1
-  IntOp $4 $4 - $3
-
-  unStrStr_loop:
-    IntOp $2 $2 + 1
-    IntCmp $2 $4 0 0 unStrStrReturn_notFound
-    StrCpy $5 $1 $3 $2
-    StrCmp $5 $0 unStrStr_done unStrStr_loop
-
-  unStrStrReturn_notFound:
-    StrCpy $2 -1
-
-  unStrStr_done:
-    Pop $5
-    Pop $4
-    Pop $3
-    Exch $2
-    Exch 2
-    Pop $0
-    Pop $1
-FunctionEnd
-
-;====================================================
-; IsNT - Returns 1 if the current system is NT, 0
-;        otherwise.
-;     Output: head of the stack
-;====================================================
-Function un.IsNT
-  Push $0
-  ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" CurrentVersion
-  StrCmp $0 "" 0 unIsNT_yes
-  ; we are not NT.
-  Pop $0
-  Push 0
-  Return
-
-  unIsNT_yes:
-    ; NT!!!
-    Pop $0
-    Push 1
-FunctionEnd

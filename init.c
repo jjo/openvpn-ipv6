@@ -1514,6 +1514,8 @@ do_option_warnings (struct context *c)
     {
       if (o->duplicate_cn && o->client_config_dir)
 	msg (M_WARN, "WARNING: using --duplicate-cn and --client-config-dir together is probably not what you want");
+      if (o->duplicate_cn && o->ifconfig_pool_persist_filename)
+	msg (M_WARN, "WARNING: --ifconfig-pool-persist will not work with --duplicate-cn");
     }
 #endif
 #endif

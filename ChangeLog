@@ -3,6 +3,41 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.02.16 -- Version 2.0-rc14
+
+* Fixed small memory leak that occurs when --crl-verify
+  is used.
+* Upgraded Windows installer and .nsi script to NSIS 2.05
+  (Mathias Sundman).
+* Changed #include backslash usage in cryptoapi.c to use
+  forward slashes instead (Gisle Vanem).
+* Created easy-rsa/revoke-full to handle revocations in
+  a single step: (a) revoke crt, (b) regenerate CRL, and
+  (c) verify that revocation succeeded.
+* Renamed easy-rsa/Windows/revoke-key to revoke-full so
+  that both *nix and Windows scripts are equivalent.
+	
+2005.02.11 -- Version 2.0-rc13
+
+* Improve human-readability of local/remote options
+  diff, when inconsistencies are present.
+* For Windows easy-rsa, distribute vars.bat.sample and
+  openssl.cnf.sample, then copy them to their normal
+  filenames (without the .sample) when init-config.bat
+  is run.  This is to prevent OpenVPN upgrades from
+  wiping out vars.bat and openssl.cnf edits.
+* Modified service wrapper (Windows) to use a
+  case-insensitive search when scanning for .ovpn files
+  in \Program Files\OpenVPN\config.  Prior versions
+  required an all-lower-case .ovpn file extension.
+* Miscellaneous service wrapper code cleanup.
+* If --user/--group is used on Windows, treat it
+  as a no-op with a warning (this makes it easier to
+  distribute the same client config file to Windows
+  and *nix users).
+* Warn if --ifconfig-pool-persist is used with
+  --duplicate-cn.
+
 2005.02.05 -- Version 2.0-rc12
 
 * Removed some debugging code inadvertently included

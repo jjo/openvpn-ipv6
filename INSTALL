@@ -225,6 +225,10 @@ TUN/TAP Driver Configuration:
 
 * Mac OS X:
 
+  2005.02.13: Angelo Laub has developed a GUI for OS X:
+
+  http://rechenknecht.net/OpenVPN-GUI/
+
   2004.10.26: Mattias Nissler has developed a new TUN/TAP driver for
   MAC OS X:
 
