@@ -1328,6 +1328,9 @@ options_postprocess (struct options *options, bool first_time)
   if (options->local_port_defined && !options->bind_local)
     msg (M_USAGE, "--lport and --nobind don't make sense when used together");
 
+  if (!options->remote_list && !options->bind_local)
+    msg (M_USAGE, "--nobind doesn't make sense unless used with --remote");
+
   /*
    * Check for consistency of management options
    */

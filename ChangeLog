@@ -3,6 +3,20 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.01.27 -- Version 2.0-rc10
+
+* When ./configure is run with plugins enabled (the default),
+  check whether or not dlopen exists in libc before testing
+  for libdl.  This is to fix an issue on FreeBSD and possibly
+  other OSes which bundle libdl functions in libc.
+* On Windows, filter initial WSAEINVAL warning which occurs
+  on the initial read attempt of an unbound socket.
+* The easy-rsa scripts build-key, build-key-pass, and
+  build-key-server will now chmod the .key file
+  to 0600.  This is in addition to the fact the generated
+  keys directory has always been similarly protected
+  (Pete Harlan).
+
 2005.01.23 -- Version 2.0-rc9
 
 * Fixed error "ROUTE: route addition failed using

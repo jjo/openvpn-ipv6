@@ -318,7 +318,7 @@ ignore_sys_error (const int err)
 {
   /* I/O operation pending */
 #ifdef WIN32
-  if (err == WSAEWOULDBLOCK)
+  if (err == WSAEWOULDBLOCK || err == WSAEINVAL)
     return true;
 #else
   if (err == EAGAIN)
