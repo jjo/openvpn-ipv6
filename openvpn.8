@@ -5,7 +5,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "7 June 2002"
+.TH openvpn 8 "12 June 2002"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -15,6 +15,60 @@ openvpn \- secure IP tunnel daemon.
 .ti -4
 .B openvpn
 [\ \fB\-\-help\fR\ ]
+.in -4
+.ti +4
+.hy
+
+.nh
+.in +4
+.ti -4
+.B openvpn
+[\ \fB\-\-config\fR\ \fIfile\fR\ ]
+.in -4
+.ti +4
+.hy
+
+.nh
+.in +4
+.ti -4
+.B openvpn
+[\ \fB\-\-genkey\fR\ ]
+[\ \fB\-\-secret\fR\ \fIfile\fR\ ]
+.in -4
+.ti +4
+.hy
+
+.nh
+.in +4
+.ti -4
+.B openvpn
+[\ \fB\-\-mktun\fR\ ]
+[\ \fB\-\-rmtun\fR\ ]
+[\ \fB\-\-dev\fR\ \fItunX\ |\ tapX\fR\ ]
+[\ \fB\-\-dev\-type\fR\ \fIdevice\-type\fR\ ]
+.in -4
+.ti +4
+.hy
+
+.nh
+.in +4
+.ti -4
+.B openvpn
+[\ \fB\-\-test\-crypto\fR\ ]
+[\ \fB\-\-secret\fR\ \fIfile\fR\ ]
+[\ \fB\-\-auth\fR\ \fIalg\fR\ ]
+[\ \fB\-\-cipher\fR\ \fIalg\fR\ ]
+[\ \fB\-\-keysize\fR\ \fIn\fR\ ]
+[\ \fB\-\-no\-replay\fR\ ]
+[\ \fB\-\-no\-iv\fR\ ]
+.in -4
+.ti +4
+.hy
+
+.nh
+.in +4
+.ti -4
+.B openvpn
 [\ \fB\-\-config\fR\ \fIfile\fR\ ]
 [\ \fB\-\-local\fR\ \fIhost\fR\ ]
 [\ \fB\-\-remote\fR\ \fIhost\fR\ ]
@@ -25,7 +79,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-lport\fR\ \fIport\fR\ ]
 [\ \fB\-\-rport\fR\ \fIport\fR\ ]
 [\ \fB\-\-nobind\fR\ ]
-[\ \fB\-\-dev\fR\ \fItunX\ |\ tapX\fR\ ]
+[\ \fB\-\-dev\fR\ \fItunX\ |\ tapX\ |\ null\fR\ ]
 [\ \fB\-\-dev\-type\fR\ \fIdevice\-type\fR\ ]
 [\ \fB\-\-ifconfig\fR\ \fIl\ r\fR\ ]
 [\ \fB\-\-udp\-mtu\fR\ \fIn\fR\ ]
@@ -61,7 +115,6 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-keysize\fR\ \fIn\fR\ ]
 [\ \fB\-\-no\-replay\fR\ ]
 [\ \fB\-\-no\-iv\fR\ ]
-[\ \fB\-\-test\-crypto\fR\ ]
 [\ \fB\-\-tls\-server\fR\ ]
 [\ \fB\-\-tls\-client\fR\ ]
 [\ \fB\-\-ca\fR\ \fIfile\fR\ ]
@@ -78,12 +131,8 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-tls\-auth\fR\ \fIf\fR\ ]
 [\ \fB\-\-askpass\fR\ ]
 [\ \fB\-\-tls\-verify\fR\ \fIcmd\fR\ ]
-[\ \fB\-\-show\-ciphers\fR\ ]
-[\ \fB\-\-show\-digests\fR\ ]
-[\ \fB\-\-show\-tls\fR\ ]
-[\ \fB\-\-genkey\fR\ ]
-[\ \fB\-\-mktun\fR\ ]
-[\ \fB\-\-rmtun\fR\ ]
+.in -4
+.ti +4
 .hy
 .SH DESCRIPTION
 .LP
@@ -225,60 +274,22 @@ Here is an example configuration file:
 .sp
 #
 # Sample OpenVPN configuration file for
-# office using a pre-shared static key.
+# using a pre-shared static key.
 #
 # '#' or ';' may be used to delimit comments.
 
 # Use a dynamic tun device.
-# For Linux 2.2 or non-Linux OSes,
-# you may want to use an explicit
-# unit number such as "tun1".
-# OpenVPN also supports virtual
-# ethernet "tap" devices.
 dev tun
 
-# 10.1.0.1 is our local VPN endpoint (office).
-# 10.1.0.2 is our remote VPN endpoint (home).
-ifconfig 10.1.0.1 10.1.0.2
+# Our remote peer
+remote mypeer.mydomain
 
-# Our up script will establish routes
-# once the VPN is alive.
-up ./office.up
+# 10.1.0.1 is our local VPN endpoint
+# 10.1.0.2 is our remote VPN endpoint
+ifconfig 10.1.0.1 10.1.0.2
 
 # Our pre-shared static key
 secret static.key
-
-# OpenVPN uses UDP port 5000 by default.
-# Each OpenVPN tunnel must use
-# a different port number which
-# should match on both peers.
-; port 5000
-
-# Downgrade UID and GID to
-# "nobody" after initialization
-# for extra security.
-; user nobody
-; group nobody
-
-# If you built OpenVPN with
-# LZO compression, uncomment
-# out the following line.
-; comp-lzo
-
-# Send a UDP ping to remote once
-# every 15 seconds to keep
-# stateful firewall connection
-# alive.  Uncomment this
-# out if you are using a stateful
-# firewall.
-; ping 15
-
-# Verbosity level.
-# 0 -- quiet except for fatal errors.
-# 1 -- mostly quiet.
-# 5 -- medium output, good for normal operation.
-# 8 -- verbose, good for troubleshooting
-verb 5
 .ft
 .LP
 .RE
@@ -429,7 +440,7 @@ peers which will be initiating connections by using the
 .B --remote
 option.
 .TP
-.B --dev tunX | tapX
+.B --dev tunX | tapX | null
 TUN/TAP virtual network device (
 .B X
 can be omitted for dynamic device in
@@ -520,8 +531,16 @@ option is used).
 
 The MTU (Maximum Transmission Units) is
 the maximum datagram size in bytes that can be sent unfragmented
-over a particular network interface.  OpenVPN requires that packets
-on the control or data channels be sent unfragmented.  OpenVPN
+over a particular network path.  OpenVPN requires that packets
+on the control or data channels be sent unfragmented.
+
+Typically, the UDP MTU should be set to 1500 but may
+need to be reduced to 1450 or lower if large packets
+are dropped.  The optimal size for UDP MTU is the largest
+MTU that can be handled by every router on the link path.
+The UDP MTU value should be equal on both peers.
+
+OpenVPN
 adds a small amount of overhead to each tunnel packet before
 it is forwarded from the TUN device over the secure UDP channel.
 This overhead consists of data fields such as the HMAC signature,
@@ -910,7 +929,7 @@ of what's happening without being swamped by output.
 no output except fatal errors
 .br
 .B 1 --
-show startup header + non-fatal encryption & net errors
+show startup information + connection initiated messages + non-fatal encryption & net errors
 .br
 .B 2 --
 show all parameter settings
@@ -1502,7 +1521,7 @@ above).
 .B --rmtun
 Remove a persistent tunnel.
 .TP
-.B --dev tunX|tapX
+.B --dev tunX | tapX
 TUN/TAP device
 .SH SIGNALS
 .TP
@@ -1565,18 +1584,26 @@ machines with network connectivity between them.  If you have not
 yet installed OpenVPN, consult the INSTALL file included in the OpenVPN
 distribution.
 .SS TUN/TAP Setup:
-If you are using Linux 2.4 or higher, make the tun device node and load
-the tun module:
+If you are using Linux 2.4 or higher,
+make the tun device node and load the tun module:
 .IP
 .B mknod /dev/net/tun c 10 200
 .LP
 .IP
 .B modprobe tun
 .LP
-If you have Linux 2.2 or earlier, you should obtain version 1.1 of the
+If you installed from RPM, the
+.B mknod
+step may be omitted, because the RPM install does that for you.
+
+If you have Linux 2.2, you should obtain version 1.1 of the
 tun/tap driver from
 .I http://vtun.sourceforge.net/tun/
 and follow the installation instructions.
+
+For other platforms, consult the INSTALL file at
+.I http://openvpn.sourceforge.net/install.html
+for more information.
 .SS Firewall Setup:
 If firewalls exist between
 the two machines, they should be set to forward UDP port 5000

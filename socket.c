@@ -175,7 +175,7 @@ udp_socket_set_outgoing_addr (const struct buffer *buf,
 	  usa->actual = *addr;
 	  sock->set_outgoing_initial = true;
 	  mutex_unlock (L_SOCK);
-	  msg (D_HANDSHAKE, "Peer Connection Initiated with %s", print_sockaddr (&usa->actual));
+	  msg (M_INFO, "Peer Connection Initiated with %s", print_sockaddr (&usa->actual));
 	  if (sock->ipchange_command)
 	    {
 	      char command[256];

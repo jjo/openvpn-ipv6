@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.06.09 -- Version 1.2.0.11
+2002.06.12 -- Version 1.2.1
 
 * Added --ping-restart option to restart
   connection on ping timeout using SIGUSR1
@@ -35,6 +35,8 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   in configure.
 * Added --ifconfig code for Mac OS X
   (Christoph Pfisterer).
+* Moved "Peer Connection Initiated" message
+  to --verb level 1.
 * Successfully tested with
   OpenSSL 0.9.7 Beta 1 and AES cipher.
 * Added RPM notes to INSTALL.

@@ -17,14 +17,22 @@ For the latest development version of OpenVPN, go to:
 
 	http://openvpn.sourceforge.net/beta/
 
+For step-by-step installation instructions with real-world
+examples see:
+
+	http://openvpn.sourceforge.net/howto.html
+
+For basic examples see:
+
+	http://openvpn.sourceforge.net/man.html#lbAN
+
 *************************************************************************
 
 SUPPORTED PLATFORMS:
-  (1) Linux 2.2 or higher
+  (1) Linux 2.2+
   (2) Solaris
   (3) OpenBSD 3.0+ (Comes with OpenSSL and tun devices by default)
   (4) Mac OS X Darwin (Experimental)
-  (5) FreeBSD (experimental)
 
 REQUIRES:
   (1) tun and/or tap driver to allow user-space programs to control
@@ -90,12 +98,17 @@ OPTIONS for ./configure:
 
 *************************************************************************
 
-BUILDING ON LINUX 2.4 FROM RPM
+BUILDING ON LINUX 2.4+ FROM RPM
 
-The OpenVPN tarball contains an openvpn.spec file that allows an
-RPM package to be built directly from the tarball.  To use this
-option, download the latest OpenVPN tarball and use the following
-command to build a binary RPM:
+OpenVPN binary RPMs are available for selected platforms:
+
+	http://sourceforge.net/projects/openvpn/
+
+Install a binary RPM with the command:
+
+	rpm -ivh [binary-rpm]
+
+It is also possible to build a binary RPM directly from the tarball:
 
 	rpm -tb [tarball]
 
