@@ -120,6 +120,32 @@ do_ifconfig (const char *dev, const char* dev_type,
       if (openvpn_system (command_line) != 0)
 	msg (M_ERR, "openbsd ifconfig failed");
 
+#elif defined(TARGET_DARWIN)
+
+      /*
+       * Darwin seems to exibit similar behaviour to OpenBSD...
+       */
+
+      snprintf (command_line, sizeof (command_line),
+		IFCONFIG_PATH " %s delete",
+		dev);
+      msg (M_INFO, "%s", command_line);
+      openvpn_system (command_line);
+      msg (M_INFO, "NOTE: Tried to delete pre-existing tun instance -- No Problem if failure");
+
+
+      /* example: ifconfig tun2 10.2.0.2 10.2.0.1 mtu 1450 netmask 255.255.255.255 up */
+      snprintf (command_line, sizeof (command_line),
+		IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
+		dev,
+		ifconfig_local,
+		ifconfig_remote,
+		tun_mtu
+		);
+      msg (M_INFO, "%s", command_line);
+      if (openvpn_system (command_line) != 0)
+	msg (M_ERR, "darwin ifconfig failed");
+
 #else
       msg (M_FATAL, "Sorry, but I don't know how to do 'ifconfig' commands on this operating system.  You should ifconfig your tun/tap device manually or use an --up script.");
 #endif
