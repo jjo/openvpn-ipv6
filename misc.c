@@ -153,8 +153,11 @@ write_pid (const char* filename)
       FILE* fp = fopen (filename, "w");
       const pid_t pid = getpid ();
 
+      if (!fp)
+	msg (M_ERR, "Open error on pid file %s", filename);
       fprintf(fp, "%d\n", pid);
-      fclose (fp);
+      if (fclose (fp))
+	msg (M_ERR, "Close error on pid file %s", filename);
     }
 #else
   msg (M_FATAL, "Sorry but I can't write my pid to '%s' because this operating system doesn't appear to support the getpid() system call", filename);
@@ -226,5 +229,27 @@ openvpn_system (char *command)
 #else
   msg (M_FATAL, "Sorry but I can't execute the shell command '%s' because this operating system doesn't appear to support the system() call", command);
   return -1; /* NOTREACHED */
+#endif
+}
+
+/*
+ * Warn if a given file is group/others accessible.
+ */
+void
+warn_if_group_others_accessible(const char* filename)
+{
+#ifdef HAVE_STAT
+  struct stat st;
+  if (stat (filename, &st))
+    {
+      msg (M_WARN, "WARNING: cannot stat %s", filename);
+    }
+  else
+    {
+      if (st.st_mode & (S_IRWXG|S_IRWXO))
+	msg (M_WARN, "WARNING: file %s is group or others accessible", filename);
+    }
+#else
+  msg (M_WARN, "WARNING: cannot stat %s (stat function missing)", filename);
 #endif
 }

@@ -77,7 +77,7 @@ static const char usage_message[] =
   "--inactive n    : Exit after n seconds of inactivity on tun/tap device.\n"
   "--ping-exit n   : Exit if n seconds pass without reception of remote ping.\n"
   "--ping-restart n: Restart if n seconds pass without reception of remote ping.\n"
-  "--ping-nopeer   : Run the --ping-exit/--ping-restart timer even if we have no\n"
+  "--ping-timer-rem: Run the --ping-exit/--ping-restart timer only if we have a\n"
   "                  remote address.\n"
   "--ping n        : Ping remote once every n seconds over UDP port.\n"
   "--persist-tun   : Keep tun/tap device open across SIGUSR1 or --ping-restart.\n"
@@ -176,6 +176,7 @@ static const char usage_message[] =
   "                  of handshake initiation by any peer (default=%d).\n"
   "--tran-window n : Transition window -- old key can live this many seconds\n"
   "                  after new key renegotiation begins (default=%d).\n"
+  "--single-session: Allow only one session (reset state on restart).\n"
   "--tls-auth f    : Add an additional layer of authentication on top of the TLS\n"
   "                  control channel to protect against DOS attacks.\n"
   "                  f (required) is a shared-secret passphrase file.\n"
@@ -294,7 +295,7 @@ show_settings (const struct options *o)
   SHOW_INT (ping_send_timeout);
   SHOW_INT (ping_rec_timeout);
   SHOW_INT (ping_rec_timeout_action);
-  SHOW_BOOL (ping_nopeer);
+  SHOW_BOOL (ping_timer_remote);
 
   SHOW_BOOL (persist_tun);
   SHOW_BOOL (persist_local_ip);
@@ -350,6 +351,8 @@ show_settings (const struct options *o)
 
   SHOW_INT (handshake_window);
   SHOW_INT (transition_window);
+
+  SHOW_BOOL (single_session);
 
   SHOW_STR (tls_auth_file);
 #endif
@@ -817,9 +820,9 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
       options->ping_rec_timeout = positive (atoi (p2));
       options->ping_rec_timeout_action = PING_RESTART;
     }
-  else if (streq (p1, "ping-nopeer"))
+  else if (streq (p1, "ping-timer-rem"))
     {
-      options->ping_nopeer = true;
+      options->ping_timer_remote = true;
     }
   else if (streq (p1, "persist-tun"))
     {
@@ -955,6 +958,10 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
   else if (streq (p1, "askpass"))
     {
       options->askpass = true;
+    }
+  else if (streq (p1, "single-session"))
+    {
+      options->single_session = true;
     }
   else if (streq (p1, "tls-cipher") && p2)
     {

@@ -513,6 +513,7 @@ openvpn (const struct options *options,
       to.renegotiate_bytes = options->renegotiate_bytes;
       to.renegotiate_packets = options->renegotiate_packets;
       to.renegotiate_seconds = options->renegotiate_seconds;
+      to.single_session = options->single_session;
 
       /* TLS handshake authentication (--tls-auth) */
       if (options->tls_auth_file)
@@ -776,7 +777,7 @@ openvpn (const struct options *options,
        * not received in n seconds?
        */
       if (options->ping_rec_timeout &&
-	  (options->ping_nopeer || addr_defined (&udp_socket_addr->actual)))
+	  (!options->ping_timer_remote || addr_defined (&udp_socket_addr->actual)))
 	{
 	  if (event_timeout_trigger (&ping_rec_interval, current)) 
 	    {

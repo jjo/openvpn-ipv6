@@ -64,7 +64,7 @@ struct options
   int inactivity_timeout;
   int ping_send_timeout;        /* Send a UDP ping to remote every n seconds */
   int ping_rec_timeout;         /* Expect a UDP ping from remote at least once every n seconds */
-  bool ping_nopeer;             /* Run ping timer even if we have no remote address */
+  bool ping_timer_remote;       /* Run ping timer only if we have a remote address */
 
   #define PING_UNDEF   0
   #define PING_EXIT    1
@@ -140,6 +140,9 @@ struct options
 
   /* Special authentication MAC for TLS control channel */
   const char *tls_auth_file;		/* shared secret */
+
+  /* Allow only one session */
+  bool single_session;
 #endif /* USE_SSL */
 #endif /* USE_CRYPTO */
 };

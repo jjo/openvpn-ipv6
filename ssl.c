@@ -323,6 +323,7 @@ init_ssl (bool server,
   /* Load Private Key */
   if (!SSL_CTX_use_PrivateKey_file (ctx, priv_key_file, SSL_FILETYPE_PEM))
     msg (M_SSLERR, "Cannot load private key file %s", priv_key_file);
+  warn_if_group_others_accessible (priv_key_file);
 
   /* Check Private Key */
   if (!SSL_CTX_check_private_key (ctx))
@@ -2104,6 +2105,17 @@ tls_pre_decrypt (struct tls_multi *multi,
 	    }
 	  
 	  /*
+	   * If --single-session, don't allow more than one session.
+	   */
+	  if (multi->opt.single_session && new_link && multi->n_sessions)
+	    {
+	      msg (D_TLS_ERRORS,
+		   "TLS Error: Cannot accept new session request from %s due to --single-session",
+		   print_sockaddr (from));
+	      goto done;
+	    }
+
+	  /*
 	   * We have an authenticated packet (if --tls-auth was set).
            * Now pass to our reliability level which deals with
 	   * packet acknowledgements, retransmits, sequencing, etc.
@@ -2127,6 +2139,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 	      {
 		ks->session_id_remote = sid;
 		ks->remote_addr = *from;
+		++multi->n_sessions;
 	      }
 	    else if (!addr_match (&ks->remote_addr, from))
 	      {

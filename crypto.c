@@ -31,6 +31,7 @@
 
 #include "crypto.h"
 #include "error.h"
+#include "misc.h"
 
 #include "memdbg.h"
 
@@ -818,6 +819,7 @@ get_tls_handshake_key (const struct key_type *key_type,
 	      total_size += size;
 	    }
 	  close (fd);
+	  warn_if_group_others_accessible (passphrase_file);
 	  if (total_size < min_passphrase_size)
 	    msg (M_FATAL,
 		 "Passphrase file %s is too small (must have at least %d characters)",
@@ -950,6 +952,8 @@ read_key_file (struct key *key, const char *filename)
   /* zero file read buffer */
   memset(in.data, 0, in.capacity);
 
+  warn_if_group_others_accessible (filename);
+
   /* pop our garbage collection level */
   gc_free_level (gc_level);
 }
@@ -979,7 +983,8 @@ write_key_file (const struct key *key, const char *filename)
   size = write (fd, BPTR(&out), len);
   if (size != len)
     msg (M_ERR, "Write error on shared secret file %s", filename);
-  close (fd);
+  if (close (fd))
+    msg (M_ERR, "Close error on shared secret file %s", filename);
 
   /* zero memory that held keys (memory will be freed by garbage collector) */
   memset (BPTR(&out), 0, len);

@@ -194,6 +194,7 @@ struct tls_options
 
   /* from command line */
   bool packet_id;
+  bool single_session;
   int transition_window;
   int handshake_window;
   int packet_timeout;
@@ -289,6 +290,14 @@ struct tls_multi
    */
   struct key_state *save_ks;	/* temporary pointer used between pre/post routines */
 
+  /*
+   * Number of sessions negotiated thus far.
+   */
+  int n_sessions;
+
+  /*
+   * Our session objects.
+   */
   struct tls_session session[TM_SIZE];
 };
 

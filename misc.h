@@ -43,3 +43,5 @@ int daemon (int nochdir, int noclose);
 
 /* Wrapper around the system() call. */
 int openvpn_system (char *command);
+
+void warn_if_group_others_accessible(const char* filename);
