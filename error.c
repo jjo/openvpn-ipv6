@@ -39,7 +39,6 @@
 #include "memdbg.h"
 
 /* Globals */
-bool _use_syslog;
 int _debug_level;
 int _cs_info_level;
 int _cs_verbose_level;
@@ -48,6 +47,12 @@ int _cs_verbose_level;
 static int mute_cutoff;
 static int mute_count;
 static int mute_category;
+
+/* Should messages be written to the syslog? */
+static bool use_syslog;
+
+/* If non-null, messages should be written here */
+static FILE *msgfp;
 
 void
 set_debug_level (int level)
@@ -64,13 +69,21 @@ set_mute_cutoff (int cutoff)
 void
 error_reset ()
 {
-  _use_syslog = false;
+  use_syslog = false;
   _debug_level = 1;
   _cs_info_level = 0;
   _cs_verbose_level = 0;
   mute_cutoff = 0;
   mute_count = 0;
   mute_category = 0;
+
+#ifdef OPENVPN_DEBUG_COMMAND_LINE
+  msgfp = fopen (OPENVPN_DEBUG_FILE, "w");
+  if (!msgfp)
+    exit (OPENVPN_EXIT_STATUS_CANNOT_OPEN_DEBUG_FILE); /* exit point */
+#else
+  msgfp = NULL;
+#endif
 }
 
 void
@@ -79,6 +92,21 @@ set_check_status (int info_level, int verbose_level)
   _cs_info_level = info_level;
   _cs_verbose_level = verbose_level;
 }
+
+/*
+ * Return a file to print messages to before syslog is opened.
+ */
+FILE *
+msg_fp()
+{
+  FILE *fp = msgfp;
+  if (!fp)
+    fp = OPENVPN_MSG_FP;
+  if (!fp)
+    exit (OPENVPN_EXIT_STATUS_CANNOT_OPEN_DEBUG_FILE); /* exit point */
+  return fp;
+}
+
 
 #define SWAP { tmp = m1; m1 = m2; m2 = tmp; }
 #define ERR_BUF_SIZE 1024
@@ -173,7 +201,7 @@ _msg (unsigned int flags, const char *format, ...)
   else
     level = LOG_NOTICE;
 
-  if (_use_syslog)
+  if (use_syslog)
     {
 #if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
       syslog (level, "%s", m1);
@@ -181,13 +209,14 @@ _msg (unsigned int flags, const char *format, ...)
     }
   else
     {
+      FILE *fp = msg_fp();
 #ifdef USE_PTHREAD
-      printf ("%d[%d]: %s\n", msg_line_num, thread_number (), m1);
+      fprintf (fp, "%d[%d]: %s\n", msg_line_num, thread_number (), m1);
 #else
-      printf ("%d: %s\n", msg_line_num, m1);
+      fprintf (fp, "%d: %s\n", msg_line_num, m1);
 #endif
+      fflush(fp);
       ++msg_line_num;
-      fflush(stdout);
     }
 
   if (flags & M_FATAL)
@@ -212,22 +241,28 @@ become_daemon (const char *cd)
 #if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
   if (daemon (cd != NULL, 0) < 0)
     msg (M_ERR, "daemon() failed");
-  openlog ("openvpn", LOG_PID, LOG_DAEMON);
+  if (!msgfp)
+    {
+      openlog ("openvpn", LOG_PID, LOG_DAEMON);
+      use_syslog = true;
+    }
 #else
   msg (M_WARN, "Warning on use of --daemon: this operating system lacks daemon logging features, therefore when I become a daemon, I won't be able to log status or error messages");
   if (daemon (cd != NULL, 0) < 0)
     msg (M_ERR, "daemon() failed");
 #endif
-  _use_syslog = true;
 }
 
 void
 become_inetd_server ()
 {
 #if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
-  openlog ("openvpn", LOG_PID, LOG_DAEMON);
+  if (!msgfp)
+    {
+      openlog ("openvpn", LOG_PID, LOG_DAEMON);
+      use_syslog = true;
+    }
 #else
   msg (M_WARN, "Warning on use of --inetd: this operating system lacks syslog logging features, therefore I won't be able to log status or error messages as an inetd server");
 #endif
-  _use_syslog = true;
 }

@@ -34,7 +34,6 @@
  * These globals should not be accessed directly,
  * but rather through macros or inline functions defined below.
  */
-extern bool _use_syslog;
 extern int _debug_level;
 extern int _cs_info_level;
 extern int _cs_verbose_level;
@@ -87,6 +86,11 @@ void error_reset ();
 void set_check_status (int info_level, int verbose_level);
 void set_debug_level (int level);
 void set_mute_cutoff (int cutoff);
+
+/*
+ * File to print messages to before syslog is opened.
+ */
+FILE *msg_fp();
 
 /* Fatal logic errors */
 #define ASSERT(x) do { if (!(x)) assert_failed(__FILE__, __LINE__); } while (false)

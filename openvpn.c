@@ -1445,12 +1445,20 @@ main (int argc, char *argv[])
   bool first_time = true;
   int sig;
 
+  error_reset ();                /* initialize error.c */
+
+#ifdef OPENVPN_DEBUG_COMMAND_LINE
+  {
+    int i;
+    for (i = 0; i < argc; ++i)
+      msg (M_INFO, "argv[%d] = '%s'", i, argv[i]);
+  }
+#endif
+
 #ifdef PID_TEST
   packet_id_interactive_test();  /* test the sequence number code */
   goto exit;
 #endif
-
-  error_reset ();                /* initialize error.c */
 
   do {
     struct options options;

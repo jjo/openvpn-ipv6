@@ -432,21 +432,25 @@ static void
 usage ()
 {
   struct options o;
+  FILE *fp = msg_fp();
+
   init_options (&o);
+
 #if defined(USE_CRYPTO) && defined(USE_SSL)
-  printf (usage_message,
+  fprintf (fp, usage_message,
 	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.tun_mtu_extra,
 	  o.verbosity, o.authname, o.ciphername, o.tls_timeout,
 	  o.renegotiate_seconds, o.handshake_window, o.transition_window);
 #elif defined(USE_CRYPTO)
-  printf (usage_message,
+  fprintf (fp, usage_message,
 	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.tun_mtu_extra,
 	  o.verbosity, o.authname, o.ciphername);
 #else
-  printf (usage_message,
+  fprintf (fp, usage_message,
 	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.tun_mtu_extra,
 	  o.verbosity);
 #endif
+  fflush(fp);
 
   exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
@@ -461,7 +465,8 @@ usage_small ()
 void
 usage_version ()
 {
-  printf ("%s\nCopyright (C) 2002 James Yonan <jim@yonan.net>\n", TITLE);
+  msg (M_INFO, "%s", TITLE);
+  msg (M_INFO, "Copyright (C) 2002 James Yonan <jim@yonan.net>");
   exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
 
