@@ -149,6 +149,18 @@ do_ifconfig (const char *dev, const char *dev_type,
       msg (M_INFO, "%s", command_line);
       system_check (command_line, "OpenBSD ifconfig failed", true);
 
+#elif defined(TARGET_NETBSD)
+
+      snprintf (command_line, sizeof (command_line),
+	        IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
+	        dev,
+		ifconfig_local,
+                ifconfig_remote,
+                tun_mtu
+                );
+      msg (M_INFO, "%s", command_line);
+      system_check (command_line, "NetBSD ifconfig failed", true);
+
 #elif defined(TARGET_DARWIN)
 
       /*

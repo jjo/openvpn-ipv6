@@ -253,6 +253,9 @@
 /* Are we running on Linux? */
 #undef TARGET_LINUX
 
+/* Are we running NetBSD? */
+#undef TARGET_NETBSD
+
 /* Are we running on OpenBSD? */
 #undef TARGET_OPENBSD
 

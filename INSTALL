@@ -34,6 +34,7 @@ SUPPORTED PLATFORMS:
   (3) OpenBSD 3.0+ (Comes with OpenSSL and tun devices by default)
   (4) Mac OS X Darwin (Experimental)
   (5) FreeBSD (Experimental)
+  (6) NetBSD (Experimental)
 
 REQUIRES:
   (1) tun and/or tap driver to allow user-space programs to control

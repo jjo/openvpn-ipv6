@@ -94,6 +94,8 @@ ifconfig_order()
   return IFCONFIG_BEFORE_TUN_OPEN;
 #elif defined(TARGET_DARWIN)
   return IFCONFIG_AFTER_TUN_OPEN;
+#elif defined(TARGET_NETBSD)
+  return IFCONFIG_AFTER_TUN_OPEN;
 #else
   return IFCONFIG_DEFAULT;
 #endif

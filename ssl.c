@@ -924,6 +924,29 @@ move_session(struct tls_multi* multi, int dest, int src, bool reinit_src)
   msg (D_TLS_DEBUG, "move_session: exit");
 }
 
+static void
+reset_session (struct tls_multi *multi, struct tls_session *session)
+{
+  tls_session_free (session, false);
+  tls_session_init (multi, session);
+}
+
+#if 0
+/*
+ * Transmit a TLS reset on our untrusted channel.
+ */
+static void
+initiate_untrusted_session (struct tls_multi *multi, struct sockaddr_in *to)
+{
+  struct tls_session *session = &multi->session[TM_UNTRUSTED];
+  struct key_state *ks = &session->key[KS_PRIMARY];
+
+  reset_session (multi, session);
+  ks->remote_addr = *to;
+  msg (D_TLS_DEBUG_LOW, "initiate_untrusted_session: addr=%s", print_sockaddr (to));
+}
+#endif
+
 /*
  * Used to determine in how many seconds we should be
  * called again.
@@ -1242,7 +1265,8 @@ tls_process (struct tls_multi *multi,
 	     struct buffer *to_udp,
 	     struct sockaddr_in *to_udp_addr,
 	     struct udp_socket *to_udp_socket,
-	     time_t * wakeup, time_t current)
+	     time_t * wakeup,
+	     time_t current)
 {
   struct buffer *buf;
   bool state_change = false;
@@ -1652,10 +1676,7 @@ tls_multi_process (struct tls_multi *multi,
 	      if (i == TM_ACTIVE && ks_lame->state == S_ACTIVE)
 		move_session(multi, TM_LAME_DUCK, TM_ACTIVE, true);
 	      else
-		{
-		  tls_session_free (session, false);
-		  tls_session_init (multi, session);
-		}
+		reset_session (multi, session);
 	    }
 	}
       mutex_cycle (L_TLS);
@@ -2002,6 +2023,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 		  return ret;
 		}
 	    }
+
 	  msg (D_TLS_ERRORS,
 	       "TLS Error: Unknown data channel key ID or IP address received from %s: %d",
 	       print_sockaddr (from), key_id);
@@ -2154,7 +2176,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 	       */
 	      if (!new_link && !addr_match (&ks->remote_addr, from))
 		{
-		  msg(D_TLS_ERRORS, "TLS Error: Received control packet from unexpected IP addr: %s",
+		  msg (D_TLS_ERRORS, "TLS Error: Received control packet from unexpected IP addr: %s",
 		      print_sockaddr (from));
 		  goto done;
 		}

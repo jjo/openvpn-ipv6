@@ -16,6 +16,7 @@ PLATFORM STATUS:
   * OpenBSD 3.0 (supported but pthreads are broken)
   * Max OS X Darwin (experimental)
   * FreeBSD (experimental)
+  * NetBSD (experimental)
   * Windows (under development -- OpenVPN daemon has been
     ported to Cygwin, but we still need a tun or tap
     driver to be written for windows).
@@ -66,6 +67,13 @@ PORTING NOTES:
   * Stress test the link by doing ping -f across it.
   * Make sure that packet fragmenting is happening
     correctly by doing a ping -s 2000 or higher.
+  * Ensure that OpenVPN on your platform will talk
+    to OpenVPN on other platforms such as Linux.
+    Some tun/tap driver implementations will prepend
+    unnecessary stuff onto the datagram that must be
+    disabled with an explicit ioctl call if cross-platform
+    compatibility is to be preserved.  You can see some
+    examples of this in tun.c.
   * If your system supports pthreads, try building
     with ./configure --enable-pthread and do a stress
     test in TLS mode.

@@ -196,6 +196,14 @@
 
 #endif /* TARGET_FREEBSD */
 
+#ifdef TARGET_NETBSD
+
+#ifdef HAVE_NET_IF_TUN_H
+#include <net/if_tun.h>
+#endif
+
+#endif /* TAGET_NETBSD */
+
 #ifdef HAVE_SYS_MMAN_H
 #ifdef TARGET_DARWIN
 #define _P1003_1B_VISIBLE

@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.1.1], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.1.2], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 
 AC_ARG_ENABLE(lzo,
@@ -115,6 +115,9 @@ case "$target" in
 	;;
 *freebsd*)
 	AC_DEFINE(TARGET_FREEBSD, 1, [Are we running on FreeBSD?])
+	;;
+*netbsd*)
+	AC_DEFINE(TARGET_NETBSD, 1, [Are we running NetBSD?])
 	;;
 *darwin*)
 	dnl some Mac OS X tendering (we use vararg macros...)
