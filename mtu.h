@@ -41,7 +41,7 @@
 #define DEFAULT_TUN_MTU 1300
 
 struct frame {
-  int mtu;       /* MTU of tun/tap device */
+  int mtu;       /* MTU of tun/tap device, set by ifconfig */
 
   /*
    * extra_frame: How many extra bytes might each subsystem (crypto, TLS, or, compression)
@@ -59,25 +59,51 @@ struct frame {
   int extra_buffer;
 
   /*
-   * extra_tun: max number of bytes that might be removed from head
-   * of incoming packet from tun device, or prepended to outgoing
-   * tun packet.
+   * extra_tun: max number of bytes in excess of mtu size that we might read
+   * or write from tun/tap device.
    */
   int extra_tun;
 };
 
 /* Routines which read struct frame should use the macros below */
 
-#define BUF_SIZE(f)          ((f)->mtu + (f)->extra_frame + (f)->extra_buffer + (f)->extra_tun)
-#define EXTRA_FRAME(f)       ((f)->extra_frame + (f)->extra_tun)
+/*
+ * This is the size to "ifconfig" the tun or tap device.
+ */
 #define MTU_SIZE(f)          ((f)->mtu)
-#define MTU_EXTRA_SIZE(f)    ((f)->mtu + (f)->extra_frame)
+
+/*
+ * This is the maximum packet size that we need to be able to
+ * read from or write to a tun or tap device.  For example,
+ * a tap device ifconfiged to an MTU of 1200 might actually want
+ * to return a packet size of 1214 on a read().
+ */
+#define PAYLOAD_SIZE(f)      ((f)->mtu + (f)->extra_tun)
+
+/*
+ * In general, OpenVPN packet building routines set the initial
+ * buffer store point this many bytes into the data buffer to
+ * allow for efficient prepending.
+ */
+#define EXTRA_FRAME(f)       ((f)->extra_frame)
+
+/*
+ * Max size of a payload packet after encryption, compression, etc.
+ * overhead is added.
+ */
+#define EXPANDED_SIZE(f)     (PAYLOAD_SIZE(f) + EXTRA_FRAME(f))
+
+/*
+ * Max size of a buffer used to build a packet for output to
+ * the UDP port.
+ */
+#define BUF_SIZE(f)          (EXPANDED_SIZE(f) + (f)->extra_buffer)
 
 /*
  * These values are used as maximum size constraints
  * on read() or write() from tun/tap device or UDP port.
  */
-#define MAX_RW_SIZE_TUN(f)   ((f)->mtu + (f)->extra_tun)
-#define MAX_RW_SIZE_UDP(f)   ((f)->mtu + (f)->extra_frame)
+#define MAX_RW_SIZE_TUN(f)   (PAYLOAD_SIZE(f))
+#define MAX_RW_SIZE_UDP(f)   (EXPANDED_SIZE(f))
 
 #endif

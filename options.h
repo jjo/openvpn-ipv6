@@ -57,6 +57,7 @@ struct options
   const char *ifconfig_remote;
   int shaper;
   int tun_mtu;          /* MTU of tun device */
+  int tun_mtu_extra;
   int udp_mtu;          /* MTU of device over which tunnel packets pass via UDP */
   bool tun_mtu_defined; /* true if user overriding parm with command line option */
   bool udp_mtu_defined; /* true if user overriding parm with command line option */

@@ -1,10 +1,15 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.11.11 -- Version 1.3.2.1
+2002.11.27 -- Version 1.3.2.2
 
 * Added --replay-persist feature to allow replay
   protection across sessions.
+* Fixed bug where --ifconfig could not be used
+  with --tun-mtu.
+* Added --tun-mtu-extra parameter to deal with
+  the situation where a read on a TUN/TAP device
+  returns more data than the device's MTU size.
 
 2002.10.23 -- Version 1.3.2
 

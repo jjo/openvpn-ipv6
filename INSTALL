@@ -30,13 +30,13 @@ For basic examples see:
 SUPPORTED PLATFORMS:
   (1) Linux 2.2+
   (2) Solaris
-  (3) OpenBSD 3.0+ (Comes with OpenSSL and tun devices by default)
+  (3) OpenBSD 3.0+ (Comes with OpenSSL and TUN devices by default)
   (4) Mac OS X Darwin (Experimental)
   (5) FreeBSD (Experimental)
   (6) NetBSD (Experimental)
 
 REQUIRES:
-  (1) tun and/or tap driver to allow user-space programs to control
+  (1) TUN and/or TAP driver to allow user-space programs to control
       a virtual point-to-point IP or Ethernet device.  See
       TUN/TAP Driver Configuration section below for more info.
 
@@ -162,7 +162,7 @@ TUN/TAP Driver Configuration:
   See man rc(8) to find out how you can do this at boot time.
 
   The easiest way is to install OpenVPN from the FreeBSD ports system,
-  the port includes a sample script to automatically load the tap driver
+  the port includes a sample script to automatically load the TAP driver
   at boot-up time.
 
 * OpenBSD:
@@ -171,7 +171,7 @@ TUN/TAP Driver Configuration:
 
 * Mac OS X:
 
-  Obtain Christoph Pfisterer's tun driver at
+  Obtain Christoph Pfisterer's TUN driver at
   http://chrisp.de/en/projects/tunnel.html
 
  See the man page for more information, usage examples, and

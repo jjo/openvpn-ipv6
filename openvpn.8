@@ -5,7 +5,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "20 October 2002"
+.TH openvpn 8 "27 November 2002"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -87,6 +87,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-ifconfig\fR\ \fIl\ r\fR\ ]
 [\ \fB\-\-udp\-mtu\fR\ \fIn\fR\ ]
 [\ \fB\-\-tun\-mtu\fR\ \fIn\fR\ ]
+[\ \fB\-\-tun\-mtu\-extra\fR\ \fIn\fR\ ]
 [\ \fB\-\-shaper\fR\ \fIn\fR\ ]
 [\ \fB\-\-inactive\fR\ \fIn\fR\ ]
 [\ \fB\-\-ping\fR\ \fIn\fR\ ]
@@ -200,11 +201,11 @@ it passes this test suite
 option below).
 
 OpenVPN is designed to work with the
-.B tun/tap driver
+.B TUN/TAP driver
 which supports both IP and Ethernet
-tunneling.  OpenVPN supports both dynamic and persistent tun/tap tunnels.
+tunneling.  OpenVPN supports both dynamic and persistent TUN/TAP tunnels.
 OpenVPN can construct multiple tunnels to or from the same peer and
-will peacefully co-exist with other applications which construct tun/tap tunnels.
+will peacefully co-exist with other applications which construct TUN/TAP tunnels.
 
 OpenVPN supports building multiple tunnels between the same two peers, where
 each tunnel has a different maximum bandwidth (see the
@@ -470,7 +471,7 @@ should be
 .B tun
 or
 .B tap.
-Use this option only if the tun/tap device used with
+Use this option only if the TUN/TAP device used with
 .B --dev
 does not begin with
 .B tun
@@ -484,14 +485,14 @@ Should be used in conjunction with
 or
 .B --dev tunX.
 A warning will be displayed
-if no specific IPv6 tun support for your OS has been compiled into OpenVPN.
+if no specific IPv6 TUN support for your OS has been compiled into OpenVPN.
 .TP
 .B --dev-node node
 Explicitly set the device node rather than using
 /dev/net/tun, /dev/tun, /dev/tap, etc.  If OpenVPN
 cannot figure out whether
 .B node
-is a tun or tap device based on the name, you should
+is a TUN or TAP device based on the name, you should
 also specify
 .B --dev-type tun
 or
@@ -602,14 +603,21 @@ See
 .B --udp-mtu
 above more more information on MTU.
 
-Using this option is discouraged because it defeats
-OpenVPN's ability to automatically set the TUN MTU based
-on the UDP MTU.
-
 Using the
 .B --ifconfig
-option is the recommended method of configuring the
-TUN device MTU automatically.
+option is the recommended method of configuring
+a TUN device MTU automatically.
+.TP
+.B --tun-mtu-extra n
+Assume that the TUN/TAP device might return as many as
+.B n
+bytes more than the
+.B --tun-mtu
+size on read.  This parameter defaults to 0, which is sufficient for
+most TUN devices.  TAP devices introduce additional overhead in excess
+of the MTU size, and a setting of 64 would be a conservative choice for
+TAP device usage.  This parameter only controls internal OpenVPN buffer sizing,
+so there is no transmission overhead associated with using a larger value.
 .TP
 .B --shaper n
 Limit bandwidth of outgoing tunnel data to
@@ -649,7 +657,7 @@ to be between 100 bytes/sec and 100 Mbytes/sec.
 .B --inactive n
 Causes OpenVPN to exit after
 .B n
-seconds of inactivity on the tun/tap device.  The time length
+seconds of inactivity on the TUN/TAP device.  The time length
 of inactivity is measured since the last incoming tunnel packet.
 .TP
 .B --ping n
@@ -737,7 +745,7 @@ peer), and you don't want to start clocking timeouts until a remote
 peer connects.
 .TP
 .B --persist-tun
-Don't close and reopen tun/tap device or run up/down scripts
+Don't close and reopen TUN/TAP device or run up/down scripts
 across
 .B SIGUSR1
 or
@@ -811,7 +819,7 @@ is that it will reduce the amount of physical
 memory available to other applications.
 .TP
 .B --up cmd
-Shell command to run after successful tun/tap device open
+Shell command to run after successful TUN/TAP device open
 (pre
 .B --user
 UID change).
@@ -848,7 +856,7 @@ script so that they can be used to configure routes such as:
 .B route add -net 10.0.0.0 netmask 255.255.255.0 gw $5
 .TP
 .B --down cmd
-Shell command to run after tun/tap device close
+Shell command to run after TUN/TAP device close
 (post
 .B --user
 UID change and/or
@@ -884,7 +892,7 @@ options to ensure that OpenVPN doesn't need to execute any privileged
 operations in order to restart (such as re-reading key files
 or running
 .BR ifconfig
-on the tun device).
+on the TUN device).
 .TP
 .B --group group
 Similar to the
@@ -1632,9 +1640,9 @@ Available with linux 2.4.7+.  These options comprise a standalone mode
 of OpenVPN which can be used to create and delete persistent tunnels.
 .TP
 .B --mktun
-Create a persistent tunnel.  Normally tun/tap tunnels exist only for
+Create a persistent tunnel.  Normally TUN/TAP tunnels exist only for
 the period of time that an application has them open.  This option
-takes advantage of the tun/tap driver's ability to build persistent
+takes advantage of the TUN/TAP driver's ability to build persistent
 tunnels that live through multiple instantiations of OpenVPN and die
 only when they are deleted or the machine is rebooted.
 
@@ -1650,7 +1658,7 @@ and
 commands.  These commands can be placed in the the same shell script
 which starts or terminates an OpenVPN session.
 
-Another advantage is that open connections through the tun/tap-based tunnel
+Another advantage is that open connections through the TUN/TAP-based tunnel
 will not be reset if the OpenVPN peer restarts.  This can be useful to
 provide uninterrupted connectivity through the tunnel in the event of a DHCP
 reset of the peer's public IP address (see the
@@ -1672,15 +1680,15 @@ TUN/TAP device
 .SH SIGNALS
 .TP
 .B SIGHUP
-Cause OpenVPN to close all tun/tap and
+Cause OpenVPN to close all TUN/TAP and
 network connections,
 restart, re-read the configuration file (if any),
-and reopen tun/tap and network connections.
+and reopen TUN/TAP and network connections.
 .TP
 .B SIGUSR1
 Like 
 .B SIGHUP,
-except don't re-read configuration file, and possibly don't close and reopen tun
+except don't re-read configuration file, and possibly don't close and reopen TUN/TAP
 device, re-read key files, preserve local IP address/port, or preserve most recently authenticated
 remote IP address/port based on
 .B --persist-tun, --persist-key, --persist-local-ip,
@@ -1711,7 +1719,7 @@ is used, or stdout otherwise).
 .B SIGINT, SIGTERM
 Causes OpenVPN to exit gracefully.
 .SH TUN/TAP DRIVER SETUP
-If you are running Linux 2.4.7 or higher, you probably have the tun/tap driver
+If you are running Linux 2.4.7 or higher, you probably have the TUN/TAP driver
 already installed.  If so, there are still a few things you need to do:
 
 Make device:
@@ -1721,7 +1729,7 @@ Load driver:
 .B modprobe tun
 
 If you have Linux 2.2 or earlier, you should obtain version 1.1 of the
-tun/tap driver from
+TUN/TAP driver from
 .I http://vtun.sourceforge.net/tun/
 and follow the installation instructions.
 .SH EXAMPLES
@@ -1743,7 +1751,7 @@ If you installed from RPM, the
 step may be omitted, because the RPM install does that for you.
 
 If you have Linux 2.2, you should obtain version 1.1 of the
-tun/tap driver from
+TUN/TAP driver from
 .I http://vtun.sourceforge.net/tun/
 and follow the installation instructions.
 
@@ -1764,7 +1772,7 @@ stateful firewalls to forward packets in both directions
 without an explicit firewall rule).
 
 If you are using a Linux iptables-based firewall, you may need to enter
-the following command to allow incoming packets on the tun device:
+the following command to allow incoming packets on the TUN device:
 .IP
 .B iptables -A INPUT -i tun+ -j ACCEPT
 .LP
@@ -1946,7 +1954,7 @@ On Linux, enable routing:
 .IP
 .B echo 1 > /proc/sys/net/ipv4/ip_forward
 .LP
-and enable tun packet forwarding through the firewall:
+and enable TUN packet forwarding through the firewall:
 .IP
 .B iptables -A FORWARD -i tun+ -j ACCEPT
 .LP
@@ -2002,7 +2010,7 @@ maintain an OpenVPN connection indefinitely without explicit
 firewall rules.
 
 You should also add firewall rules to allow incoming IP traffic on
-tun or tap devices such as:
+TUN or TAP devices such as:
 .IP
 .B iptables -A INPUT -i tun+ -j ACCEPT
 .LP
@@ -2023,7 +2031,7 @@ to allow input packets from tap devices to be forwarded to
 other hosts on the local network.
 
 These rules are secure if you use packet authentication,
-since no incoming packets will arrive on a tun or tap
+since no incoming packets will arrive on a TUN or TAP
 virtual device
 unless they first pass an HMAC authentication test.
 .SH FAQ
@@ -2065,7 +2073,7 @@ OpenSSL Project (
 For more information on the TLS protocol, see
 .I http://www.ietf.org/internet-drafts/draft-ietf-tls-rfc2246-bis-01.txt
 
-For more information on the tun/tap driver see
+For more information on the TUN/TAP driver see
 .I http://vtun.sourceforge.net/tun/
 
 For more information on the LZO real-time compression library see

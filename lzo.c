@@ -93,7 +93,7 @@ void lzo_adjust_frame_parameters(struct frame *frame)
 
   /* Leave room for compression buffer to expand in worst case scenario
      where data is totally uncompressible */
-  frame->extra_buffer += LZO_EXTRA_BUFFER( MTU_EXTRA_SIZE(frame));
+  frame->extra_buffer += LZO_EXTRA_BUFFER (EXPANDED_SIZE(frame));
 }
 
 void
@@ -142,8 +142,8 @@ lzo_compress (struct buffer *buf, struct buffer work,
   if (buf->len >= COMPRESS_THRESHOLD && lzo_adaptive_compress_test(&lzowork->ac, current))
     {
       ASSERT (buf_init (&work, EXTRA_FRAME (frame)));
-      ASSERT (buf_safe (&work, LZO_EXTRA_BUFFER (MTU_SIZE (frame))));
-      ASSERT (buf->len <= MTU_SIZE (frame));
+      ASSERT (buf_safe (&work, LZO_EXTRA_BUFFER (PAYLOAD_SIZE (frame))));
+      ASSERT (buf->len <= PAYLOAD_SIZE (frame));
 
       err = LZO_COMPRESS (BPTR (buf), BLEN (buf), BPTR (&work), &zlen, lzowork->wmem);
       if (err != LZO_E_OK)
@@ -184,7 +184,7 @@ lzo_decompress (struct buffer *buf, struct buffer work,
 		struct lzo_compress_workspace *lzowork,
 		const struct frame* frame)
 {
-  int zlen = MTU_EXTRA_SIZE (frame);
+  int zlen = EXPANDED_SIZE (frame);
   uint8_t c;		/* flag indicating whether or not our peer compressed */
   int err;
 

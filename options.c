@@ -87,6 +87,8 @@ static const char usage_message[] =
   "--persist-key   : Don't re-read key files across SIGUSR1 or --ping-restart.\n"
   "--tun-mtu n     : Take the tun/tap device MTU to be n and derive the\n"
   "                  UDP MTU from it (default=%d).\n"
+  "--tun-mtu-extra n : Assume that tun/tap device might return as many as n bytes\n"
+  "                  more than the tun-mtu size on read (default=%d).\n"
   "--udp-mtu n     : Take the UDP device MTU to be n and derive the tun MTU\n"
   "                  from it (disabled by default).\n"
   "--mlock         : Disable Paging -- ensures key material and tunnel\n"
@@ -297,6 +299,7 @@ show_settings (const struct options *o)
   SHOW_BOOL (tun_mtu_defined);
   SHOW_INT (udp_mtu);
   SHOW_BOOL (udp_mtu_defined);
+  SHOW_INT (tun_mtu_extra);
   SHOW_BOOL (mlock);
   SHOW_INT (inactivity_timeout);
   SHOW_INT (ping_send_timeout);
@@ -431,16 +434,16 @@ usage ()
   init_options (&o);
 #if defined(USE_CRYPTO) && defined(USE_SSL)
   printf (usage_message,
-	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu,
+	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.tun_mtu_extra,
 	  o.verbosity, o.authname, o.ciphername, o.tls_timeout,
 	  o.renegotiate_seconds, o.handshake_window, o.transition_window);
 #elif defined(USE_CRYPTO)
   printf (usage_message,
-	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu,
+	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.tun_mtu_extra,
 	  o.verbosity, o.authname, o.ciphername);
 #else
   printf (usage_message,
-	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu,
+	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.tun_mtu_extra,
 	  o.verbosity);
 #endif
 
@@ -662,7 +665,6 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       options->ifconfig_local = p2;
       options->ifconfig_remote = p3;
-      options->udp_mtu_defined = true;
       i += 2;
     }
   else if (streq (p1, "local") && p2)
@@ -767,6 +769,11 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
       ++i;
       options->tun_mtu = positive (atoi (p2));
       options->tun_mtu_defined = true;
+    }
+  else if (streq (p1, "tun-mtu-extra") && p2)
+    {
+      ++i;
+      options->tun_mtu_extra = positive (atoi (p2));
     }
   else if (streq (p1, "nice") && p2)
     {

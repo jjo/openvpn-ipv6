@@ -104,7 +104,7 @@ frame_finalize(struct frame *frame, const struct options *options)
   else
     {
       ASSERT (options->udp_mtu_defined);
-      frame->mtu = options->udp_mtu - frame->extra_frame;
+      frame->mtu = options->udp_mtu - frame->extra_frame - options->tun_mtu_extra;
     }
 
   if (frame->mtu < MIN_TUN_MTU)
@@ -575,14 +575,11 @@ openvpn (const struct options *options,
     }
 #endif
 
-#if 0
   /*
    * Make space for a uint32 to be removed from incoming TUN packets
    * and added to outgoing TUN packets.
    */
-  if (options->tun_af_inet)
-    tun_adjust_frame_parameters (&frame, sizeof (uint32_t));
-#endif
+  tun_adjust_frame_parameters (&frame, options->tun_mtu_extra);
 
   /*
    * Fill in the blanks in the frame parameters structure,
@@ -632,7 +629,7 @@ openvpn (const struct options *options,
       if (ifconfig_order() == IFCONFIG_BEFORE_TUN_OPEN)
 	do_ifconfig (options->dev, options->dev_type,
 		     options->ifconfig_local, options->ifconfig_remote,
-		     MAX_RW_SIZE_TUN (&frame));
+		     MTU_SIZE (&frame));
 
       /* open the tun device */
       open_tun (options->dev, options->dev_type, options->dev_node, options->tun_ipv6, tuntap);
@@ -641,10 +638,10 @@ openvpn (const struct options *options,
       if (ifconfig_order() == IFCONFIG_AFTER_TUN_OPEN)
 	do_ifconfig (tuntap->actual, options->dev_type,
 		     options->ifconfig_local, options->ifconfig_remote,
-		     MAX_RW_SIZE_TUN (&frame));
+		     MTU_SIZE (&frame));
 
       /* run the up script */
-      run_script (options->up_script, tuntap->actual, MAX_RW_SIZE_TUN (&frame),
+      run_script (options->up_script, tuntap->actual, MTU_SIZE (&frame),
 		  max_rw_size_udp, options->ifconfig_local, options->ifconfig_remote);
     }
   else
@@ -1156,7 +1153,7 @@ openvpn (const struct options *options,
 		tun_read_bytes += buf.len;
 
 	      /* Check the status return from read() */
-	      check_status (buf.len, "read from tun");
+	      check_status (buf.len, "read from TUN/TAP");
 	      if (buf.len > 0)
 		{
 #if 0
@@ -1234,7 +1231,7 @@ openvpn (const struct options *options,
 		  const int size = write_tun (tuntap, BPTR (&to_tun), BLEN (&to_tun));
 		  if (size > 0)
 		    tun_write_bytes += size;
-		  check_status (size, "write to tun");
+		  check_status (size, "write to TUN/TAP");
 
 		  /* check written packet size */
 		  if (size > 0)
@@ -1418,7 +1415,7 @@ openvpn (const struct options *options,
 
       /* Run the down script -- note that it will run at reduced
 	 privilege if, for example, "--user nobody" was used. */
-      run_script (options->down_script, tuntap_actual, MAX_RW_SIZE_TUN (&frame),
+      run_script (options->down_script, tuntap_actual, MTU_SIZE (&frame),
 		  max_rw_size_udp, options->ifconfig_local, options->ifconfig_remote);
     }
 
@@ -1577,8 +1574,18 @@ main (int argc, char *argv[])
 	  usage_small ();
 	}
 
+      /*
+       * If neither --tun-mtu or --udp-mtu specified,
+       * use default --udp-mtu if --ifconfig specified, otherwise
+       * use default --tun-mtu.
+       */
       if (!options.tun_mtu_defined && !options.udp_mtu_defined)
-	options.tun_mtu_defined = true;
+	{
+	  if (options.ifconfig_local || options.ifconfig_remote)
+	    options.udp_mtu_defined = true;
+	  else
+	    options.tun_mtu_defined = true;
+	}
 
       /*
        * Sanity check on --local, --remote, and ifconfig
