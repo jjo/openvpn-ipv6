@@ -53,6 +53,7 @@ struct options
   const char *dev;
   const char *dev_type;
   const char *dev_node;
+  const char *dev_name;
   const char *ifconfig_local;
   const char *ifconfig_remote;
   int shaper;
@@ -61,6 +62,7 @@ struct options
   int udp_mtu;          /* MTU of device over which tunnel packets pass via UDP */
   bool tun_mtu_defined; /* true if user overriding parm with command line option */
   bool udp_mtu_defined; /* true if user overriding parm with command line option */
+  int mtu_discover_type;
   bool mlock;
   int inactivity_timeout;
   int ping_send_timeout;        /* Send a UDP ping to remote every n seconds */
@@ -78,7 +80,7 @@ struct options
   bool persist_remote_ip;       /* Don't re-resolve remote address on SIGUSR1 or PING_RESTART */
   bool persist_key;             /* Don't re-read key files on SIGUSR1 or PING_RESTART */
 
-#if ENABLE_PASSTOS
+#if PASSTOS_CAPABILITY
   bool passtos;                  
 #endif
 

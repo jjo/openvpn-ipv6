@@ -28,6 +28,7 @@
 
 #include "buffer.h"
 #include "common.h"
+#include "error.h"
 
 struct udp_socket_addr
 {
@@ -42,6 +43,7 @@ struct udp_socket
   bool remote_float;
   struct udp_socket_addr *addr;
   const char *ipchange_command;
+  int mtu;                      /* OS discovered MTU, or 0 if unknown */
   int sd;			/* file descriptor for socket */
 };
 
@@ -56,7 +58,8 @@ udp_socket_init (struct udp_socket *sock,
 		 bool inetd,
 		 struct udp_socket_addr *addr,
 		 const char *ipchange_command,
-		 int resolve_retry_seconds);
+		 int resolve_retry_seconds,
+		 int mtu_discover_type);
 
 void
 udp_socket_set_outgoing_addr (const struct buffer *buf,
@@ -96,6 +99,24 @@ static inline bool
 addr_match (const struct sockaddr_in *a1, const struct sockaddr_in *a2)
 {
   return a1->sin_addr.s_addr == a2->sin_addr.s_addr && a1->sin_port == a2->sin_port;
+}
+
+/*
+ * Check status, usually after a socket read or write
+ */
+
+extern unsigned int x_cs_info_level;
+extern unsigned int x_cs_verbose_level;
+
+void reset_check_status ();
+void set_check_status (unsigned int info_level, unsigned int verbose_level);
+void x_check_status (int status, const char *description, struct udp_socket *sock);
+
+static inline void
+check_status (int status, const char *description, struct udp_socket *sock)
+{
+  if ((status < 0 && errno != EAGAIN) || check_debug_level (x_cs_verbose_level))
+    x_check_status (status, description, sock);
 }
 
 #endif /* SOCKET_H */

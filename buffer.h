@@ -105,6 +105,12 @@ void buf_printf (struct buffer *buf, char *format, ...);
 void buf_catrunc (struct buffer *buf, const char *str);
 
 /*
+ * convert a multi-line output to one line
+ */
+void convert_to_one_line (struct buffer *buf);
+
+
+/*
  * Hex dump -- Output a binary buffer to a hex string and return it.
  */
 char *

@@ -68,6 +68,8 @@ static const char usage_message[] =
   "                  does not begin with \"tun\" or \"tap\".\n"
   "--dev-node node : Explicitly set the device node rather than using\n"
   "                  /dev/net/tun, /dev/tun, /dev/tap, etc.\n"
+  "--dev-name name : Explicitly set the device name rather than using\n"
+  "                  tun0, tun1, etc.\n"
   "--tun-ipv6      : Build tun link capable of forwarding IPv6 traffic.\n"
   "--ifconfig l r  : Configure tun device to use IP address l as a local\n"
   "                  endpoint and r as a remote endpoint.  l & r should be\n"
@@ -86,7 +88,7 @@ static const char usage_message[] =
   "--persist-remote-ip : Keep remote IP address across SIGUSR1 or --ping-restart.\n"
   "--persist-local-ip  : Keep local IP address across SIGUSR1 or --ping-restart.\n"
   "--persist-key   : Don't re-read key files across SIGUSR1 or --ping-restart.\n"
-#if ENABLE_PASSTOS
+#if PASSTOS_CAPABILITY
   "--passtos       : TOS passthrough (applies to IPv4 only).\n"
 #endif
   "--tun-mtu n     : Take the tun/tap device MTU to be n and derive the\n"
@@ -95,6 +97,10 @@ static const char usage_message[] =
   "                  more than the tun-mtu size on read (default=%d).\n"
   "--udp-mtu n     : Take the UDP device MTU to be n and derive the tun MTU\n"
   "                  from it (disabled by default).\n"
+  "--mtu-disc type : Should we do Path MTU discovery on UDP channel?\n"
+  "                  'no'    -- Never send DF (Don't Fragment) frames\n"
+  "                  'maybe' -- Use per-route hints\n"
+  "                  'yes'   -- Always DF (Don't Fragment)\n"
   "--mlock         : Disable Paging -- ensures key material and tunnel\n"
   "                  data will never be written to disk.\n"
   "--up cmd        : Shell cmd to execute after successful tun device open.\n"
@@ -240,6 +246,7 @@ init_options (struct options *o)
   o->bind_local = true;
   o->tun_mtu = DEFAULT_TUN_MTU;
   o->udp_mtu = DEFAULT_UDP_MTU;
+  o->mtu_discover_type = -1;
 #ifdef USE_LZO
   o->comp_lzo_adaptive = true;
 #endif
@@ -295,6 +302,7 @@ show_settings (const struct options *o)
   SHOW_STR (dev);
   SHOW_STR (dev_type);
   SHOW_STR (dev_node);
+  SHOW_STR (dev_name);
   SHOW_BOOL (tun_ipv6);
   SHOW_STR (ifconfig_local);
   SHOW_STR (ifconfig_remote);
@@ -304,6 +312,7 @@ show_settings (const struct options *o)
   SHOW_INT (udp_mtu);
   SHOW_BOOL (udp_mtu_defined);
   SHOW_INT (tun_mtu_extra);
+  SHOW_INT (mtu_discover_type);
   SHOW_BOOL (mlock);
   SHOW_INT (inactivity_timeout);
   SHOW_INT (ping_send_timeout);
@@ -316,7 +325,7 @@ show_settings (const struct options *o)
   SHOW_BOOL (persist_remote_ip);
   SHOW_BOOL (persist_key);
   
-#if ENABLE_PASSTOS
+#if PASSTOS_CAPABILITY
   SHOW_BOOL (passtos);
 #endif
 
@@ -670,6 +679,11 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
       ++i;
       options->dev_node = p2;
     }
+  else if (streq (p1, "dev-name") && p2)
+    {
+      ++i;
+      options->dev_name = p2;
+    }
   else if (streq (p1, "tun-ipv6"))
     {
       options->tun_ipv6 = true;
@@ -788,6 +802,11 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
       ++i;
       options->tun_mtu_extra = positive (atoi (p2));
     }
+  else if (streq (p1, "mtu-disc") && p2)
+    {
+      ++i;
+      options->mtu_discover_type = translate_mtu_discover_type_name (p2);
+    }
   else if (streq (p1, "nice") && p2)
     {
       ++i;
@@ -891,7 +910,7 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       options->persist_remote_ip = true;
     }
-#if ENABLE_PASSTOS
+#if PASSTOS_CAPABILITY
   else if (streq (p1, "passtos"))
     {
       options->passtos = true;

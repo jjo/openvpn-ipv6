@@ -34,10 +34,7 @@
  * These globals should not be accessed directly,
  * but rather through macros or inline functions defined below.
  */
-extern int x_debug_level;
-extern int x_cs_info_level;
-extern int x_cs_verbose_level;
-
+extern unsigned int x_debug_level;
 extern int msg_line_num;
 
 /* msg() flags */
@@ -52,8 +49,16 @@ extern int msg_line_num;
 #define M_ERRNO           (1<<8)	 /* show errno description */
 #define M_SSL             (1<<9)	 /* show SSL error */
 #define M_NOLOCK          (1<<10)        /* don't lock/unlock mutex */      
-#define M_NOMUTE          (1<<11)        /* don't do mute processing */      
+#define M_NOMUTE          (1<<11)        /* don't do mute processing */
 
+/*
+ * Allow errno value to be embedded in flags.
+ */
+#define M_ERRNO_EMBEDDED  (1<<12)        /* indicates that errno value is embedded in flags */
+#define GET_EMBEDDED_ERRNO(flags) (((flags) >> 24) & 0xFF)      
+#define EMBEDDED_ERRNO_MASK(ev) ((((ev) & 0xFF) << 24) | M_ERRNO_EMBEDDED | M_ERRNO)
+
+/* flag combinations which are frequently used */
 #define M_ERR     (M_FATAL | M_ERRNO)
 #define M_SSLERR  (M_FATAL | M_SSL)
 
@@ -81,7 +86,7 @@ extern int msg_line_num;
  * msg() as a macro for optimization win.
  */
 
-#define MSG_TEST(flags) (((flags) & M_DEBUG_LEVEL) < x_debug_level || ((flags) & M_FATAL))
+#define MSG_TEST(flags) ((((unsigned int)flags) & M_DEBUG_LEVEL) < x_debug_level || ((flags) & M_FATAL))
 
 #if defined(HAVE_CPP_VARARG_MACRO_ISO)
 #define HAVE_VARARG_MACROS
@@ -100,7 +105,6 @@ void x_msg (unsigned int flags, const char *format, ...); /* should be called vi
  */
 
 void error_reset ();
-void set_check_status (int info_level, int verbose_level);
 void set_debug_level (int level);
 void set_mute_cutoff (int cutoff);
 
@@ -117,17 +121,9 @@ void assert_failed (const char *filename, int line);
 /* Inline functions */
 
 static inline bool
-check_debug_level (int level)
+check_debug_level (unsigned int level)
 {
   return (level & M_DEBUG_LEVEL) < x_debug_level;
-}
-
-static inline void
-check_status (int status, const char *description)
-{
-  msg (x_cs_verbose_level, "%s returned %d", description, status);
-  if (status < 0)
-    msg (x_cs_info_level | M_ERRNO, "%s", description);
 }
 
 void become_daemon (const char *cd);

@@ -120,7 +120,7 @@ do_ifconfig (const char *dev, const char *dev_type,
       char command_line[256];
 
       if (!is_dev_type (dev, dev_type, "tun"))
-	msg (M_FATAL, "%s is not a tun device.  The --ifconfig option works only for tun devices.  You should use an --up script to ifconfig a tap device.", dev);
+	msg (M_FATAL, "%s is not a tun device (you may need to use --dev-type tun).  The --ifconfig option works only for tun devices.  You should use an --up script to ifconfig a tap device.", dev);
 
 #if defined(TARGET_LINUX)
 
@@ -248,7 +248,7 @@ open_null (struct tuntap *tt)
 }
 
 static void
-open_tun_generic (const char *dev, const char *dev_node,
+open_tun_generic (const char *dev, const char *dev_node, const char *dev_name,
 		  bool ipv6, bool ipv6_explicitly_supported,
 		  struct tuntap *tt)
 {
@@ -274,6 +274,9 @@ open_tun_generic (const char *dev, const char *dev_node,
       set_cloexec (tt->fd);
       msg (M_INFO, "tun/tap device %s opened", tunname);
       strncpynt (tt->actual, dev, sizeof (tt->actual));
+
+      if (dev_name)
+	msg (M_WARN, "Cannot rename dev %s to %s", dev, dev_name);
     }
 }
 
@@ -289,6 +292,11 @@ close_tun_generic (struct tuntap *tt)
 
 #ifdef HAVE_LINUX_IF_TUN_H	/* New driver support */
 
+#ifndef HAVE_LINUX_SOCKIOS_H
+#error header file linux/sockios.h required
+#endif
+
+
 #if defined(HAVE_TUN_PI) && defined(HAVE_IPHDR) && defined(HAVE_IOVEC) && defined(ETH_P_IPV6) && defined(ETH_P_IP) && defined(HAVE_READV) && defined(HAVE_WRITEV)
 #define LINUX_IPV6 1
 /* #warning IPv6 ON */
@@ -298,8 +306,8 @@ close_tun_generic (struct tuntap *tt)
 #endif
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
-	  struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node,
+	  const char *dev_name, bool ipv6, struct tuntap *tt)
 {
   struct ifreq ifr;
 
@@ -339,23 +347,48 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 	strncpynt (ifr.ifr_name, dev, IFNAMSIZ);
 
       if (ioctl (tt->fd, TUNSETIFF, (void *) &ifr) < 0)
-	msg (M_ERR, "Cannot ioctl TUNSETIFF %s", dev);
+	msg (M_WARN, "Cannot ioctl TUNSETIFF %s", dev);
 
       set_nonblock (tt->fd);
       set_cloexec (tt->fd);
       msg (M_INFO, "tun/tap device %s opened", ifr.ifr_name);
       strncpynt (tt->actual, ifr.ifr_name, sizeof (tt->actual));
+
+ 
+      /*
+       * rename device node, per --dev-name option
+       */
+      if (dev_name)
+	{
+	  struct ifreq	r;
+	  int		fd;
+ 
+	  if ((fd = socket(PF_INET, SOCK_DGRAM, 0)) < 0)
+	    msg (M_WARN, "Cannot open control_fd", dev);
+	  else
+	    {
+	      strncpynt (r.ifr_name, tt->actual, IFNAMSIZ);
+	      strncpynt (r.ifr_newname, dev_name, IFNAMSIZ);
+ 
+	      if (ioctl(fd, SIOCSIFNAME, &r) < 0)
+		msg (M_WARN, "Cannot ioctl SIOCSIFNAME %s", dev);
+	      else
+		strncpynt (tt->actual, dev_name, sizeof (tt->actual));
+ 
+	      close(fd);
+	    }
+	}
     }
 }
 
 #ifdef TUNSETPERSIST
 
 void
-tuncfg (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, int persist_mode)
+tuncfg (const char *dev, const char *dev_type, const char *dev_node, const char *dev_name, bool ipv6, int persist_mode)
 {
   struct tuntap tt;
 
-  open_tun (dev, dev_type, dev_node, ipv6, &tt);
+  open_tun (dev, dev_type, dev_node, dev_name, ipv6, &tt);
   if (ioctl (tt.fd, TUNSETPERSIST, persist_mode) < 0)
     msg (M_ERR, "Cannot ioctl TUNSETPERSIST(%d) %s", persist_mode, dev);
   close_tun (&tt);
@@ -367,10 +400,10 @@ tuncfg (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, 
 #else
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
+open_tun (const char *dev, const char *dev_type, const char *dev_node, const char *dev_name, bool ipv6,
 	  struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, ipv6, false, tt);
+  open_tun_generic (dev, dev_node, dev_name, ipv6, false, tt);
 }
 
 #endif /* HAVE_LINUX_IF_TUN_H */
@@ -444,8 +477,8 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #endif
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
-	  struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node,
+	  const char *dev_name, bool ipv6, struct tuntap *tt)
 {
   int if_fd, muxid, ppa = -1;
   struct ifreq ifr;
@@ -538,6 +571,9 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
   set_nonblock (tt->fd);
   set_cloexec (tt->fd);
   set_cloexec (tt->ip_fd);
+ 
+  if (dev_name)
+    msg (M_WARN, "Cannot rename dev %s to %s", dev, dev_name);
 }
 
 /*
@@ -591,10 +627,10 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #elif defined(TARGET_OPENBSD)
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
-	  struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const chart *dev_name,
+	  const char *dev_node, bool ipv6, struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, ipv6, false, tt);
+  open_tun_generic (dev, dev_node, dev_name, ipv6, false, tt);
 }
 
 void
@@ -643,10 +679,10 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #elif defined(TARGET_FREEBSD)
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
-	  struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node,
+	  const char *dev_name, bool ipv6, struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, ipv6, false, tt);
+  open_tun_generic (dev, dev_node, dev_name, ipv6, false, tt);
 
   if (tt->fd >= 0)
     {
@@ -679,10 +715,10 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #else /* generic */
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
-	  struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node,
+	  const char *dev_name, bool ipv6, struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, ipv6, false, tt);
+  open_tun_generic (dev, dev_node, dev_name, ipv6, false, tt);
 }
 
 void

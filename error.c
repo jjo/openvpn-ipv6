@@ -39,9 +39,7 @@
 #include "memdbg.h"
 
 /* Globals */
-int x_debug_level;
-int x_cs_info_level;
-int x_cs_verbose_level;
+unsigned int x_debug_level;
 
 /* Mute state */
 static int mute_cutoff;
@@ -71,8 +69,6 @@ error_reset ()
 {
   use_syslog = false;
   x_debug_level = 1;
-  x_cs_info_level = 0;
-  x_cs_verbose_level = 0;
   mute_cutoff = 0;
   mute_count = 0;
   mute_category = 0;
@@ -84,13 +80,6 @@ error_reset ()
 #else
   msgfp = NULL;
 #endif
-}
-
-void
-set_check_status (int info_level, int verbose_level)
-{
-  x_cs_info_level = info_level;
-  x_cs_verbose_level = verbose_level;
 }
 
 /*
@@ -130,7 +119,10 @@ void x_msg (unsigned int flags, const char *format, ...)
     return;
 #endif
 
-  e = errno;
+  if (flags & M_ERRNO_EMBEDDED)
+    e = GET_EMBEDDED_ERRNO (flags);
+  else
+    e = errno;
 
   if (!(flags & M_NOLOCK))
     mutex_lock (L_MSG);

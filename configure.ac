@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.2.16], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.2.17], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -159,7 +159,9 @@ AC_CHECK_HEADERS(sys/time.h sys/socket.h sys/ioctl.h sys/stat.h dnl
 		 net/if_tun.h net/if.h stropts.h sys/sockio.h dnl
 		 netinet/in.h netinet/in_systm.h netinet/ip.h dnl
 		 netinet/if_ether.h netinet/tcp.h resolv.h arpa/inet.h dnl
-		 netdb.h sys/uio.h linux/if_tun.h)
+		 netdb.h sys/uio.h linux/if_tun.h dnl
+		 linux/types.h linux/sockios.h linux/errqueue.h
+)
 AC_CACHE_SAVE
 
 dnl check that in_addr_t is defined
@@ -197,6 +199,25 @@ AC_CHECK_TYPE(
 	[AC_DEFINE(HAVE_IOVEC, 1, [struct iovec needed for IPv6 support])],
 	[],
 	[#include "syshead.h"])
+AC_CACHE_SAVE
+
+dnl check for extended socket error types
+AC_CHECK_TYPE(
+	[struct sock_extended_err],
+	[AC_DEFINE(HAVE_SOCK_EXTENDED_ERR, 1, [struct sock_extended_err needed for extended socket error support])],
+	[],
+	[#include "syshead.h"])
+AC_CHECK_TYPE(
+	[struct msghdr],
+	[AC_DEFINE(HAVE_MSGHDR, 1, [struct msghdr needed for extended socket error support])],
+	[],
+	[#include "syshead.h"])
+AC_CHECK_TYPE(
+	[struct cmsghdr],
+	[AC_DEFINE(HAVE_CMSGHDR, 1, [struct cmsghdr needed for extended socket error support])],
+	[],
+	[#include "syshead.h"])
+
 AC_CACHE_SAVE
 
 dnl check for other types

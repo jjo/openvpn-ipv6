@@ -1794,7 +1794,7 @@ thread_func (void *arg)
 	    /* send buffer to foreground where it will be forwarded to remote */
 	    stat = write (parm.sd, &ret, sizeof (ret));
 	    fatal = local_sock_fatal();
-	    check_status (stat, "write to foreground");
+	    check_status (stat, "write to foreground", NULL);
 	    if (fatal)
 	      goto exit;
 	  }
@@ -1817,7 +1817,7 @@ thread_func (void *arg)
       current = time (NULL);
 
       /* received a message from foreground */
-      check_status (stat, "select");
+      check_status (stat, "select", NULL);
 
       /* timeout? */
       if (!stat)
@@ -1829,7 +1829,7 @@ thread_func (void *arg)
 	  struct tt_cmd tc;
 	  stat = read (parm.sd, &tc, sizeof (tc));
 	  fatal = local_sock_fatal();
-	  check_status (stat, "read from foreground");
+	  check_status (stat, "read from foreground", NULL);
 	  if (stat == sizeof (tc))
 	    {
 	      if (tc.cmd == TTCMD_PROCESS)
@@ -1862,7 +1862,7 @@ tls_thread_send_command (int sd, int cmd)
   tc.cmd = cmd;
   stat = write (sd, &tc, sizeof (tc));
   fatal = local_sock_fatal();
-  check_status (stat, "write command to tls thread");
+  check_status (stat, "write command to tls thread", NULL);
   if (stat == sizeof (tc))
     return 1;
   else if (fatal)
@@ -1957,7 +1957,7 @@ tls_thread_rec_buf (int sd, struct tt_ret* ttr, bool do_check_status)
   stat = read (sd, ttr, sizeof (*ttr));
   fatal = local_sock_fatal();
   if (do_check_status)
-    check_status (stat, "read buffer from tls thread");
+    check_status (stat, "read buffer from tls thread", NULL);
   if (stat == sizeof (*ttr))
     return 1;
   else if (fatal)

@@ -157,6 +157,18 @@
 #include <netinet/ip.h>
 #endif
 
+#ifdef HAVE_LINUX_SOCKIOS_H
+#include <linux/sockios.h>
+#endif
+
+#ifdef HAVE_LINUX_TYPES_H
+#include <linux/types.h>
+#endif
+
+#ifdef HAVE_LINUX_ERRQUEUE_H
+#include <linux/errqueue.h>
+#endif
+
 #endif /* TARGET_LINUX */
 
 #ifdef TARGET_SOLARIS
@@ -231,9 +243,18 @@
  * Do we have the capability to support the --passtos option?
  */
 #if defined(HAVE_IPHDR) && defined(IPPROTO_IP) && defined(IP_TOS) && defined(HAVE_SETSOCKOPT)
-#define ENABLE_PASSTOS 1
+#define PASSTOS_CAPABILITY 1
 #else
-#define ENABLE_PASSTOS 0
+#define PASSTOS_CAPABILITY 0
+#endif
+
+/*
+ * Do we have the capability to report extended socket errors?
+ */
+#if defined(HAVE_LINUX_TYPES_H) && defined(HAVE_LINUX_ERRQUEUE_H) && defined(HAVE_SOCK_EXTENDED_ERR) && defined(HAVE_MSGHDR) && defined(HAVE_CMSGHDR) && defined(CMSG_FIRSTHDR) && defined(CMSG_NXTHDR) && defined(IP_RECVERR) && defined(MSG_ERRQUEUE) && defined(SOL_IP)
+#define EXTENDED_SOCKET_ERROR_CAPABILITY 1
+#else
+#define EXTENDED_SOCKET_ERROR_CAPABILITY 0
 #endif
 
 #endif

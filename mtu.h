@@ -131,4 +131,14 @@ struct frame {
 #define MAX_RW_SIZE_TUN(f)   (PAYLOAD_SIZE(f))
 #define MAX_RW_SIZE_UDP(f)   (EXPANDED_SIZE(f))
 
+/*
+ * Function prototypes.
+ */
+
+void set_mtu_discover_type(int sd, int mtu_type);
+int translate_mtu_discover_type_name(const char* name);
+
+void set_sock_extended_error_passing (int sd);
+int format_extended_socket_error (int fd, struct buffer *out);
+
 #endif

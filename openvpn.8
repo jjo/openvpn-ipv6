@@ -107,10 +107,12 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-tun\-ipv6\fR\ ]
 [\ \fB\-\-dev\-type\fR\ \fIdevice\-type\fR\ ]
 [\ \fB\-\-dev\-node\fR\ \fInode\fR\ ]
+[\ \fB\-\-dev\-name\fR\ \fIname\fR\ ]
 [\ \fB\-\-ifconfig\fR\ \fIl\ r\fR\ ]
 [\ \fB\-\-udp\-mtu\fR\ \fIn\fR\ ]
 [\ \fB\-\-tun\-mtu\fR\ \fIn\fR\ ]
 [\ \fB\-\-tun\-mtu\-extra\fR\ \fIn\fR\ ]
+[\ \fB\-\-mtu\-disc\fR\ \fItype\fR\ ]
 [\ \fB\-\-shaper\fR\ \fIn\fR\ ]
 [\ \fB\-\-inactive\fR\ \fIn\fR\ ]
 [\ \fB\-\-ping\fR\ \fIn\fR\ ]
@@ -522,6 +524,9 @@ also specify
 or
 .B --dev-type tap.
 .TP
+.B --dev-name name
+Explicitly set the device name rather than using tun0, tun1, etc.  Currently only supported on Linux.
+.TP
 .B --ifconfig l r
 Configure the TUN device to use IP address
 .B l
@@ -642,6 +647,20 @@ most TUN devices.  TAP devices may introduce additional overhead in excess
 of the MTU size, and a setting of 64 would be a conservative choice for
 TAP device usage.  This parameter only controls internal OpenVPN buffer sizing,
 so there is no transmission overhead associated with using a larger value.
+.TP
+.B --mtu-disc type
+Should we do Path MTU discovery on UDP channel?  Only supported on OSes such
+as Linux that supports the necessary system call to set.
+
+.B 'no'
+-- Never send DF (Don't Fragment) frames
+.br
+.B 'maybe'
+-- Use per-route hints
+.br
+.B 'yes'
+-- Always DF (Don't Fragment)
+.br
 .TP
 .B --shaper n
 Limit bandwidth of outgoing tunnel data to

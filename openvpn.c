@@ -196,7 +196,7 @@ openvpn (const struct options *options,
   /* used by select() */
   int fm;
 
-#if ENABLE_PASSTOS
+#if PASSTOS_CAPABILITY
   /* used to get/set TOS. */
   struct iphdr *iph;
   unsigned char ptos;
@@ -364,7 +364,8 @@ openvpn (const struct options *options,
 		     options->bind_local, options->remote_float,
 		     options->inetd,
 		     udp_socket_addr, options->ipchange,
-		     options->resolve_retry_seconds);
+		     options->resolve_retry_seconds,
+		     options->mtu_discover_type);
 
 #ifdef USE_CRYPTO
 
@@ -647,7 +648,7 @@ openvpn (const struct options *options,
 		     MTU_SIZE (&frame));
 
       /* open the tun device */
-      open_tun (options->dev, options->dev_type, options->dev_node, options->tun_ipv6, tuntap);
+      open_tun (options->dev, options->dev_type, options->dev_node, options->dev_name, options->tun_ipv6, tuntap);
 
       /* do ifconfig */  
       if (ifconfig_order() == IFCONFIG_AFTER_TUN_OPEN)
@@ -1000,7 +1001,7 @@ openvpn (const struct options *options,
       if (!stat) /* timeout? */
 	continue;
 #endif
-      check_status (stat, "select");
+      check_status (stat, "select", NULL);
       if (stat > 0)
 	{
 	  /* Incoming data on UDP port */
@@ -1024,7 +1025,7 @@ openvpn (const struct options *options,
 		udp_read_bytes += buf.len;
 
 	      /* check recvfrom status */
-	      check_status (buf.len, "read from UDP");
+	      check_status (buf.len, "read from UDP", NULL);
 
 	      /* take action to corrupt packet if we are in gremlin test mode */
 	      if (options->gremlin) {
@@ -1170,7 +1171,7 @@ openvpn (const struct options *options,
 		tun_read_bytes += buf.len;
 
 	      /* Check the status return from read() */
-	      check_status (buf.len, "read from TUN/TAP");
+	      check_status (buf.len, "read from TUN/TAP", NULL);
 	      if (buf.len > 0)
 		{
 #if 0
@@ -1179,7 +1180,7 @@ openvpn (const struct options *options,
 		  if (options->tun_af_inet)
 		    tun_rm_head (&buf, AF_INET);
 #endif
-#if ENABLE_PASSTOS
+#if PASSTOS_CAPABILITY
 		  if (options->passtos)
 		    {
 		      /* Get the TOS before compression/encryption. */
@@ -1263,7 +1264,7 @@ openvpn (const struct options *options,
 		  const int size = write_tun (tuntap, BPTR (&to_tun), BLEN (&to_tun));
 		  if (size > 0)
 		    tun_write_bytes += size;
-		  check_status (size, "write to TUN/TAP");
+		  check_status (size, "write to TUN/TAP", NULL);
 
 		  /* check written packet size */
 		  if (size > 0)
@@ -1326,7 +1327,7 @@ openvpn (const struct options *options,
 		      if (options->ping_send_timeout)
 			event_timeout_reset (&ping_send_interval, current);
 
-#if ENABLE_PASSTOS
+#if PASSTOS_CAPABILITY
 		      /* Set TOS */
 		      if (ptos_defined)
 			setsockopt(udp_socket.sd, IPPROTO_IP, IP_TOS, &ptos, sizeof(ptos));
@@ -1343,7 +1344,7 @@ openvpn (const struct options *options,
 		    size = 0;
 
 		  /* Check sendto() return status */
-		  check_status (size, "write to UDP");
+		  check_status (size, "write to UDP", &udp_socket);
 
 		  if (size > 0)
 		    {
@@ -1486,6 +1487,7 @@ main (int argc, char *argv[])
   int sig;
 
   error_reset ();                /* initialize error.c */
+  reset_check_status ();         /* initialize status check code in socket.c */
 
 #ifdef OPENVPN_DEBUG_COMMAND_LINE
   {
@@ -1578,7 +1580,7 @@ main (int argc, char *argv[])
 #endif
 	    )
 	  msg (M_FATAL, "Options error: options --mktun or --rmtun should only be used together with --dev");
-	tuncfg (options.dev, options.dev_type, options.dev_node,
+	tuncfg (options.dev, options.dev_type, options.dev_node, options.dev_name,
 		options.tun_ipv6, options.persist_mode);
 	goto exit;
       }

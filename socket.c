@@ -28,6 +28,7 @@
 #include "syshead.h"
 
 #include "socket.h"
+#include "mtu.h"
 #include "fdmisc.h"
 #include "error.h"
 #include "thread.h"
@@ -36,6 +37,53 @@
 #include "memdbg.h"
 
 #define INETD_SOCKET_DESCRIPTOR 0
+
+/* begin check status */
+
+unsigned int x_cs_info_level;
+unsigned int x_cs_verbose_level;
+
+void
+reset_check_status ()
+{
+  x_cs_info_level = 0;
+  x_cs_verbose_level = 0;
+}
+
+void
+set_check_status (unsigned int info_level, unsigned int verbose_level)
+{
+  x_cs_info_level = info_level;
+  x_cs_verbose_level = verbose_level;
+}
+
+void
+x_check_status (int status, const char *description, struct udp_socket *sock)
+{
+  const int errno_save = errno;
+  msg (x_cs_verbose_level, "%s returned %d", description, status);
+  if (check_debug_level (x_cs_info_level))
+    {
+      const unsigned int lev = x_cs_info_level | EMBEDDED_ERRNO_MASK (errno_save);
+      if (sock)
+	{
+	  struct buffer out = alloc_buf_gc (512);
+	  const int mtu = format_extended_socket_error (sock->sd, &out);
+	  if (mtu > 0)
+	    sock->mtu = mtu;
+	  if (out.len)
+	      msg (lev, "%s [Extended Error Return: '%s']", description, BPTR(&out));
+	    else
+	      msg (lev, "%s", description);
+	}
+      else
+	{
+	  msg (lev, "%s", description);
+	}
+    }
+}
+
+/* end check status */
 
 static const char*
 h_errno_msg(int h_errno_err)
@@ -107,7 +155,8 @@ udp_socket_init (struct udp_socket *sock,
 		 bool inetd,
 		 struct udp_socket_addr *usa,
 		 const char *ipchange_command,
-		 int resolve_retry_seconds)
+		 int resolve_retry_seconds,
+		 int mtu_discover_type)
 {
   CLEAR (*sock);
 
@@ -165,6 +214,12 @@ udp_socket_init (struct udp_socket *sock,
   /* set socket file descriptor to not pass across execs, so that scripts don't have
      access to it */
   set_cloexec (sock->sd);
+
+  /* set Path MTU discovery options on the socket */
+  set_mtu_discover_type (sock->sd, mtu_discover_type);
+
+  /* if the OS supports it, enable extended error passing on the socket */
+  set_sock_extended_error_passing (sock->sd);
 
   /* print local and active remote address */
   if (sock->sd == INETD_SOCKET_DESCRIPTOR)
