@@ -2102,18 +2102,19 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 	}
 
       /* lease time in seconds */
-      ep[3] = (short_lease ? 60 : 2592000);
+      ep[3] = (short_lease ? 60 : 31536000); /* the long lease is 1 year */
 
       if (!DeviceIoControl (tt->hand, TAP_IOCTL_CONFIG_DHCP_MASQ,
 			    ep, sizeof (ep),
 			    ep, sizeof (ep), &len, NULL))
 	msg (M_FATAL, "ERROR: The TAP-Win32 driver rejected a DeviceIoControl call to set TAP_IOCTL_CONFIG_DHCP_MASQ mode");
-      msg (M_INFO, "Notified TAP-Win32 driver to set a DHCP IP/netmask of %s/%s on interface %s (offset=%d hi=%d)",
+
+      msg (M_INFO, "Notified TAP-Win32 driver to set a DHCP IP/netmask of %s/%s on interface %s [DHCP-serv: %s, lease-time: %d]",
 	   print_in_addr_t (tt->local, false),
 	   print_in_addr_t (tt->adapter_netmask, false),
 	   device_guid,
-	   offset,
-	   (int)hioff
+	   print_in_addr_t (ntohl(ep[2]), false),
+	   ep[3]
 	   );
     }
 

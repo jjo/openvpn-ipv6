@@ -7,6 +7,8 @@ $Id$
 
 * UDP over Socks5 fix to accomodate Socks5 encapsulation
   overhead (Christof Meerwald).
+* Minor --ip-win32 dynamic tweaks (use long lease time,
+  invalidate existing lease with DHCPNAK).
 
 2004.02.01 -- Version 1.6-beta5
 
