@@ -3,6 +3,752 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.11.28 -- Version 2.0-beta18
+
+* Added management interface.  See new --management-*
+  options or the full management interface documentation
+  in management/management-notes.txt in the tarball.
+  Management interface inclusion can be disabled by
+  ./configure --disable-management.
+* Added two new plugin modules: auth-pam and down-root.
+  Auth-pam supports pam-based authentication using a
+  split privilege execution model, while down-root enables
+  a down script to be executed with root privileges, even
+  when --user/--group is used to drop root privileges.
+  See the plugin directory in the tarball for READMEs,
+  source code, and Makefiles.
+* Plugin developers should note that some changes were
+  made to the plugin interface since beta17.  See
+  openvpn-plugin.h for details.
+  Plugin interface inclusion can be disabled with
+  ./configure --disable-plugins
+* Added easy-rsa/build-key-server script which will
+  build a certificate with with nsCertType=server.
+* Added --ns-cert-type option for verification
+  of nsCertType field in peer certificate.
+* If --fragment n is specified and --mssfix is specified
+  without a parameter, default --mssfix to n.  This restores
+  the 1.6 behavior when using --mssfix without a parameter.
+* Fixed SSL context initialization bug introduced in beta14
+  where this error might occur on restarts: "Cannot load
+  certificate chain ... PEM_read_bio:no start line".
+
+2004.11.11 -- Version 2.0-beta17
+
+* Changed default port number to 1194 per IANA official
+  port number assignment.
+* Added --plugin directive which allows compiled
+  modules to intercept script callbacks.  See
+  plugin folder in tarball for more info.
+* Fixed bug introduced in beta12 where --key-method 1
+  authentications which should have succeeded would fail.
+* Ignore SIGUSR1 during DNS resolution.
+* Added SuSE support to openvpn.spec (Umberto Nicoletti).
+* Fixed --cryptoapicert SUBJ: parsing bug (Peter 'Luna'
+  Runestig).
+
+2004.11.07 -- Version 2.0-beta16
+
+* Modified sample-scripts/auth-pam.pl to get username
+  and password from OpenVPN via a file rather than
+  via environmental variables.
+* Added bytes_sent and bytes_received environmental
+  variables to be set prior to client-disconnect script.
+* Changed client virtual IP derivation precedence:
+  (1) use --ifconfig-push directive from --client-connect
+  script, (2) use --ifconfig-push directive from
+  --client-config-dir, and (3) use --ifconfig-pool
+  address.
+* If a --client-config-dir file specifies --ifconfig-push,
+  it will be visible to the --client-connect-script in
+  the ifconfig_pool_remote_ip environmental variable.
+* For tun-style tunnels, the ifconfig_pool_local_ip
+  environmental variable will be set, while for
+  tap-style tunnels, the ifconfig_pool_netmask variable
+  will be set.
+* Added intelligence to autoconf script to test
+  compiler for the accepted form of zero-length arrays.
+* Fixed a bug introduced in beta12 where --ip-win32
+  netsh would fail if --dev-node was not explicitly
+  specified.
+* --ip-win32 netsh will now work on hidden adapters.
+* Fix attempt of "Assertion failed at crypto.c:149".
+  This assertion has also been reported on 1.x with a
+  slightly different line number.  The fix is twofold:
+  (1) In previous releases, --mtu-test may trigger this
+  assertion -- this bug has been fixed.  (2) If something
+  else causes the assertion to be thrown, don't panic,
+  just output a nonfatal warning to the log and drop
+  the packet which generated the error.
+* Support TAP interfaces on Mac OS X (Waldemar Brodkorb).
+* Added --echo directive.
+* Added --auth-nocache directive.
+
+2004.10.28 -- Version 2.0-beta15
+
+* Changed environmental variable character classes
+  so that names must consist of alphanumeric or
+  underbar chars and values must consist of printable
+  characters.  Illegal chars will be deleted.
+  Versions prior to 2.0-beta12 were more restrictive
+  and would map spaces to '.'.
+* On Windows, when the TAP adapter fails to
+  initialize with the correct IP address, output
+  "Initialization Sequence Completed with Errors"
+  to the console or log file.
+* Added a warning when user/group/chroot is used
+  without persist-tun and persist-key.
+* Added cryptoapi.[ch] to tarball and source zip.
+* --tls-remote option now works with common name
+  prefixes as well as with the full X509 subject
+  string.  This is a useful alternative to using
+  a CRL on the client.
+* common names associated with a static
+  --ifconfig-push setting will no longer leave
+  any state in the --ifconfig-pool-persist file.
+* Hard TLS errors (TLS handshake failed) will now
+  trigger either a SIGUSR1 signal by default
+  or SIGTERM (if --tls-exit is specified).  In TCP
+  mode, all TLS errors are considered to be hard.
+  In server mode, the signal will be local to the
+  client instance.
+* Added method parameter to --auth-user-pass-verify
+  directive to select whether username/password
+  is passed to script via environment or a temporary
+  file.
+* Added --status-version option to control format
+  of --status file.  The --mode server
+  --status-version 2 format now includes a line
+  type token, the virtual IP address is shown
+  in the client list (even in --dev tap mode),
+  and the integer time_t value is shown anywhere
+  an ascii-formatted time/date is also shown.
+* Added --remap-usr1 directive which can be used
+  to control whether internally or externally
+  generated SIGUSR1 signals are remapped to
+  SIGHUP (restart without persisting state) or
+  SIGTERM (exit).
+* When running as a Windows service (using
+  --service option), check the exit event before
+  and after reading one line of input from
+  stdin, when reading username/password info.
+* For developers: Extended the --gremlin function
+  to better stress-test the new 2.0 features,
+  added Valgrind support on Linux and Dmalloc
+  support on Windows.
+
+2004.10.19 -- Version 2.0-beta14
+
+* Fixed a bug introduced in Beta12 that would occur
+  if you use a --client-connect script without also
+  defining --tmp-dir.
+* Fixed a bug introduced in Beta12 where a learn-address
+  script might segfault on the delete method.
+* Added Crypto API support in Windows version via
+  the --cryptoapicert option (Peter 'Luna' Runestig).
+
+2004.10.18 -- Version 2.0-beta13
+
+* Fixed an issue introduced in Beta12 where the private
+  key password would not be prompted for unless --askpass
+  was explicitly specified in the config.
+
+2004.10.17 -- Version 2.0-beta12
+
+* Added support for username/password-based authentication.
+  Clients can now authentication themselves with the server
+  using either a certificate, a username/password, or both.
+  New directives: --auth-user-pass, --auth-user-pass-verify,
+  --client-cert-not-required, and --username-as-common-name.
+* Added NTLM proxy patch (William Preston).
+* Added --ifconfig-pool-linear server flag to allocate
+  individual tun addresses for clients rather than /30
+  subnets (won't work with Windows clients).
+* Modified --http-proxy code to cache username/password
+  across restarts.
+* Modified --http-proxy code to read username/password
+  from the console when the auth file is given as "stdin".
+* Modified --askpass to take an optional filename argument.
+* --persist-tun and --persist-key now work in client mode
+  and can be pushed to clients as well.
+* Added --ifconfig-pool-persist directive, to maintain
+  ifconfig-pool info in a file which is persistent across
+  daemon instantiations.
+* --user and --group privilege downgrades as well as
+  --chroot now also work in client mode (the
+  dowgrade/chroot will be delayed until the initialization
+  sequence is completed).
+* Added --show-engines standalone directive to show
+  available OpenSSL crypto accelerator engine support.
+* --engine directive now accepts an optional engine-ID
+  parameter to control which engine is used.
+* "Connection reset, restarting" log message now shows
+  which client is being reset.
+* Added --dhcp-pre-release directive in Windows version.
+* Second parm to --ip-win32 can be "default", e.g.
+  --ip-win32 dynamic default 60.
+* Fixed documentation bug regarding environmental
+  variable settings for --ifconfig-pool IP addresses.
+  The correct environmental variable names are:
+  ifconfig_pool_local_ip and ifconfig_pool_remote_ip.
+* ifconfig_pool_local_ip and ifconfig_pool_remote_ip
+  environmental variables are now passed to the
+  client-disconnect script.
+* In server mode, environmental variables are now scoped
+  according to the client they are associated with,
+  to solve the problem of "crosstalk" between different
+  client's environmental variable sets.
+* Added --down-pre flag to cause --down script to be
+  called before TUN/TAP close (rather than after).
+* Added --tls-exit flag which will cause OpenVPN
+  to exit on any TLS errors.
+* Don't push a route to a client if it exactly
+  matches an iroute (this lets you push routes to
+  all clients, and OpenVPN will automatically remove
+  the route from the route push list only for that client
+  which the route actually belongs to).
+* Made '--resolv-retry infinite' the default.
+  --resolv-retry can be disabled by using a parameter of 0.
+* For clients which plan to pull config info from server,
+  set an initial default ping-restart of 60 seconds.
+* Optimized mute code to lessen the load on the processor
+  when messages are being muted at a higher frequency.
+* Made route log messages non-mutable.
+* Silence the Linux "No buffer space available" message.
+* Added miscellaneous additional option sanity checks.
+* Added Windows version of easy-rsa scripts in
+  easy-rsa/Windows directory (Andrew J. Richardson).
+* Added NetBSD route patch (Ed Ravin).
+* Added OpenBSD patch for TAP + --redirect-gateway
+  (Waldemar Brodkorb).
+* Directives which prompt for a username and/or password
+  will now work with --daemon (OpenVPN will prompt
+  before forking).
+* Warn if CRL is from a different issuer than the
+  issuer of the peer certificate (Bernhard Weisshuhn).
+* Changed init script chkconfig parameters to start
+  OpenVPN daemon(s) before NFS.
+* Bug fix attempt of "too many I/O wait events" which occurs
+  on OSes which prefer select() over poll() such as Mac OS X.
+* Added --ccd-exclusive flag.  This flag will require, as a
+  condition of authentication, that a connecting client has
+  a --client-config-dir file.
+* TAP-Win32 open code will attempt to open a free adapter
+  if --dev-node is not specified (Mathias Sundman).
+* Resequenced --nice and --chroot ordering so that --nice
+  occurs first.
+* Added --suppress-timestamps flag (Charles Duffy).
+* Source code changes to allow compilation by MSVC
+  (Peter 'Luna' Runestig).
+* Added experimental --fast-io flag which optimizes
+  TUN/TAP/UDP writes on non-Windows systems.
+	
+2004.08.18 -- Version 2.0-beta11
+
+* Added --server, --server-bridge, --client, and
+  --keepalive helper directives.  See client.conf
+  and server.conf in sample-config-files for sample
+  configurations which use the new directives.
+* On Windows, added --route-method to control
+  whether IP Helper API or route.exe is used
+  to add/delete routes.
+* On Windows, added a second parameter to
+  --route-delay to control the maximum time period
+  to wait for the TAP-Win32 adapter to come up
+  before adding routes.
+* Fixed bug in Windows version where configurations
+  which omit --ifconfig might fail to recognize when
+  the TAP adapter is up.
+* Proxy connection failures will now retry according
+  to the --connect-retry parameter. 
+* Fixed --dev null handling on Windows so that TLS
+  loopback test described in INSTALL file works
+  correctly on Windows.
+* Added "Initialization Sequence Completed" message
+  after all initialization steps have been completed
+  and the VPN can be considered "up".
+* Better sanity-checking on --ifconfig-pool parameters.
+* Added --tcp-queue-limit option to control
+  TUN/TAP -> TCP socket overflow.
+* --ifconfig-nowarn flag will now silence general
+  warnings about possible --ifconfig address
+  conflicts, including the warning about --ifconfig
+  and --remote addresses being in same /24 subnet.
+* Fixed case where server mode did not correctly
+  identify certain types of ethernet multicast packets
+  (Marcel de Kogel).
+* Added --explicit-exit-notify option (experimental).
+
+2004.08.02 -- Version 2.0-beta10
+
+* Fixed possible reference after free of option strings
+  after a restart, bug was introduced in beta8.
+* Fixed segfault at route.c:919 in the beta9
+  Windows version that was being caused by indirection
+  through a NULL pointer.
+* Mistakenly built debug version of TAP-Win32 driver
+  for beta9.  Beta10 has correct release build.
+
+2004.07.30 -- Version 2.0-beta9
+
+* Fixed --route issue on Windows that was introduced with
+  the new beta8 route implementation based on the
+  IP Helper API.
+
+2004.07.27 -- Version 2.0-beta8
+
+* Added TCP support in server mode.
+* Added PKCS #12 support (Mathias Sundman).
+* Added patch to make revoke-crt and make-crl work
+  seamlessly within the easy-rsa environment (Jan Kiszka).
+* Modified --mode server ethernet bridge code to forward
+  special IEEE 802.1d MAC Groups, i.e. 01:80:C2:XX:XX:XX.
+* Added --dhcp-renew and --dhcp-release flags to Windows
+  version.  Normally DHCP renewal and release on the TAP
+  adapter occurs automatically under Windows, however
+  if you set the TAP-Win32 adapter Media Status property
+  to "Always Connected", you may need these flags.
+* Added --show-net standalone flag to Windows version to
+  show OpenVPN's view of the system adapter and routing
+  tables.
+* Added --show-net-up flag to Windows version to output
+  the system routing table and network adapter list to
+  the log file after the TAP-Win32 adapter has been brought
+  up and any routes have been added.
+* Modified Windows version to add routes using the IP Helper
+  API rather than by calling route.exe.
+* Fixed bug where --route-up script was not being called
+  if no --route options were specified.
+* Added --mute-replay-warnings to suppress packet replay
+  warnings.  This is a common false alarm on WiFi nets.
+* Added "def1" flag to --redirect-gateway option to override
+  the default gateway by using 0.0.0.0/1 and 128.0.0.0/1
+  rather than 0.0.0.0/0.  This has the benefit of overriding
+  but not wiping out the original default gateway.
+  (Thanks to Jim Carter for pointing out this idea).
+* You can now run OpenVPN with a single config file argument.
+  For example, you can now say "openvpn config.conf"
+  rather than "openvpn --config config.conf".
+* On Windows, made --route and --route-delay more adaptive
+  with respect to waiting for interfaces referenced by the
+  route destination to come up.  Routes added by --route
+  should now be added as soon as the interface comes up,
+  rather than after an obligatory 10 second delay.  The
+  way this works internally is that --route-delay now
+  defaults to 0 on Windows.  Previous versions would
+  wait for --route-delay seconds then add the routes.
+  This version will wait --route-delay seconds and then
+  test the routing table at one second intervals for the
+  next 30 seconds and will not add the routes until they
+  can be added without errors.
+* On Windows, don't setsockopt SO_SNDBUF or SO_RCVBUF by
+  default on TCP/UDP socket in light of reports that this
+  action can have undesirable global side effects on the
+  MTU settings of other adapters.  These parameters can
+  still be set, but you need to explicitly specify
+  --sndbuf and/or --rcvbuf.
+* Added --max-clients option to limit the maximum number
+  of simultaneously connected clients in server mode.
+* Added error message to illuminate shell escape gotcha when
+  single backslashes are used in Windows path names.
+* Added optional netmask parm to --ifconfig-pool.
+* Fixed bug where http-proxy connect retry attempts were
+  incorrectly going to the remote OpenVPN server,
+  not to the HTTP proxy server.
+
+2004.06.29 -- Version 2.0-beta7
+
+* Fixed bug in link_socket_verify_incoming_addr() which
+  under certain circumstances could have caused --float
+  behavior even if --float was not specified.
+* --tls-auth option now works with --mode server.
+  All clients and the server should use the same
+  --tls-auth key when operating in client/server mode.
+* Added --engine option to make use of OpenSSL-supported
+  crypto acceleration hardware.
+* Fixed some high verbosity print format size issues
+  in event.c for 64 bit platforms (Janne Johansson).
+* Made failure to open --log or --log-append file
+  a non-fatal error.
+
+2004.06.23 -- Version 2.0-beta6
+
+* Fixed Windows installer to intelligently put
+  up a reboot dialog only if tapinstall tells
+  us that it's really necessary.
+* Fixed "Assertion failed at fragment.c:309"
+  bug when --mode server and --fragment are used
+  together.
+* Ignore HUP, USR1, and USR2 signals during
+  initialization.  Prior versions would abort.
+* Fixed bug on OS X: "Assertion failed at event.c:406".
+* Added --service option to Windows version, for use
+  when OpenVPN is being programmatically instantiated
+  by another process (see man page for info).
+* --log and --log-append options now work on Windows.
+* Update OpenBSD INSTALL notes (Janne Johansson).
+* Enable multicast on tun interface when running on
+  OpenBSD (Pavlin Radoslavov).
+* Fixed recent --test-crypto breakage, where options
+  such as --cipher were not being parsed correctly.
+* Modified options compatibility string by removing
+  ifconfig substring if it is empty.  Incremented
+  options compatibility string version number to 4.
+* Fixed typo in --tls-timeout option parsing
+  (Mikael Lonnroth).
+
+2004.06.13 -- Version 2.0-beta5
+
+* Fixed rare --mode server crash that could occur
+  if data was being routed to a client at
+  high bandwidth at the precise moment that the
+  client instance object on the server was being
+  deleted.
+* Fixed issue on machines which have epoll.h and
+  the epoll_create glibc call defined, but which
+  don't actually implement epoll in the kernel.
+  OpenVPN will now gracefully fall back to the
+  poll API in this case.
+* Fixed Windows bug which would cause the following
+  error in a --mode server --dev tap configuration:
+  "resource limit WSA_MAXIMUM_WAIT_EVENTS has been
+  exceeded".
+* Added CRL (certificate revocation list) management
+  scripts to easy-rsa directory (Jon Bendtsen).
+* Do a better job of getting the ifconfig component
+  of the options consistency check to work correctly
+  when --up-delay is used.
+* De-inlined some functions which were too complex
+  to be inlined anyway with gcc.
+* If a --dhcp-option option is pushed to a non-windows
+  client, the option will be saved in the client's
+  environment before the --up script is called, under
+  the name "foreign_option_{n}".
+* Added --learn-address script (see man page) which
+  allows for firewall access through the VPN to be
+  controlled based on the client common name.
+* In mode --server mode, when a client connects to
+  the server, the server will disconnect any
+  still-active clients which use the same common
+  name.  Use --duplicate-cn flag to revert to
+  previous behavior of allowing multiple clients
+  to concurrently connect with the same common name.
+
+2004.06.08 -- Version 2.0-beta4
+
+* Fixed issue with beta3 where Win32 service wrapper
+  was keying off of old TAP HWID as a dependency.  To
+  ensure that the new service wrapper is correctly
+  installed, the Windows install script will uninstall
+  the old wrapper before installing the new one,
+  causing a reset of service properties.
+* Fixed permissions issue on --status output file,
+  with default access permissions of owner read/write
+  only (default permissions can be changed of course with
+  chmod).
+
+2004.06.05 -- Version 2.0-beta3
+
+* More changes to TAP-Win32 driver's INF file which
+  affects the placement of the driver in the Windows
+  device namespace.  This is done to work around an
+  apparent bug in Windows when short HWIDs are used,
+  and will also ease the upgrade from 1.x to 2.0 by
+  reducing the chances that a reboot will be needed
+  on upgrade.  Like beta2, this upgrade will
+  delete existing TAP-Win32 interfaces, and reinstall
+  a single new interface with default properties.
+* Major rewrite of I/O event wait layer in the style
+  of libevent.  This is a precursor to TCP support
+  in --mode server.
+* New feature: --status.  Outputs a SIGUSR2-like
+  status summary to a given file, updated once
+  per n seconds.  The status file is comma delimited
+  for easy machine parsing.
+* --ifconfig-pool now remembers common names and
+  will try to assign a consistent IP to a given
+  common name.  Still to do: persist --ifconfig-pool
+  memory across restarts by saving state in file.
+* Fixed bug in event timer queue which could cause
+  recurring timer events such as --ping to not
+  correctly schedule again after firing.  This in
+  turn would cause spurrious ping restarts and possible
+  connection outages.  Thanks to Denis Vlasenko for
+  tracking this down.
+* Possible fix to reported bug where --daemon argument
+  was not printing to syslog correctly after restart.
+* Fixed bug where pulling --route or --dhcp-option
+  directives from a server would problematically
+  interact with --persist-tun on the client.
+* Updated contrib/multilevel-init.patch (Farkas Levente).
+* Added RPM build option to .spec and .spec.in files
+  to optionally disable LZO inclusion (Ian Pilcher).
+* The latest MingW runtime and headers define
+  'ssize_t', so a patch is needed (Gisle Vanem).
+
+2004.05.14 -- Version 2.0-beta2
+
+* Fixed signal handling bug in --mode server, where
+  SIGHUP and SIGUSR1 were treated as SIGTERM.
+* Changed the TAP-Win32 HWID from "TAP" to "TAPDEV".
+  Apparently the larger string may work around
+  a problem where the TAP adapter is sometimes missing
+  from the network connections panel, especially under
+  XP SP2. Also note that installing this upgrade will
+  uninstall any pre-existing TAP-Win32 adapters, and then
+  install a single new adapter, meaning that old adapter
+  properties will be lost.  Thanks to Md5Chap for solving
+  this one.
+* For --mode server --dev tap, the options --ifconfig and
+  --ifconfig-pool are now optional.  This allows address
+  assignment via DHCP or use of a TAP VPN without
+  IP support, as has always been possible with 1.x.
+* Fixed bug where --ifconfig may not work correctly on
+  Linux 2.2.
+* Added 'local' flag to --redirect-gateway for use on
+  networks where both OpenVPN daemons are connected
+  to a shared subnet, such as wireless.
+
+2004.05.09 -- Version 2.0-beta1
+
+* Unchanged from test29 except for version number
+  upgrade.
+
+2004.05.08 -- Version 2.0-test29
+
+* Modified --dev-node on Windows to accept a TAP-Win32
+  GUID name.  In addition, --show-adapters will now
+  display the high-level name and GUID of each adapter.
+  This is an attempt to work around an issue in Windows
+  where sometimes the TAP-Win32 adapter installs correctly
+  but has no icon in the network connections control
+  panel.  In such cases, being able to specify
+  --dev-node {TAP-GUID} can work around the missing icon.
+
+2004.05.07 -- Version 2.0-test28
+
+* Fixed bug which could cause segfault on program
+  shutdown if --route and --persist-tun are used
+  together.
+
+2004.05.06 -- Version 2.0-test27
+
+* Fixed bug in close_instance() which might cause
+  memory to be accessed after it had already been freed.
+* Fixed bug in verify_callback() that might have
+  caused uninitialized data to be referenced.
+* --iroute now allows full CIDR subnet routing.
+* In "--mode server --dev tun" usage, source addresses
+  on VPN packets coming from a particular client must
+  be associated with that client in the OpenVPN internal
+  routing table.
+	
+2004.04.28 -- Version 2.0-test26
+
+* Optimized broadcast path in multi-client mode.
+* Added socket buffer size options --rcvbuf & --sndbuf.
+* Configure Linux tun/tap driver to use a more sensible
+  txqueuelen default.  Also allow explicit setting
+  via --txqueuelen option (Harald Roelle).
+* The --remote option now allows the port number
+  to be specified as the second parameter.  If
+  unspecified, the port number defaults to the
+  --rport value.
+* Multiple --remote options on the client can now be
+  specified for load balancing and failover.  The
+  --remote-random flag can be used to initially randomize
+  the --remote list for basic load balancing.
+* If a remote DNS name resolves to multiple DNS addresses,
+  one will be chosen by random as a kind of basic
+  load-balancing feature if --remote-random is used.
+* Added --connect-freq option to control maximum
+  new connection frequency in multi-client mode.
+* In multi-client mode, all syslog messages associated
+  with a specific client now include a client-ID prefix.
+* For Windows, use a gettimeofday() function based
+  on QueryPerformanceCounter (Derek Burdick).
+* Fixed bug in interaction between --key-method 2
+  and DES ciphers, where dynamic keys would be generated
+  with bad parity and then be rejected.
+
+2004.04.17 -- Version 2.0-test24
+
+* Reworked multi-client broadcast handling.
+
+2004.04.13 -- Version 2.0-test23
+	
+* Fixed bug in --dev tun --client-to-client routing.
+* Fixed a potential deadlock in --pull.
+* Fixed a problem with select() usage which could
+  cause a repeating sequence of "select : Invalid
+  argument (code=22)"
+
+2004.04.11 -- Version 2.0-test22
+
+* Fixed bug where --mode server + --daemon was
+  prematurely closing syslog connection.
+* Added support for --redirect-gateway on Mac OS X
+  (Jeremy Apple).
+* Minor changes to TAP-Win32 driver based on feedback
+  from the NDISTest tool.
+	
+2004.04.11 -- Version 2.0-test21
+
+* Optimizations in multi-client server event loop.
+
+2004.04.10 -- Version 2.0-test20
+
+* --mode server capability now works with either tun
+  or tap interfaces.  When used with tap interfaces,
+  OpenVPN will internally bridge all client tap
+  interfaces with the server tap interface.
+* Connecting clients can now have a client-specific
+  configuration on the server, based on the client
+  common name embedded in the client certificate.
+  See --client-config-dir and --client-connect.
+  These options can be used to configure client-specific
+  routes.
+* Added an option --client-to-client that enables
+  internal client-to-client routing or bridging.
+  Otherwise, clients will only "see" the server,
+  not other connected clients.
+* Fixed bug in route scheduling which would have caused
+  --mode server to not work on Windows in test18
+  and test19 with the sample config file.
+* Man page is up to date with all new options.
+* OpenVPN 2.0 release notes on web site updated
+  with tap-style tunnel examples.
+
+2004.04.02 -- Version 2.0-test19
+
+* Fixed bug where routes pushed from server were
+  not working correctly on Windows clients.
+* Added Mac OS X route patch (Jeremy Apple).
+
+2004.03.30 -- Version 2.0-test18
+
+* Minor fixes + Windows self-install modified
+  to use OpenSSL 0.9.7d.
+
+2004.03.29 -- Version 2.0-test17
+
+* Fixed some bugs related to instance timeout and deletion.
+* Extended --push/--pull option to support additional
+  option classes.
+
+2004.03.28 -- Version 2.0-test16
+
+* Successful test of --mode udp-server, --push,
+  --pull, and --ifconfig-pool with server on
+  Linux 2.4 and clients on Linux and Windows.
+
+2004.03.25 -- Version 2.0-test15
+	
+* Implemented hash-table lookup of client instances
+  based either on remote UDP address/port or remote
+  ifconfig endpoint.
+* Implemented a randomized binary tree based
+  scheduler for scalably scheduling a large number
+  of client instance events.  Uses the treap
+  data structure and node rotation algorithm
+  to keep the tree balanced.
+* Initial implementation of ifconfig-pool.
+* Made --key-method 2 the default.
+
+2004.03.20 -- Version 2.0-test14
+
+* Implemented --push and --pull.
+
+2004.03.20 -- Version 2.0-test13
+
+* Reduced struct tls_multi and --single-session
+  memory footprint.
+* Modified --single-session flag to be used
+  in multi-client UDP server client instances.
+
+2004.03.19 -- Version 2.0-test12
+
+* Added the key multi-client UDP server options,
+  --mode, --push, --pull, and --ifconfig-pool.
+* Revamped GC (garbage collection) code to not rely
+  on any global data.
+* Modifications to thread.[ch] to allow a more
+  flexible thread model.
+
+2004.03.16 -- Version 2.0-test11
+
+* Moved all timer code to interval.h, added new file
+  interval.c.
+* Fixed missing include.
+
+2004.03.16 -- Version 2.0-test10
+
+* More TAP-Win32 fixes.
+* Initial debugging and testing of multi.[ch].
+
+2004.03.14 -- Version 2.0-test9
+
+* Branch merge with 1.6-rc3
+* More point-to-multipoint work in multi.[ch].
+* Major TAP-Win32 driver restructuring to use
+  NdisMRegisterDevice instead of
+  IoCreateDevice/IoCreateSymbolicLink.
+* Changed TAP-Win32 symbolic links to use \DosDevices\Global\
+  pathname prefix.
+* In the majority of cases, TAP-Win32 should now be
+  able to install and uninstall on Win2K without requiring
+  a reboot.
+* TAP-Win32 MAC address can now be explicitly set in the
+  adapter advanced properties page.
+
+2004.03.04 -- Version 2.0-test8
+
+* Branch merge with 1.6-rc2.
+
+2004.03.03 -- Version 2.0-test7
+
+* Branch merge with 1.6-rc1.2.
+
+2004.03.02 -- Version 2.0-test6
+
+* Branch merge with 1.6-rc1.
+
+2004.03.02 -- Version 2.0-test5
+
+* Move Socks5 UDP header append/remove to socks.c, and is
+  called from forward.c.
+* Moved verify statics from ssl.c into struct tls_session.
+* Wrote multi.[ch] to handle top level of point-to-multipoint
+  mode.
+* Wrote some code to allow a struct link_socket in a child context
+  to be slaved to the parent context.
+* Broke up packet read and process functions in forward.c
+  (from socket or tuntap) into separate functions for read
+  and process, so that point-to-point and point-to-multipoint can
+  share the same code.
+* Expand TLS control channel to allow the passing of configuration
+  commands.
+* Wrote mroute.[ch] to handle internal packet routing for
+  point-to-multipoint mode.
+
+2004.02.22 -- Version 2.0-test3
+
+* Initial work on UDP multi-client server.
+* Branch merge of 1.6-beta7
+	
+2004.02.14 -- Version 2.0-test2
+
+* Refactorization of openvpn.c into openvpn.[ch]
+  init.[ch] forward.[ch] forward-inline.h
+  occ.[ch] occ-inline.h  ping.[ch] ping-inline.h
+  sig.[ch].  Created a master per-tunnel
+  struct context in openvpn.h.
+* Branch merge of 1.6-beta6.2
+
+2003.11.06 -- Version 2.0-test1
+
+* Initial testbed for 2.0.
+
 2004.05.09 -- Version 1.6.0
 	
 * Unchanged from 1.6-rc4 except for version number
@@ -26,7 +772,7 @@ $Id$
 * Added code to determine the default gateway on FreeBSD,
   allowing the --redirect-gateway option to work
   (Juan Rodriguez Hervella).
-
+	
 2004.03.04 -- Version 1.6-rc2
 
 * Fixed bug in Windows version where the NetBIOS node-type

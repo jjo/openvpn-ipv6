@@ -23,12 +23,17 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifndef OPENVPN_SSL_H
+#define OPENVPN_SSL_H
+
 #if defined(USE_CRYPTO) && defined(USE_SSL)
 
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
+#include <openssl/pkcs12.h>
+#include <openssl/x509v3.h>
 
 #include "basic.h"
 #include "crypto.h"
@@ -37,9 +42,12 @@
 #include "reliable.h"
 #include "socket.h"
 #include "mtu.h"
+#include "thread.h"
+#include "options.h"
+#include "plugin.h"
 
 /*
- * Openvpn Protocol.
+ * OpenVPN TLS-over-UDP Protocol.
  *
  * TCP/UDP Packet:
  *   packet length (16 bits, unsigned) -- TCP only, always sent as plaintext
@@ -71,6 +79,11 @@
  *   key_source structure (pre_master only defined for client -> server)
  *   options_string_length, including null (2 bytes)
  *   options string (n bytes, null terminated, client/server options string must match)
+ *   [The username/password data below is optional, record can end at this point]
+ *   username_string_length, including null (2 bytes)
+ *   username string (n bytes, null terminated)
+ *   password_string_length, including null (2 bytes)
+ *   password string (n bytes, null terminated)
  *
  * P_DATA Payload:
  *   hmac of ciphertext IV + ciphertext (if enabled by --auth)
@@ -87,6 +100,13 @@
  *   (2) P_DATA and P_CONTROL/P_ACK use independent packet-id sequences because
  *       P_DATA is an unreliable channel while P_CONTROL/P_ACK is a reliable channel.
  */
+
+/* Used in the TLS PRF function */
+#define KEY_EXPANSION_ID "OpenVPN"
+
+/* passwords */
+#define UP_TYPE_AUTH        "Auth"
+#define UP_TYPE_PRIVATE_KEY "Private Key"
 
 /* packet opcode (high 5 bits) and key-id (low 3 bits) are combined in one byte */
 #define P_KEY_ID_MASK                  0x07
@@ -164,11 +184,24 @@
 
 #define PLAINTEXT_BUFFER_SIZE 1024
 
+/* Maximum length of common name */
+#define TLS_CN_LEN 64
+
+/* Legal characters in an X509 or common name */
+#define X509_NAME_CHAR_CLASS   (CC_ALNUM|CC_UNDERBAR|CC_DASH|CC_DOT|CC_AT|CC_COLON|CC_SLASH|CC_EQUAL)
+#define COMMON_NAME_CHAR_CLASS (CC_ALNUM|CC_UNDERBAR|CC_DASH|CC_DOT|CC_AT)
+
+/* Maximum length of OCC options string passed as part of auth handshake */
+#define TLS_OPTIONS_LEN 512
+
 /*
  * Range of key exchange methods
  */
 #define KEY_METHOD_MIN 1
 #define KEY_METHOD_MAX 2
+
+/* key method taken from lower 4 bits */
+#define KEY_METHOD_MASK 0x0F
 
 /*
  * Measure success rate of TLS handshakes, for debugging only
@@ -224,17 +257,23 @@ struct key_state
 
   struct key_ctx_bi key;	       /* data channel keys for encrypt/decrypt/hmac */
 
-  struct key_source2 key_src;          /* source entropy for key expansion */
+  struct key_source2 *key_src;         /* source entropy for key expansion */
 
   struct buffer plaintext_read_buf;
   struct buffer plaintext_write_buf;
   struct buffer ack_write_buf;
-  struct reliable send_reliable; /* holds a copy of outgoing packets until ACK received */
-  struct reliable rec_reliable;	 /* order incoming ciphertext packets before we pass to TLS */
-  struct reliable_ack rec_ack;	 /* buffers all packet IDs we want to ACK back to sender */
+
+  struct reliable *send_reliable; /* holds a copy of outgoing packets until ACK received */
+  struct reliable *rec_reliable;  /* order incoming ciphertext packets before we pass to TLS */
+  struct reliable_ack *rec_ack;	  /* buffers all packet IDs we want to ACK back to sender */
 
   int n_bytes;			 /* how many bytes sent/recvd since last key exchange */
   int n_packets;		 /* how many packets sent/recvd since last key exchange */
+
+  /*
+   * If bad username/password, TLS connection will come up but 'authenticated' will be false.
+   */
+  bool authenticated;
 };
 
 /*
@@ -269,8 +308,19 @@ struct tls_options
   int renegotiate_packets;
   interval_t renegotiate_seconds;
 
-  /* use 32 bit or 64 bit packet-id? */
-  bool packet_id_long_form;
+  /* cert verification parms */
+  const char *verify_command;
+  const char *verify_x509name;
+  const char *crl_file;
+  int ns_cert_type;
+
+  /* allow openvpn config info to be
+     passed over control channel */
+  bool pass_config_info;
+
+  /* struct crypto_option flags */
+  unsigned int crypto_flags_and;
+  unsigned int crypto_flags_or;
 
   int replay_window;                   /* --replay-window parm */
   int replay_time;                     /* --replay-window parm */
@@ -281,6 +331,22 @@ struct tls_options
 
   /* frame parameters for TLS control channel */
   struct frame frame;
+
+  /* used for username/password authentication */
+  const char *auth_user_pass_verify_script;
+  bool auth_user_pass_verify_script_via_file;
+  const char *tmp_dir;
+  bool username_as_common_name;
+
+  /* use the client-config-dir as a positive authenticator */
+  const char *client_config_dir_exclusive;
+
+  /* instance-wide environment variable set */
+  struct env_set *es;
+  const struct plugin_list *plugins;
+
+  /* --gremlin bits */
+  int gremlin;
 };
 
 /* index into tls_session.key */
@@ -319,6 +385,14 @@ struct tls_session
 
   int limit_next;               /* used for traffic shaping on the control channel */
 
+  int verify_maxlevel;
+
+  char *common_name;
+  bool verified;                /* true if peer certificate was verified against CA */
+
+  /* not-yet-authenticated incoming client */
+  struct sockaddr_in untrusted_sockaddr;
+
   struct key_state key[KS_SIZE];
 };
 
@@ -345,6 +419,9 @@ struct tls_session
  */
 struct tls_multi
 {
+  /* used to coordinate access between main thread and TLS thread */
+  //MUTEX_PTR_DEFINE (mutex);
+
   /* const options and config info */
   struct tls_options opt;
 
@@ -367,13 +444,14 @@ struct tls_multi
 
   /*
    * Number of errors.
-   *
-   * Includes:
-   *   (a) errors due to TLS negotiation failure
-   *   (b) errors due to unrecognized or failed-to-authenticate
-   *       incoming packets
    */
-  int n_errors;
+  int n_hard_errors;   /* errors due to TLS negotiation failure */
+  int n_soft_errors;   /* errors due to unrecognized or failed-to-authenticate incoming packets */
+
+  /*
+   * Our locked common name (cannot change during the life of this tls_multi object)
+   */
+  char *locked_cn;
 
   /*
    * Our session objects.
@@ -381,17 +459,30 @@ struct tls_multi
   struct tls_session session[TM_SIZE];
 };
 
+/*
+ * Used in --mode server mode to check tls-auth signature on initial
+ * packets received from new clients.
+ */
+struct tls_auth_standalone
+{
+  struct key_ctx_bi tls_auth_key;
+  struct crypto_options tls_auth_options;
+  struct frame frame;
+};
+
 void init_ssl_lib (void);
 void free_ssl_lib (void);
 
 /* Build master SSL_CTX object that serves for the whole of openvpn instantiation */
-SSL_CTX *init_ssl (bool server,
-		   const char *ca_file,
-		   const char *dh_file,
-		   const char *cert_file,
-		   const char *priv_key_file, const char *cipher_list);
+SSL_CTX *init_ssl (const struct options *options);
 
 struct tls_multi *tls_multi_init (struct tls_options *tls_options);
+
+struct tls_auth_standalone *tls_auth_standalone_init (struct tls_options *tls_options,
+						      struct gc_arena *gc);
+
+void tls_auth_standalone_finalize (struct tls_auth_standalone *tas,
+				   const struct frame *frame);
 
 void tls_multi_init_finalize(struct tls_multi *multi,
 			     const struct frame *frame);
@@ -403,17 +494,19 @@ void tls_multi_init_set_options(struct tls_multi* multi,
 bool tls_multi_process (struct tls_multi *multi,
 			struct buffer *to_link,
 			struct sockaddr_in *to_link_addr,
-			struct link_socket *to_link_socket,
-			interval_t *wakeup,
-			time_t current);
+			struct link_socket_info *to_link_socket_info,
+			interval_t *wakeup);
 
 void tls_multi_free (struct tls_multi *multi, bool clear);
 
 bool tls_pre_decrypt (struct tls_multi *multi,
 		      struct sockaddr_in *from,
 		      struct buffer *buf,
-		      struct crypto_options *opt,
-		      time_t current);
+		      struct crypto_options *opt);
+
+bool tls_pre_decrypt_lite (const struct tls_auth_standalone *tas,
+			   const struct sockaddr_in *from,
+			   const struct buffer *buf);
 
 void tls_pre_encrypt (struct tls_multi *multi,
 		      struct buffer *buf, struct crypto_options *opt);
@@ -423,68 +516,46 @@ void tls_post_encrypt (struct tls_multi *multi, struct buffer *buf);
 void show_available_tls_ciphers (void);
 void get_highest_preference_tls_cipher (char *buf, int size);
 
+void pem_password_setup (const char *auth_file);
 int pem_password_callback (char *buf, int size, int rwflag, void *u);
+void auth_user_pass_setup (const char *auth_file);
+void ssl_set_auth_nocache (void);
 
 void tls_set_verify_command (const char *cmd);
 void tls_set_crl_verify (const char *crl);
 void tls_set_verify_x509name (const char *x509name);
-int get_max_tls_verify_id ();
 
 void tls_adjust_frame_parameters(struct frame *frame);
 
+bool tls_send_payload (struct tls_multi *multi,
+		       const uint8_t *data,
+		       int size);
+
+bool tls_rec_payload (struct tls_multi *multi,
+		      struct buffer *buf);
+
+const char *tls_common_name (struct tls_multi* multi, bool null);
+void tls_set_common_name (struct tls_multi *multi, const char *common_name);
+void tls_lock_common_name (struct tls_multi *multi);
+
+bool tls_authenticated (struct tls_multi *multi);
+void tls_deauthenticate (struct tls_multi *multi);
+
 /*
- * TLS thread mode
+ * inline functions
  */
-#ifdef USE_PTHREAD
 
-#define TTCMD_PROCESS 0
-#define TTCMD_EXIT    1
-
-struct tt_cmd
+static inline int
+tls_test_payload_len (const struct tls_multi *multi)
 {
-  int cmd;
-};
-
-struct tt_ret
-{
-  struct buffer to_link;
-  struct sockaddr_in to_link_addr;
-};
-
-struct thread_parms
-{
-# define TLS_THREAD_MAIN   0
-# define TLS_THREAD_WORKER 1
-# define TLS_THREAD_SOCKET(x) ((x)->sd[TLS_THREAD_MAIN])
-
-  /* these macros are called in the context of the openvpn() function */
-# define TLS_THREAD_SOCKET_ISSET(tp, set) (tls_multi && FD_ISSET (TLS_THREAD_SOCKET (&tp), &event_wait.set))
-# define TLS_THREAD_SOCKET_SET(tp, set) { if (tls_multi) FD_SET (TLS_THREAD_SOCKET (&tp), &event_wait.set); }
-# define TLS_THREAD_SOCKET_SETMAXFD(tp) \
-  { if (tls_multi) wait_update_maxfd (&event_wait, TLS_THREAD_SOCKET (&tp)); }
-
-  int sd[2];
-
-  struct tls_multi *multi;
-  struct link_socket *link_socket;
-  int nice;
-  bool mlock;
-};
-
-void tls_thread_create (struct thread_parms *state,
-			struct tls_multi *multi,
-			struct link_socket *link_socket,
-			int nice, bool mlock);
-
-int tls_thread_process (struct thread_parms *state);
-
-void tls_thread_close (struct thread_parms *state);
-
-int tls_thread_rec_buf (struct thread_parms *state,
-			struct tt_ret* ttr,
-			bool do_check_status);
-
-#endif
+  if (multi)
+    {
+      const struct key_state *ks = &multi->session[TM_ACTIVE].key[KS_PRIMARY];
+      if (ks->state >= S_ACTIVE)
+	return BLEN (&ks->plaintext_read_buf);
+    }
+  return 0;
+}
 
 /*
  * protocol_dump() flags
@@ -494,7 +565,9 @@ int tls_thread_rec_buf (struct thread_parms *state,
 #define PD_TLS                     (1<<9)
 #define PD_VERBOSE                 (1<<10)
 
-const char *protocol_dump (struct buffer *buffer, unsigned int flags);
+const char *protocol_dump (struct buffer *buffer,
+			   unsigned int flags,
+			   struct gc_arena *gc);
 
 /*
  * debugging code
@@ -504,4 +577,9 @@ const char *protocol_dump (struct buffer *buffer, unsigned int flags);
 void show_tls_performance_stats(void);
 #endif
 
+//#define EXTRACT_X509_FIELD_TEST
+void extract_x509_field_test (void);
+
 #endif /* USE_CRYPTO && USE_SSL */
+
+#endif

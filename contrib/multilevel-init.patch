@@ -1,79 +1,79 @@
-Here is a small patch to the init script to support one more level of 
-directory in the /etc/openvpn to be able to classify the config files if 
-you have many vpn connections -- Farkas Levente
-
---- openvpn.init	2003-07-16 06:15:29.000000000 +0200
-+++ /home/lfarkas/openvpn	2003-11-03 16:05:50.000000000 +0100
-@@ -94,13 +94,19 @@
+--- /etc/init.d/openvpn	2004-05-12 20:30:06.000000000 +0200
++++ openvpn	2004-05-12 20:34:33.000000000 +0200
+@@ -58,13 +58,13 @@
+ #     returning success or failure status to caller (James Yonan).
  
- 	#echo 1 > /proc/sys/net/ipv4/ip_forward
+ # Location of openvpn binary
+-openvpn="/usr/sbin/openvpn"
++openvpn=/usr/sbin/openvpn
  
-+	cd $work
- 	if [ ! -d  $piddir ]; then
- 	    mkdir $piddir
- 	fi
-+	for d in `find * -type d`; do
-+	    if [ ! -d  $piddir/$d ]; then
-+	      mkdir $piddir/$d
-+	    fi
-+	done
+ # Lockfile
+-lock="/var/lock/subsys/openvpn"
++lock=/var/lock/subsys/openvpn
+ 
+ # PID directory
+-piddir="/var/run/openvpn"
++piddir=/var/run/openvpn
+ 
+ # Our working directory
+ work=/etc/openvpn
+@@ -106,7 +106,7 @@
  
  	if [ -f $lock ]; then
  	    # we were not shut down correctly
--	    for pidf in `/bin/ls $piddir/*.pid 2>/dev/null`; do
-+	    for pidf in `/bin/ls $piddir/*.pid $piddir/*/*.pid 2>/dev/null`; do
+-	    for pidf in `/bin/ls $piddir/*.pid $piddir/*/*.pid 2>/dev/null`; do
++	    for pidf in `find $piddir -name "*.pid" 2>/dev/null`; do
  	      if [ -s $pidf ]; then
  		kill `cat $pidf` >/dev/null 2>&1
  	      fi
-@@ -110,13 +116,12 @@
+@@ -116,12 +116,12 @@
  	    sleep 2
  	fi
  
--	rm -f $piddir/*.pid
--	cd $work
-+	rm -f $piddir/*.pid $piddir/*/*.pid
+-	rm -f $piddir/*.pid $piddir/*/*.pid
++	find $piddir -name "*.pid"|xargs rm -f
  
  	# Start every .conf in $work and run .sh if exists
  	errors=0
  	successes=0
--	for c in `/bin/ls *.conf 2>/dev/null`; do
-+	for c in `/bin/ls *.conf */*.conf 2>/dev/null`; do
+-	for c in `/bin/ls *.conf */*.conf 2>/dev/null`; do
++	for c in `find * -name "*.conf" 2>/dev/null`; do
  	    bn=${c%%.conf}
  	    if [ -f "$bn.sh" ]; then
  		. $bn.sh
-@@ -142,7 +147,7 @@
+@@ -147,7 +147,7 @@
  	;;
    stop)
  	echo -n $"Shutting down openvpn: "
--	for pidf in `/bin/ls $piddir/*.pid 2>/dev/null`; do
-+	for pidf in `/bin/ls $piddir/*.pid $piddir/*/*.pid 2>/dev/null`; do
+-	for pidf in `/bin/ls $piddir/*.pid $piddir/*/*.pid 2>/dev/null`; do
++	for pidf in `find $piddir -name "*.pid" 2>/dev/null`; do
  	  if [ -s $pidf ]; then
  	    kill `cat $pidf` >/dev/null 2>&1
  	  fi
-@@ -158,7 +163,7 @@
+@@ -163,7 +163,7 @@
  	;;
    reload)
  	if [ -f $lock ]; then
--	    for pidf in `/bin/ls $piddir/*.pid 2>/dev/null`; do
-+	    for pidf in `/bin/ls $piddir/*.pid $piddir/*/*.pid 2>/dev/null`; do
+-	    for pidf in `/bin/ls $piddir/*.pid $piddir/*/*.pid 2>/dev/null`; do
++	    for pidf in `find $piddir -name "*.pid" 2>/dev/null`; do
  		if [ -s $pidf ]; then
  		    kill -HUP `cat $pidf` >/dev/null 2>&1
  		fi
-@@ -170,7 +175,7 @@
+@@ -175,7 +175,7 @@
  	;;
    reopen)
  	if [ -f $lock ]; then
--	    for pidf in `/bin/ls $piddir/*.pid 2>/dev/null`; do
-+	    for pidf in `/bin/ls $piddir/*.pid $piddir/*/*.pid 2>/dev/null`; do
+-	    for pidf in `/bin/ls $piddir/*.pid $piddir/*/*.pid 2>/dev/null`; do
++	    for pidf in `find $piddir -name "*.pid" 2>/dev/null`; do
  		if [ -s $pidf ]; then
  		    kill -USR1 `cat $pidf` >/dev/null 2>&1
  		fi
-@@ -190,7 +195,7 @@
+@@ -195,7 +195,7 @@
  	;;
    status)
  	if [ -f $lock ]; then
--	    for pidf in `/bin/ls $piddir/*.pid 2>/dev/null`; do
-+	    for pidf in `/bin/ls $piddir/*.pid $piddir/*/*.pid 2>/dev/null`; do
+-	    for pidf in `/bin/ls $piddir/*.pid $piddir/*/*.pid 2>/dev/null`; do
++	    for pidf in `find $piddir -name "*.pid" 2>/dev/null`; do
  		if [ -s $pidf ]; then
  		    kill -USR2 `cat $pidf` >/dev/null 2>&1
  		fi

@@ -27,6 +27,15 @@
 #define CRYPTO_H
 #ifdef USE_CRYPTO
 
+/*
+ * Does our OpenSSL library support crypto hardware acceleration?
+ */
+#if defined(HAVE_OPENSSL_ENGINE_H) && defined(HAVE_ENGINE_LOAD_BUILTIN_ENGINES) && defined(HAVE_ENGINE_REGISTER_ALL_COMPLETE) && defined(HAVE_ENGINE_CLEANUP)
+#define CRYPTO_ENGINE 1
+#else
+#define CRYPTO_ENGINE 0
+#endif
+
 #include <openssl/objects.h>
 #include <openssl/rand.h>
 #include <openssl/evp.h>
@@ -35,6 +44,10 @@
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 #include <openssl/err.h>
+
+#if CRYPTO_ENGINE
+#include <openssl/engine.h>
+#endif
 
 #include "basic.h"
 #include "buffer.h"
@@ -238,8 +251,12 @@ struct crypto_options
   struct key_ctx_bi *key_ctx_bi;
   struct packet_id *packet_id;
   struct packet_id_persist *pid_persist;
-  bool packet_id_long_form;
-  bool use_iv;
+
+# define CO_PACKET_ID_LONG_FORM  (1<<0)
+# define CO_USE_IV               (1<<1)
+# define CO_IGNORE_PACKET_ID     (1<<2)
+# define CO_MUTE_REPLAY_WARNINGS (1<<3)
+  unsigned int flags;
 };
 
 void init_key_type (struct key_type *kt, const char *ciphername,
@@ -264,7 +281,7 @@ bool check_key (struct key *key, const struct key_type *kt);
 
 void fixup_key (struct key *key, const struct key_type *kt);
 
-void write_key (const struct key *key, const struct key_type *kt,
+bool write_key (const struct key *key, const struct key_type *kt,
 		struct buffer *buf);
 
 int read_key (struct key *key, const struct key_type *kt, struct buffer *buf);
@@ -288,34 +305,38 @@ void free_key_ctx_bi (struct key_ctx_bi *ctx);
 
 void openvpn_encrypt (struct buffer *buf, struct buffer work,
 		      const struct crypto_options *opt,
-		      const struct frame* frame,
-		      const time_t current);
+		      const struct frame* frame);
 
 bool openvpn_decrypt (struct buffer *buf, struct buffer work,
 		      const struct crypto_options *opt,
-		      const struct frame* frame,
-		      const time_t current);
+		      const struct frame* frame);
 
 
-void crypto_adjust_frame_parameters (struct frame *frame,
-				     const struct key_type* kt,
-				     bool cipher_defined,
-				     bool use_iv,
-				     bool packet_id,
-				     bool packet_id_long_form);
+void crypto_adjust_frame_parameters(struct frame *frame,
+				    const struct key_type* kt,
+				    bool cipher_defined,
+				    bool use_iv,
+				    bool packet_id,
+				    bool packet_id_long_form);
 
 void prng_init (void);
 void prng_bytes (uint8_t *output, int len);
 
 void test_crypto (const struct crypto_options *co, struct frame* f);
 
-const char *md5sum(uint8_t *buf, int len, int n_print_chars);
+const char *md5sum(uint8_t *buf, int len, int n_print_chars, struct gc_arena *gc);
 
 void show_available_ciphers (void);
 
 void show_available_digests (void);
 
+void show_available_engines (void);
+
+void init_crypto_lib_engine (const char *engine_name);
+
 void init_crypto_lib (void);
+
+void uninit_crypto_lib (void);
 
 /* key direction functions */
 
@@ -334,6 +355,9 @@ void key2_print (const struct key2* k,
 		 const struct key_type *kt,
 		 const char* prefix0,
 		 const char* prefix1);
+
+/* memory debugging */
+void openssl_dmalloc_init (void);
 
 #ifdef USE_SSL
 

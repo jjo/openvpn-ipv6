@@ -1,0 +1,42 @@
+openvpn-auth-pam -- an OpenVPN Plugin Module
+
+SYNOPSIS
+
+The openvpn-auth-pam module implements username/password
+authentication via PAM, and essentially allows any authentication
+method supported by PAM (such as LDAP, RADIUS, or Linux Shadow
+passwords) to be used with OpenVPN.  While PAM supports
+username/password authentication, this can be combined with X509
+certificates to provide two indepedent levels of authentication.
+
+This module uses a split privilege execution model which will
+function even if you drop openvpn daemon privileges using the user,
+group, or chroot directives.
+
+BUILD
+
+To build openvpn-auth-pam, you will need to have the pam-devel
+package installed.
+
+Build with the "make" command.  The module will be named
+openvpn-auth-pam.so
+
+USAGE
+
+To use this module, add to your OpenVPN config file:
+
+  plugin openvpn-auth-pam.so [service-type]
+
+The required service-type parameter corresponds to
+the PAM service definition file usually found
+in /etc/pam.d.
+
+The following OpenVPN directives can also influence
+the operation of this module:
+
+  client-cert-not-required
+  username-as-common-name
+
+CAVEATS
+
+This module will only work on *nix systems, not Windows.

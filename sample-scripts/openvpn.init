@@ -3,7 +3,7 @@
 # openvpn       This shell script takes care of starting and stopping
 #               openvpn on RedHat or other chkconfig-based system.
 #
-# chkconfig: 345 80 30
+# chkconfig: 345 24 76
 #
 # description: OpenVPN is a robust and highly flexible tunneling application that
 #              uses all of the encryption, authentication, and certification features
@@ -58,7 +58,15 @@
 #     returning success or failure status to caller (James Yonan).
 
 # Location of openvpn binary
-openvpn="/usr/sbin/openvpn"
+openvpn=""
+openvpn_locations="/usr/sbin/openvpn /usr/local/sbin/openvpn"
+for location in $openvpn_locations
+do
+  if [ -f "$location" ]
+  then
+    openvpn=$location
+  fi
+done
 
 # Lockfile
 lock="/var/lock/subsys/openvpn"
@@ -76,9 +84,18 @@ work=/etc/openvpn
 . /etc/sysconfig/network
 
 # Check that networking is up.
-[ ${NETWORKING} = "no" ] && exit 0
+if [ ${NETWORKING} = "no" ]
+then
+  echo "Networking is down"
+  exit 0
+fi
 
-[ -f  $openvpn ] || exit 0
+# Check that binary exists
+if ! [ -f  $openvpn ] 
+then
+  echo "openvpn binary not found"
+  exit 0
+fi
 
 # See how we were called.
 case "$1" in
@@ -204,6 +221,6 @@ case "$1" in
   *)
 	echo "Usage: openvpn {start|stop|restart|condrestart|reload|reopen|status}"
 	exit 1
+	;;
 esac
-
 exit 0

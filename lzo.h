@@ -30,6 +30,7 @@
 #include "buffer.h"
 #include "mtu.h"
 #include "common.h"
+#include "status.h"
 
 /*
  * Use LZO compress routine lzo1x_1_15_compress which is described
@@ -95,13 +96,12 @@ void lzo_compress_uninit (struct lzo_compress_workspace *lzowork);
 
 void lzo_compress (struct buffer *buf, struct buffer work,
 		   struct lzo_compress_workspace *lzowork,
-		   const struct frame* frame,
-		   const time_t current);
+		   const struct frame* frame);
 
 void lzo_decompress (struct buffer *buf, struct buffer work,
 		     struct lzo_compress_workspace *lzowork,
 		     const struct frame* frame);
 
-void lzo_print_stats (struct lzo_compress_workspace *lzo_compwork);
+void lzo_print_stats (const struct lzo_compress_workspace *lzo_compwork, struct status_output *so);
 
 #endif /* USE_LZO */

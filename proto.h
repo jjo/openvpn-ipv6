@@ -46,11 +46,13 @@
 #define OPENVPN_ETH_ALEN 6            /* ethernet address length */
 struct openvpn_ethhdr 
 {
-  uint8_t dest[OPENVPN_ETH_ALEN];     /* destination eth addr	*/
-  uint8_t source[OPENVPN_ETH_ALEN];   /* source ether addr	*/
+  uint8_t dest[OPENVPN_ETH_ALEN];     /* destination ethernet addr */
+  uint8_t source[OPENVPN_ETH_ALEN];   /* source ethernet addr	*/
 
-# define OPENVPN_ETH_P_IP   0x0800    /* IPv4 protocol */
-  uint16_t proto;                     /* packet type ID field	*/
+# define OPENVPN_ETH_P_IPV4   0x0800  /* IPv4 protocol */
+# define OPENVPN_ETH_P_IPV6   0x86DD  /* IPv6 protocol */
+# define OPENVPN_ETH_P_ARP    0x0806  /* ARP protocol */
+  uint16_t proto;                     /* packet type ID field */
 };
 
 struct openvpn_iphdr {
@@ -67,8 +69,9 @@ struct openvpn_iphdr {
 
   uint8_t    ttl;
 
+# define OPENVPN_IPPROTO_IGMP 2 /* IGMP protocol */
+# define OPENVPN_IPPROTO_TCP  6 /* TCP protocol */
 # define OPENVPN_IPPROTO_UDP 17 /* UDP protocol */
-# define OPENVPN_IPPROTO_TCP 6  /* TCP protocol */
   uint8_t    protocol;
 
   uint16_t   check;
@@ -134,7 +137,26 @@ static inline void
 htons_as (uint16_t *dest, const uint16_t src)
 {
   ((uint8_t*)dest)[0] = (uint8_t) (src >> 8);
-  ((uint8_t*)dest)[1] = (uint8_t) (src & 0xFF);
+  ((uint8_t*)dest)[1] = (uint8_t) src;
+}
+
+static inline uint32_t
+ntohl_as (const uint32_t *src)
+{
+  return (uint32_t)
+      (((uint8_t*)src)[3] << 24)
+    | (((uint8_t*)src)[2] << 16)
+    | (((uint8_t*)src)[1] << 8)
+    | (((uint8_t*)src)[0]);
+}
+
+static inline void
+htonl_as (uint32_t *dest, const uint32_t src)
+{
+  ((uint8_t*)dest)[0] = (uint8_t) (src >> 24);
+  ((uint8_t*)dest)[1] = (uint8_t) (src >> 16);
+  ((uint8_t*)dest)[2] = (uint8_t) (src >> 8);
+  ((uint8_t*)dest)[3] = (uint8_t) src;
 }
 
 static inline uint16_t
@@ -209,7 +231,7 @@ is_ipv4 (int tunnel_type, struct buffer *buf)
 	  + sizeof (struct openvpn_iphdr)))
 	return false;
       eh = (const struct openvpn_ethhdr *) BPTR (buf);
-      if (ntohs_as (&eh->proto) != OPENVPN_ETH_P_IP)
+      if (ntohs_as (&eh->proto) != OPENVPN_ETH_P_IPV4)
 	return false;
       offset = sizeof (struct openvpn_ethhdr);
     }

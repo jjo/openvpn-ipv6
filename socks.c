@@ -39,9 +39,8 @@
 #include "syshead.h"
 
 #include "common.h"
-#include "buffer.h"
 #include "misc.h"
-#include "io.h"
+#include "win32.h"
 #include "socket.h"
 #include "fdmisc.h"
 #include "proxy.h"
@@ -49,19 +48,21 @@
 #include "memdbg.h"
 
 
-void socks_adjust_frame_parameters (struct frame *frame, int proto)
+void
+socks_adjust_frame_parameters (struct frame *frame, int proto)
 {
   if (proto == PROTO_UDPv4)
     frame_add_to_extra_link (frame, 10);
 }
 
-void
-init_socks_proxy (struct socks_proxy_info *p,
-		  const char *server,
-		  int port,
-		  bool retry)
+struct socks_proxy_info *
+new_socks_proxy (const char *server,
+		 int port,
+		 bool retry,
+		 struct gc_arena *gc)
 {
-  CLEAR (*p);
+  struct socks_proxy_info *p;
+  ALLOC_OBJ_CLEAR_GC (p, struct socks_proxy_info, gc);
   ASSERT (server);
   ASSERT (legal_ipv4_port (port));
 
@@ -69,6 +70,8 @@ init_socks_proxy (struct socks_proxy_info *p,
   p->port = port;
   p->retry = retry;
   p->defined = true;
+
+  return p;
 }
 
 static bool
@@ -101,7 +104,7 @@ socks_handshake (socket_descriptor_t sd, volatile int *signal_received)
 
       status = select (sd + 1, &reads, NULL, NULL, &tv);
 
-      GET_SIGNAL (*signal_received);
+      get_signal (signal_received);
       if (*signal_received)
 	return false;
 
@@ -175,7 +178,7 @@ recv_socks_reply (socket_descriptor_t sd, struct sockaddr_in *addr,
 
       status = select (sd + 1, &reads, NULL, NULL, &tv);
 
-      GET_SIGNAL (*signal_received);
+      get_signal (signal_received);
       if (*signal_received)
 	return false;
 
@@ -298,7 +301,7 @@ establish_socks_proxy_passthru (struct socks_proxy_info *p,
  error:
   /* on error, should we exit or restart? */
   if (!*signal_received)
-    *signal_received = (p->retry ? SIGUSR1 : SIGTERM);
+    *signal_received = (p->retry ? SIGUSR1 : SIGTERM); /* SOFT-SIGUSR1 -- socks error */
   return;
 }
 
@@ -336,6 +339,68 @@ establish_socks_proxy_udpassoc (struct socks_proxy_info *p,
  error:
   /* on error, should we exit or restart? */
   if (!*signal_received)
-    *signal_received = (p->retry ? SIGUSR1 : SIGTERM);
+    *signal_received = (p->retry ? SIGUSR1 : SIGTERM); /* SOFT-SIGUSR1 -- socks error */
   return;
+}
+
+/*
+ * Remove the 10 byte socks5 header from an incoming
+ * UDP packet, setting *from to the source address.
+ *
+ * Run after UDP read.
+ */
+void
+socks_process_incoming_udp (struct buffer *buf,
+			    struct sockaddr_in *from)
+{
+  int atyp;
+
+  if (BLEN (buf) < 10)
+    goto error;
+
+  buf_read_u16 (buf);
+  if (buf_read_u8 (buf) != 0)
+    goto error;
+
+  atyp = buf_read_u8 (buf);
+  if (atyp != 1)		/* ATYP == 1 (IP V4) */
+    goto error;
+
+  buf_read (buf, &from->sin_addr, sizeof (from->sin_addr));
+  buf_read (buf, &from->sin_port, sizeof (from->sin_port));
+
+  return;
+
+ error:
+  buf->len = 0;
+}
+
+/*
+ * Add a 10 byte socks header prior to UDP write.
+ * *to is the destination address.
+ *
+ * Run before UDP write.
+ * Returns the size of the header.
+ */
+int
+socks_process_outgoing_udp (struct buffer *buf,
+			    struct sockaddr_in *to)
+{
+  /* 
+   * Get a 10 byte subset buffer prepended to buf --
+   * we expect these bytes will be here because
+   * we allocated frame space in socks_adjust_frame_parameters.
+   */
+  struct buffer head = buf_sub (buf, 10, true);
+
+  /* crash if not enough headroom in buf */
+  ASSERT (buf_defined (&head));
+
+  buf_write_u16 (&head, 0);	/* RSV = 0 */
+  buf_write_u8 (&head, 0);	/* FRAG = 0 */
+  buf_write_u8 (&head, '\x01'); /* ATYP = 1 (IP V4) */
+  buf_write (&head, &to->sin_addr, sizeof (to->sin_addr));
+  buf_write (&head, &to->sin_port, sizeof (to->sin_port));
+
+  return 10;
 }

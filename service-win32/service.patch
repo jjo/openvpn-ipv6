@@ -194,7 +194,7 @@
  
     if ( lpszTemp )
 --- service.h.orig	Thu Nov  6 07:13:13 2003
-+++ service.h	Thu Nov  6 07:13:31 2003
++++ service.h	Mon Jun  7 00:28:46 2004
 @@ -62,13 +62,13 @@
  //// todo: change to desired strings
  ////
@@ -209,7 +209,7 @@
 +#define SZSERVICEDISPLAYNAME "OpenVPN Service"
  // list of service dependencies - "dep1\0dep2\0\0"
 -#define SZDEPENDENCIES       ""
-+#define SZDEPENDENCIES       "TAP\0\0"
++#define SZDEPENDENCIES       "TAP0801\0\0"
  //////////////////////////////////////////////////////////////////////////////
  
  

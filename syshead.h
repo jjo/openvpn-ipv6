@@ -118,12 +118,24 @@
 #include <grp.h>
 #endif
 
+#ifdef USE_LIBDL
+#include <dlfcn.h>
+#endif
+
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
 
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
+#endif
+
+#ifdef HAVE_SYS_POLL_H
+#include <sys/poll.h>
+#endif
+
+#ifdef HAVE_SYS_EPOLL_H
+#include <sys/epoll.h>
 #endif
 
 #ifdef TARGET_SOLARIS
@@ -260,10 +272,6 @@
 #include <sys/mman.h>
 #endif
 
-#ifdef USE_PTHREAD
-#include <pthread.h>
-#endif
-
 /*
  * Do we have the capability to support the --passtos option?
  */
@@ -276,9 +284,17 @@
 /*
  * Do we have the capability to report extended socket errors?
  */
-#if defined(HAVE_LINUX_TYPES_H) && defined(HAVE_LINUX_ERRQUEUE_H) && defined(HAVE_SOCK_EXTENDED_ERR) && defined(HAVE_MSGHDR) && defined(HAVE_CMSGHDR) && defined(CMSG_FIRSTHDR) && defined(CMSG_NXTHDR) && defined(IP_RECVERR) && defined(MSG_ERRQUEUE) && defined(SOL_IP) && defined(HAVE_IOVEC) && defined(FRAGMENT_ENABLE)
+#if defined(HAVE_LINUX_TYPES_H) && defined(HAVE_LINUX_ERRQUEUE_H) && defined(HAVE_SOCK_EXTENDED_ERR) && defined(HAVE_MSGHDR) && defined(HAVE_CMSGHDR) && defined(CMSG_FIRSTHDR) && defined(CMSG_NXTHDR) && defined(IP_RECVERR) && defined(MSG_ERRQUEUE) && defined(SOL_IP) && defined(HAVE_IOVEC)
 #define EXTENDED_SOCKET_ERROR_CAPABILITY 1
 #else
+#define EXTENDED_SOCKET_ERROR_CAPABILITY 0
+#endif
+
+/*
+ * Disable ESEC
+ */
+#if 0
+#undef EXTENDED_SOCKET_ERROR_CAPABILITY
 #define EXTENDED_SOCKET_ERROR_CAPABILITY 0
 #endif
 
@@ -324,6 +340,74 @@
 typedef SOCKET socket_descriptor_t;
 #else
 typedef int socket_descriptor_t;
+#endif
+
+/*
+ * Do we have point-to-multipoint capability?
+ */
+
+#if defined(MULTICLIENT_SERVER_ENABLED) && defined(USE_CRYPTO) && defined(USE_SSL) && defined(HAVE_GETTIMEOFDAY)
+#define P2MP 1
+#else
+#define P2MP 0
+#endif
+
+/*
+ * Do we have a plug-in capability?
+ */
+#if defined(USE_LIBDL) || defined(USE_LOAD_LIBRARY)
+#define ENABLE_PLUGIN
+#endif
+
+/*
+ * Do we have pthread capability?
+ */
+#ifdef USE_PTHREAD
+#if defined(USE_CRYPTO) && defined(USE_SSL) && P2MP
+#include <pthread.h>
+#else
+#undef USE_PTHREAD
+#endif
+#endif
+
+/*
+ * Pthread support is currently experimental (and quite unfinished).
+ */
+#if 1 // JYFIXME -- if defined, disable pthread
+#undef USE_PTHREAD
+#endif
+
+/*
+ * Should we include NTLM proxy functionality
+ */
+#if defined(USE_CRYPTO)
+#define NTLM 1
+#else
+#define NTLM 0
+#endif
+
+/*
+ * Is poll available on this platform?
+ */
+#if defined(HAVE_POLL) && defined(HAVE_SYS_POLL_H)
+#define POLL 1
+#else
+#define POLL 0
+#endif
+
+/*
+ * Is epoll available on this platform?
+ */
+#if defined(HAVE_EPOLL_CREATE) && defined(HAVE_SYS_EPOLL_H)
+#define EPOLL 1
+#else
+#define EPOLL 0
+#endif
+
+/* Disable EPOLL */
+#if 0
+#undef EPOLL
+#define EPOLL 0
 #endif
 
 #endif

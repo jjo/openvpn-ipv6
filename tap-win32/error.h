@@ -31,10 +31,10 @@
 // DEBUGGING OUTPUT
 //-----------------
 
-#define NOTE_ERROR(a) \
+#define NOTE_ERROR() \
 { \
-  a->m_LastErrorFilename = __FILE__; \
-  a->m_LastErrorLineNumber = __LINE__; \
+  g_LastErrorFilename = __FILE__; \
+  g_LastErrorLineNumber = __LINE__; \
 }
 
 #if DBG
@@ -45,7 +45,7 @@ typedef struct {
   unsigned int capacity;
   char *text;
   BOOLEAN error;
-  LONG use;
+  MUTEX lock;
 } DebugOutput;
 
 VOID MyDebugPrint (const unsigned char* format, ...);
@@ -61,7 +61,13 @@ VOID DumpPacket2 (const char *prefix,
 		  const unsigned char *data,
 		  unsigned int len);
 
+#define CAN_WE_PRINT (DEBUGP_AT_DISPATCH || KeGetCurrentIrql () < DISPATCH_LEVEL)
+
+#if ALSO_DBGPRINT
+#define DEBUGP(fmt) { MyDebugPrint fmt; if (CAN_WE_PRINT) DbgPrint fmt; }
+#else
 #define DEBUGP(fmt) { MyDebugPrint fmt; }
+#endif
 
 #define MYASSERT(exp) \
 { \

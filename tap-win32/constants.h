@@ -31,9 +31,7 @@
 //                        Product and Version public settings
 //====================================================================
 
-#define PRODUCT_STRING "TAP VPN Adapter."
-#define TAP_SERVICE_NAME "TAP_Daemon"
-#define TAP_DRIVER_NAME "TAP"
+#define PRODUCT_STRING "TAP-Win32 Adapter V8"
 
 #define TAP_NDIS_MAJOR_VERSION 5
 #define TAP_NDIS_MINOR_VERSION 0
@@ -43,8 +41,11 @@
 //===========================================================
 
 #define ETHERNET_HEADER_SIZE     (sizeof (ETH_HEADER))
-#define ETHERNET_PACKET_SIZE     (1500 + ETHERNET_HEADER_SIZE)
-#define DEFAULT_PACKET_LOOKAHEAD (ETHERNET_PACKET_SIZE - ETHERNET_HEADER_SIZE)
+#define ETHERNET_MTU             1500
+#define ETHERNET_PACKET_SIZE     (ETHERNET_MTU + ETHERNET_HEADER_SIZE)
+#define DEFAULT_PACKET_LOOKAHEAD (ETHERNET_PACKET_SIZE)
+
+#define NIC_MAX_MCAST_LIST 32  // Max length of multicast address list
 
 #define MINIMUM_MTU 576        // USE TCP Minimum MTU
 #define MAXIMUM_MTU 65536      // IP maximum MTU

@@ -11,12 +11,16 @@
 !include "MUI.nsh"
 !include "setpath.nsi"
 
-!define MASTER "z:\openvpn"
+!define MASTER "x:\openvpn\20\openvpn"
+
 !define HOME "c:\src\openvpn"
 !define BIN "${HOME}\bin"
 
 !define MUI_PRODUCT "OpenVPN"
 !define MUI_VERSION "@VERSION@" # AUTO_VERSION
+
+!define TAP "tap0801"
+!define TAPDRV "${TAP}.sys"
 
 ; something like "-DBG2"
 !define OUTFILE_LABEL ""
@@ -53,6 +57,9 @@
   !define SOURCE_ZIP_DEST "openvpn-${MUI_VERSION}.zip"
   !define SOURCE_ZIP_SRC "${MASTER}\${SOURCE_ZIP_DEST}"
 
+# For testing only
+#!define SOURCE_ZIP_SRC "c:\src\openvpn\install-win32\null.zip"
+
 ;--------------------------------
 ;Modern UI Configuration
 
@@ -66,7 +73,7 @@
   !define MUI_FINISHPAGE
   !define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\INSTALL-win32.txt"
   !define MUI_FINISHPAGE_NOAUTOCLOSE
-  !define MUI_FINISHPAGE_NOREBOOTSUPPORT
+  !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
   
   !define MUI_ABORTWARNING
   
@@ -153,6 +160,17 @@ DeleteRegKey /ifempty "${ROOT}" "${SUBKEY}"
 Pop $R0
 !macroend
 
+;------------------------------------------
+;Set reboot flag based on tapinstall return
+
+Function CheckReboot
+  IntCmp $R0 1 "" noreboot noreboot
+  IntOp $R0 0 & 0
+  SetRebootFlag true
+  DetailPrint "REBOOT flag set"
+ noreboot:
+FunctionEnd
+
 ;--------------------------------
 ;Installer Sections
 
@@ -230,24 +248,24 @@ Section "TAP-Win32 Virtual Ethernet Adapter" SecTAP
 
   SetOverwrite on
   SetOutPath "$INSTDIR\bin"
-  File "${BIN}\ti2600.1106\tapinstall.exe"
+  File "${BIN}\ti3790\tapinstall.exe"
 
   FileOpen $R0 "$INSTDIR\bin\addtap.bat" w
   FileWrite $R0 "rem Add a new TAP-Win32 virtual ethernet adapter$\r$\n"
-  FileWrite $R0 '"$INSTDIR\bin\tapinstall.exe" install "$INSTDIR\driver\OemWin2k.inf" TAP$\r$\n'
+  FileWrite $R0 '"$INSTDIR\bin\tapinstall.exe" install "$INSTDIR\driver\OemWin2k.inf" ${TAP}$\r$\n'
   FileWrite $R0 "pause$\r$\n"
   FileClose $R0
 
   FileOpen $R0 "$INSTDIR\bin\deltapall.bat" w
   FileWrite $R0 "echo WARNING: this script will delete ALL TAP-Win32 virtual adapters (use the device manager to delete adapters one at a time)$\r$\n"
   FileWrite $R0 "pause$\r$\n"
-  FileWrite $R0 '"$INSTDIR\bin\tapinstall.exe" remove TAP$\r$\n'
+  FileWrite $R0 '"$INSTDIR\bin\tapinstall.exe" remove ${TAP}$\r$\n'
   FileWrite $R0 "pause$\r$\n"
   FileClose $R0
 
   SetOutPath "$INSTDIR\driver"
   File "${HOME}\tap-win32\i386\OemWin2k.inf"
-  File "${HOME}\tap-win32\i386\tapdrvr.sys"
+  File "${HOME}\tap-win32\i386\${TAPDRV}"
 
 SectionEnd
 
@@ -301,38 +319,49 @@ Section -post
     ; If tapinstall error occurred, $5 will
     ; be nonzero.
     IntOp $5 0 & 0
-    nsExec::ExecToStack '"$INSTDIR\bin\tapinstall.exe" hwids TAP'
+    nsExec::ExecToStack '"$INSTDIR\bin\tapinstall.exe" hwids ${TAP}'
     Pop $R0 # return value/error/timeout
     IntOp $5 $5 | $R0
     DetailPrint "tapinstall hwids returned: $R0"
 
-    ; If tapinstall output string contains "TAP" we assume
+    ; If tapinstall output string contains "${TAP}" we assume
     ; that TAP device has been previously installed,
     ; therefore we will update, not install.
-    Push "TAP"
+    Push "${TAP}"
     Call StrStr
     Pop $R0
 
-    IntCmp $5 0 +1 tapinstall_check_error tapinstall_check_error
+    IntCmp $5 0 "" tapinstall_check_error tapinstall_check_error
     IntCmp $R0 -1 tapinstall
 
  ;tapupdate:
     DetailPrint "TAP-Win32 UPDATE"
-    nsExec::ExecToLog '"$INSTDIR\bin\tapinstall.exe" update "$INSTDIR\driver\OemWin2k.inf" TAP'
+    nsExec::ExecToLog '"$INSTDIR\bin\tapinstall.exe" update "$INSTDIR\driver\OemWin2k.inf" ${TAP}'
     Pop $R0 # return value/error/timeout
+    Call CheckReboot
     IntOp $5 $5 | $R0
     DetailPrint "tapinstall update returned: $R0"
     Goto tapinstall_check_error
 
  tapinstall:
-    DetailPrint "TAP-Win32 INSTALL"
-    nsExec::ExecToLog '"$INSTDIR\bin\tapinstall.exe" install "$INSTDIR\driver\OemWin2k.inf" TAP'
+    DetailPrint "TAP-Win32 REMOVE OLD TAP"
+    nsExec::ExecToLog '"$INSTDIR\bin\tapinstall.exe" remove TAP'
     Pop $R0 # return value/error/timeout
+    DetailPrint "tapinstall remove TAP returned: $R0"
+    nsExec::ExecToLog '"$INSTDIR\bin\tapinstall.exe" remove TAPDEV'
+    Pop $R0 # return value/error/timeout
+    DetailPrint "tapinstall remove TAPDEV returned: $R0"
+
+    DetailPrint "TAP-Win32 INSTALL (${TAP})"
+    nsExec::ExecToLog '"$INSTDIR\bin\tapinstall.exe" install "$INSTDIR\driver\OemWin2k.inf" ${TAP}'
+    Pop $R0 # return value/error/timeout
+    Call CheckReboot
     IntOp $5 $5 | $R0
     DetailPrint "tapinstall install returned: $R0"
 
  tapinstall_check_error:
-    IntCmp $5 +1 notap
+    DetailPrint "tapinstall cumulative status: $5"
+    IntCmp $5 0 notap
     MessageBox MB_OK "An error occurred installing the TAP-Win32 device driver."
 
  notap:
@@ -354,6 +383,9 @@ Section -post
     !insertmacro WriteRegStringIfUndef HKLM "SOFTWARE\OpenVPN" "log_append"  "${SERV_LOG_APPEND}"
 
     ; install openvpnserv as a service
+    DetailPrint "Previous Service REMOVE (if exists)"
+    nsExec::ExecToLog '"$INSTDIR\bin\openvpnserv.exe" -remove'
+    Pop $R0 # return value/error/timeout
     DetailPrint "Service INSTALL"
     nsExec::ExecToLog '"$INSTDIR\bin\openvpnserv.exe" -install'
     Pop $R0 # return value/error/timeout
@@ -416,7 +448,7 @@ Section -post
   WriteRegExpandStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\OpenVPN" "UninstallString" "$INSTDIR\Uninstall.exe"
 
   ; Advise a reboot
-  Messagebox MB_OK "IMPORTANT: Rebooting the system is advised in order to finalize TAP-Win32 driver installation/upgrade (this is an informational message only, pressing OK will not reboot)."
+  ;Messagebox MB_OK "IMPORTANT: Rebooting the system is advised in order to finalize TAP-Win32 driver installation/upgrade (this is an informational message only, pressing OK will not reboot)."
 
 SectionEnd
 
@@ -464,7 +496,7 @@ Section "Uninstall"
   Sleep 2000
 
   DetailPrint "TAP-Win32 REMOVE"
-  nsExec::ExecToLog '"$INSTDIR\bin\tapinstall.exe" remove TAP'
+  nsExec::ExecToLog '"$INSTDIR\bin\tapinstall.exe" remove ${TAP}'
   Pop $R0 # return value/error/timeout
   DetailPrint "tapinstall remove returned: $R0"
 
@@ -487,7 +519,7 @@ Section "Uninstall"
   Delete "$INSTDIR\log\README.txt"
 
   Delete "$INSTDIR\driver\OemWin2k.inf"
-  Delete "$INSTDIR\driver\tapdrvr.sys"
+  Delete "$INSTDIR\driver\${TAPDRV}"
 
   Delete "$INSTDIR\bin\openssl.exe"
 
@@ -507,7 +539,7 @@ Section "Uninstall"
   DeleteRegKey HKCU "Software\${MUI_PRODUCT}"
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\OpenVPN"
 
-  Messagebox MB_OK "IMPORTANT: If you intend on reinstalling OpenVPN after this uninstall, and you are running Win2K, you are strongly urged to reboot before reinstalling (this is an informational message only, pressing OK will not reboot)."
+  ;Messagebox MB_OK "IMPORTANT: If you intend on reinstalling OpenVPN after this uninstall, and you are running Win2K, you are strongly urged to reboot before reinstalling (this is an informational message only, pressing OK will not reboot)."
 
   ;Display the Finish header
   !insertmacro MUI_UNFINISHHEADER

@@ -39,18 +39,19 @@ typedef int interval_t;
 /*
  * Used as an upper bound for timeouts.
  */
-#define BIG_TIMEOUT  (60*60*24*365)  /* one year (in seconds) */
+#define BIG_TIMEOUT  (60*60*24*7)  /* one week (in seconds) */
 
 /*
  * Printf formats for special types
  */
-#define counter_format          "%10lu"
-#define ptr_format              "0x%08zx"
+#define counter_format          "%lu"
+#define ptr_format              "0x%08lx"
 #define time_format             "%lu"
 #define fragment_header_format  "0x%08x"
 
 /* these are used to cast the arguments
  * and MUST match the formats above */
 typedef unsigned long time_type;
+typedef unsigned long ptr_type;
 
 #endif

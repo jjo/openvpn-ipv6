@@ -81,7 +81,7 @@ session_id_write (const struct session_id *sid, struct buffer *buf)
 
 void session_id_random (struct session_id *sid);
 
-const char *session_id_print (const struct session_id *sid);
+const char *session_id_print (const struct session_id *sid, struct gc_arena *gc);
 
 #endif /* SESSION_ID_H */
 #endif /* USE_CRYPTO && USE_SSL */

@@ -42,8 +42,12 @@
 #define random rand
 #define srandom srand
 
-typedef unsigned int in_addr_t;
-typedef unsigned int ssize_t;
+typedef unsigned long in_addr_t;
+
+#ifndef _SSIZE_T_
+#define _SSIZE_T_
+ typedef unsigned int ssize_t;
+#endif
 
 /* Append a label to program startup title */
 //#define DEBUG_LABEL "DEBUG1"
@@ -51,17 +55,51 @@ typedef unsigned int ssize_t;
 /* Should we print debug info from driver? */
 //#define TAP_WIN32_DEBUG
 
-/* Minimum TAP-Win32 version number expected by userspace */
-#define TAP_WIN32_MIN_MAJOR 5
-#define TAP_WIN32_MIN_MINOR 10
+/*
+ * Minimum TAP-Win32 version number expected by userspace
+ *
+ * The TAP-Win32 version number is defined in tap-win32/SOURCES
+ */
+#define TAP_WIN32_MIN_MAJOR 8
+#define TAP_WIN32_MIN_MINOR 1
 
-#define FRAGMENT_ENABLE
+/* Enable management server capability */
+#define ENABLE_MANAGEMENT 1
+
+/* Enable multiclient server capability */
+#define MULTICLIENT_SERVER_ENABLED 1
+
+/* if defined, will allow usage of the --plugin directive */
+#define USE_LOAD_LIBRARY
+
+/* Dimension size to use for empty array declaration */
+#define EMPTY_ARRAY_SIZE 0
+
+/* Define to 1 if you have the <openssl/engine.h> header file. */
+#define HAVE_OPENSSL_ENGINE_H 1
+
+/* Define to 1 if you have the `ENGINE_load_builtin_engines' function. */
+#define HAVE_ENGINE_LOAD_BUILTIN_ENGINES 1
+
+/* Define to 1 if you have the `ENGINE_register_all_complete' function. */
+#define HAVE_ENGINE_REGISTER_ALL_COMPLETE 1
+
+/* Define to 1 if you have the `ENGINE_cleanup' function. */
+#define HAVE_ENGINE_CLEANUP 1
+
+/* gettimeofday() is implemented in otime.c for Windows */
+#define HAVE_GETTIMEOFDAY 1
+
+/* Define to 1 if you have the 'chsize' function. */
+#define HAVE_CHSIZE 1
 
 /* Define to 1 if you have the `chdir' function. */
 #define HAVE_CHDIR 1
 
 /* Define to 1 if your compiler supports GNU GCC-style variadic macros */
+#ifndef _MSC_VER /* Defines MSFT compiler version. Defined as 1200 for MSVC++ 6.0. */
 #define HAVE_CPP_VARARG_MACRO_GCC 1
+#endif
 
 /* Define to 1 if you have the <ctype.h> header file. */
 #define HAVE_CTYPE_H 1
@@ -98,7 +136,9 @@ typedef unsigned int ssize_t;
 #define HAVE_STDARG_H 1
 
 /* Define to 1 if you have the <stdint.h> header file. */
+#ifndef _MSC_VER
 #define HAVE_STDINT_H 1
+#endif
 
 /* Define to 1 if you have the <stdio.h> header file. */
 #define HAVE_STDIO_H 1
@@ -119,13 +159,17 @@ typedef unsigned int ssize_t;
 #define HAVE_SYSTEM 1
 
 /* Define to 1 if you have the <sys/file.h> header file. */
+#ifndef _MSC_VER
 #define HAVE_SYS_FILE_H 1
+#endif
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #define HAVE_SYS_STAT_H 1
 
 /* Define to 1 if you have the <sys/time.h> header file. */
+#ifndef _MSC_VER
 #define HAVE_SYS_TIME_H 1
+#endif
 
 /* Define to 1 if you have the <sys/types.h> header file. */
 #define HAVE_SYS_TYPES_H 1
@@ -134,7 +178,9 @@ typedef unsigned int ssize_t;
 #define HAVE_TIME 1
 
 /* Define to 1 if you have the <unistd.h> header file. */
+#ifndef _MSC_VER
 #define HAVE_UNISTD_H 1
+#endif
 
 /* Define to 1 if you have the `vsnprintf' function. */
 #define HAVE_VSNPRINTF 1
@@ -177,10 +223,16 @@ typedef unsigned int ssize_t;
 #define STDC_HEADERS 1
 
 /* A string representing our target */
+#ifdef _MSC_VER
+#define TARGET_ALIAS "Win32-MSVC++"
+#else
 #define TARGET_ALIAS "Win32-MinGW"
+#endif
 
 /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
+#ifndef _MSC_VER
 #define TIME_WITH_SYS_TIME 1
+#endif
 
 /* Use OpenSSL crypto library */
 #define USE_CRYPTO 1
@@ -212,3 +264,26 @@ typedef unsigned int ssize_t;
 
 /* Route command */
 #define ROUTE_PATH "route"
+
+/* Windows doesn't support PTHREAD yet */
+#ifdef USE_PTHREAD
+#error The Windows version of OpenVPN does not support PTHREAD yet
+#endif
+
+#ifdef _MSC_VER
+/* MSVC++ hacks */
+#include <io.h>
+#include <direct.h>
+#define vsnprintf _vsnprintf
+#define vsnwprintf _vsnwprintf
+#define snwprintf _snwprintf
+#define write _write
+#define open _open
+#define read _read
+#define close _close
+#define chdir _chdir
+#define S_IRUSR 0
+#define S_IWUSR 0
+typedef int intptr_t;
+#undef S_NORMAL
+#endif

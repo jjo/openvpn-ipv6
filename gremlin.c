@@ -25,7 +25,7 @@
 
 /*
  * Test protocol robustness by simulating dropped packets and
- * network outages when the --gremlin option is enabled.
+ * network outages when the --gremlin option is used.
  */
 
 #ifdef WIN32
@@ -39,46 +39,56 @@
 #include "error.h"
 #include "common.h"
 #include "misc.h"
+#include "otime.h"
 #include "gremlin.h"
 
 #include "memdbg.h"
 
-#if 1
-
-#define CORRUPT_ENABLE
-#define UP_DOWN_ENABLE
-#define DROP_ENABLE
+/*
+ * Parameters for packet corruption and droppage.
+ * Each parameter has 4 possible levels, 0 = disabled,
+ * while 1, 2, and 3 are enumerated in the below arrays.
+ * The parameter is a 2-bit field within the --gremlin
+ * parameter.
+ */
 
 /*
- * Probability that we will drop a packet is 1 / DROP_FREQ
+ * Probability that we will drop a packet is 1 / n
  */
-#define DROP_FREQ 50
+static const int drop_freq[] = { 500, 100, 50 };
 
 /*
- * Probability that we will corrupt a packet is 1 / CORRUPT_FREQ
+ * Probability that we will corrupt a packet is 1 / n
  */
-#define CORRUPT_FREQ 50
+static const int corrupt_freq[] = { 500, 100, 50 };
 
 /*
  * When network goes up, it will be up for between
  * UP_LOW and UP_HIGH seconds.
  */
-#define UP_LOW    10
-#define UP_HIGH   300
+static const int up_low[] =  {  60, 10,  5 };
+static const int up_high[] = { 600, 60, 10 };
 
 /*
  * When network goes down, it will be down for between
  * DOWN_LOW and DOWN_HIGH seconds.
  */
-#define DOWN_LOW  10
-#define DOWN_HIGH 60
+static const int down_low[] =  {  5, 10,  10 };
+static const int down_high[] = { 10, 60, 120 };
 
-#else
+/*
+ * Packet flood levels:
+ *  { number of packets, packet size }
+ */
+static const struct packet_flood_parms packet_flood_data[] =
+  {{10, 100}, {10, 1000}, {100, 1000}};
 
-#define CORRUPT_ENABLE
-#define CORRUPT_FREQ 10
-
-#endif
+struct packet_flood_parms
+get_packet_flood_parms (int level)
+{
+  ASSERT (level > 0 && level < 4);
+  return packet_flood_data [level - 1];
+}
 
 /*
  * Return true with probability 1/n
@@ -99,60 +109,63 @@ static int roll(int low, int high) {
   return ret;
 }
 
-static bool initialized;
-static bool up;
-static time_t next;
+static bool initialized; /* GLOBAL */
+static bool up;          /* GLOBAL */
+static time_t next;      /* GLOBAL */
 
 /*
  * Return false if we should drop a packet.
  */
 bool
-ask_gremlin(void)
+ask_gremlin (int flags)
 {
-  const time_t current = time (NULL);
+  const int up_down_level = GREMLIN_UP_DOWN_LEVEL (flags);
+  const int drop_level = GREMLIN_DROP_LEVEL (flags);
 
   if (!initialized)
     {
       initialized = true;
-#ifdef UP_DOWN_ENABLE
-      up = false;
-#else
-      up = true;
-#endif
-      next = current;
-    }
 
-#ifdef UP_DOWN_ENABLE
-/* change up/down state? */
-  if (current >= next)
-    {
-      int delta;
-      if (up)
-	{
-	  delta = roll (DOWN_LOW, DOWN_HIGH);
-	  up = false;
-	}
+      if (up_down_level)
+	up = false;
       else
-	{
-	  delta = roll (UP_LOW, UP_HIGH);
-	  up = true;
-	}
-      
-      msg (D_GREMLIN,
-	   "GREMLIN: CONNECTION GOING %s FOR %d SECONDS",
-	   (up ? "UP" : "DOWN"),
-	   delta);
-      next = current + delta;
-    }
-#endif
+	up = true;
 
-#ifdef DROP_ENABLE
-  if (up && flip (DROP_FREQ))
-    {
-      msg (D_GREMLIN_VERBOSE, "GREMLIN: Random packet drop");
-      return false;
+      next = now;
     }
-#endif
+
+  if (up_down_level) /* change up/down state? */
+    {
+      if (now >= next)
+	{
+	  int delta;
+	  if (up)
+	    {
+	      delta = roll (down_low[up_down_level-1], down_high[up_down_level-1]);
+	      up = false;
+	    }
+	  else
+	    {
+	      delta = roll (up_low[up_down_level-1], up_high[up_down_level-1]);
+	      up = true;
+	    }
+      
+	  msg (D_GREMLIN,
+	       "GREMLIN: CONNECTION GOING %s FOR %d SECONDS",
+	       (up ? "UP" : "DOWN"),
+	       delta);
+	  next = now + delta;
+	}
+    }
+
+  if (drop_level)
+    {
+      if (up && flip (drop_freq[drop_level-1]))
+	{
+	  msg (D_GREMLIN_VERBOSE, "GREMLIN: Random packet drop");
+	  return false;
+	}
+    }
 
   return up;
 }
@@ -160,42 +173,44 @@ ask_gremlin(void)
 /*
  * Possibly corrupt a packet.
  */
-void corrupt_gremlin(struct buffer* buf) {
-#ifdef CORRUPT_ENABLE
-  if (flip (CORRUPT_FREQ))
+void corrupt_gremlin (struct buffer *buf, int flags) {
+  const int corrupt_level = GREMLIN_CORRUPT_LEVEL (flags);
+  if (corrupt_level)
     {
-      do
+      if (flip (corrupt_freq[corrupt_level-1]))
 	{
-	  if (buf->len > 0)
+	  do
 	    {
-	      uint8_t r = roll (0, 255);
-	      int method = roll (0, 5);
+	      if (buf->len > 0)
+		{
+		  uint8_t r = roll (0, 255);
+		  int method = roll (0, 5);
 
-	      switch (method) {
-	      case 0: /* corrupt the first byte */
-		*BPTR (buf) = r;
+		  switch (method) {
+		  case 0: /* corrupt the first byte */
+		    *BPTR (buf) = r;
+		    break;
+		  case 1: /* corrupt the last byte */
+		    *(BPTR (buf) + buf->len - 1) = r;
+		    break;
+		  case 2: /* corrupt a random byte */
+		    *(BPTR(buf) + roll (0, buf->len - 1)) = r;
+		    break;
+		  case 3: /* append a random byte */
+		    buf_write (buf, &r, 1);
+		    break;
+		  case 4: /* reduce length by 1 */
+		    --buf->len;
+		    break;
+		  case 5: /* reduce length by a random amount */
+		    buf->len -= roll (0, buf->len - 1);
+		    break;
+		  }
+		  msg (D_GREMLIN_VERBOSE, "GREMLIN: Packet Corruption, method=%d", method);
+		}
+	      else
 		break;
-	      case 1: /* corrupt the last byte */
-		*(BPTR (buf) + buf->len - 1) = r;
-		break;
-	      case 2: /* corrupt a random byte */
-		*(BPTR(buf) + roll (0, buf->len - 1)) = r;
-		break;
-	      case 3: /* append a random byte */
-		buf_write (buf, &r, 1);
-		break;
-	      case 4: /* reduce length by 1 */
-		--buf->len;
-		break;
-	      case 5: /* reduce length by a random amount */
-		buf->len -= roll (0, buf->len - 1);
-		break;
-	      }
-	      msg (D_GREMLIN_VERBOSE, "GREMLIN: Packet Corruption, method=%d", method);
-	    }
-	  else
-	    break;
-	} while (flip (2)); /* a 50% chance we will corrupt again */
+	    } while (flip (2)); /* a 50% chance we will corrupt again */
+	}
     }
-#endif
 }

@@ -9,10 +9,10 @@
 #  ./openvpn --config sample-config-files/loopback-client  (In one window) 
 #  ./openvpn --config sample-config-files/loopback-server  (Simultaneously in another window) 
 
-remote localhost
-local localhost
 rport 16000
 lport 16001
+remote localhost
+local localhost
 dev null
 verb 3
 reneg-sec 10

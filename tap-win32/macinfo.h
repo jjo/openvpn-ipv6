@@ -30,41 +30,14 @@
 #ifndef MacInfoDefined
 #define MacInfoDefined
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-//=====================================================================================
-//                                  NDIS + Win32 Settings
-//=====================================================================================
-#ifdef NDIS_MINIPORT_DRIVER
-#   include <ndis.h>
-#endif
-
 //===================================================================================
 //                                      Macros
 //===================================================================================
 #define IsMacDelimiter(a) (a == ':' || a == '-' || a == '.')
 #define IsHexDigit(c) ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))
 
-#ifdef ASSERT
-#   undef ASSERT
-#endif
-
-#define ASSERT(a) if (! (a)) return
-
-//===================================================================================
-//                          MAC Address Manipulation Routines
-//===================================================================================
-unsigned char HexStringToDecimalInt (unsigned char p_Character);
-VOID ConvertMacInfo (MACADDR p_Destination, unsigned char *p_Source, unsigned long p_Length);
-VOID GenerateRandomMac (MACADDR mac, unsigned char *adapter_name);
-
-#define COPY_MAC(dest, src) NdisMoveMemory (dest, src, sizeof (MACADDR))
-#define MAC_EQUAL(a,b) (memcmp (a, b, sizeof (MACADDR)) == 0)
-
-#ifdef __cplusplus
-}
-#endif
+#define COPY_MAC(dest, src) NdisMoveMemory ((dest), (src), sizeof (MACADDR))
+#define CLEAR_MAC(dest)     NdisZeroMemory ((dest), sizeof (MACADDR))
+#define MAC_EQUAL(a,b)      (memcmp ((a), (b), sizeof (MACADDR)) == 0)
 
 #endif

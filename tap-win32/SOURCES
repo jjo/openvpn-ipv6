@@ -4,22 +4,25 @@
 MAJORCOMP=ntos
 MINORCOMP=ndis
 
-TARGETNAME=tapdrvr
+TARGETNAME=tap0801
 TARGETTYPE=DRIVER
 TARGETPATH=.
 TARGETLIBS=$(DDK_LIB_PATH)\ndis.lib $(DDK_LIB_PATH)\ntstrsafe.lib
 INCLUDES=$(DDK_INCLUDE_PATH)
 
+# The TAP version numbers here must be >=
+# TAP_WIN32_MIN_x values defined in
+# config-win32.h
 C_DEFINES=
-C_DEFINES=$(C_DEFINES) -DTAP_DRIVER_MAJOR_VERSION=5
-C_DEFINES=$(C_DEFINES) -DTAP_DRIVER_MINOR_VERSION=10
+C_DEFINES=$(C_DEFINES) -DTAP_DRIVER_MAJOR_VERSION=8
+C_DEFINES=$(C_DEFINES) -DTAP_DRIVER_MINOR_VERSION=1
 
 # Use 00:FF:XX:XX:XX:XX format MAC addresses where
 # the Xs are random (like Linux tap driver).
 #
 # Don't allow TAP device to be opened by more than one process
 # at a time.
-C_DEFINES=$(C_DEFINES) -DENABLE_RANDOM_MAC -DDISABLE_DEVICE_SHARING
+C_DEFINES=$(C_DEFINES)
 
 # Produce the same symbolic information for both free & checked builds.
 # This will allow us to perform full source-level debugging on both

@@ -30,60 +30,24 @@
 #ifndef ROUTE_H
 #define ROUTE_H
 
-#define MAX_ROUTES 50
+#include "tun.h"
+#include "misc.h"
 
-#if defined(TARGET_FREEBSD)
+#define MAX_ROUTES 100
 
-/* all of this is taken from <net/route.h> in FreeBSD */
-#define RTA_DST     0x1
-#define RTA_GATEWAY 0x2
-#define RTA_NETMASK 0x4
-
-#define RTM_GET     0x4
-#define RTM_VERSION 5
-
-#define RTF_UP      0x1
-#define RTF_GATEWAY 0x2
-
+#ifdef WIN32
 /*
- * These numbers are used by reliable protocols for determining
- * retransmission behavior and are included in the routing structure.
+ * Windows route methods
  */
-struct rt_metrics {
-        u_long  rmx_locks;      /* Kernel must leave these values alone */
-        u_long  rmx_mtu;        /* MTU for this path */
-        u_long  rmx_hopcount;   /* max hops expected */
-        u_long  rmx_expire;     /* lifetime for route, e.g. redirect */
-        u_long  rmx_recvpipe;   /* inbound delay-bandwidth product */
-        u_long  rmx_sendpipe;   /* outbound delay-bandwidth product */
-        u_long  rmx_ssthresh;   /* outbound gateway buffer limit */
-        u_long  rmx_rtt;        /* estimated round trip time */
-        u_long  rmx_rttvar;     /* estimated rtt variance */
-        u_long  rmx_pksent;     /* packets sent using this route */
-        u_long  rmx_filler[4];  /* will be used for T/TCP later */
-};
-
-
-/*
- * Structures for routing messages.
- */
-struct rt_msghdr {
-        u_short rtm_msglen;     /* to skip over non-understood messages */
-        u_char  rtm_version;    /* future binary compatibility */
-        u_char  rtm_type;       /* message type */
-        u_short rtm_index;      /* index for associated ifp */
-        int     rtm_flags;      /* flags, incl. kern & message, e.g. DONE */
-        int     rtm_addrs;      /* bitmask identifying sockaddrs in msg */
-        pid_t   rtm_pid;        /* identify sender */
-        int     rtm_seq;        /* for sender to identify action */
-        int     rtm_errno;      /* why failed */
-        int     rtm_use;        /* from rtentry */
-        u_long  rtm_inits;      /* which metrics we are initializing */
-        struct  rt_metrics rtm_rmx; /* metrics themselves */
-};
-
+#define ROUTE_METHOD_IPAPI  0  /* use IP helper API */
+#define ROUTE_METHOD_EXE    1  /* use route.exe */
+#define ROUTE_METHOD_MASK   1
 #endif
 
+/*
+ * Route add flags (must stay clear of ROUTE_METHOD bits)
+ */
+#define ROUTE_DELETE_FIRST  2
 
 struct route_special_addr
 {
@@ -105,6 +69,8 @@ struct route_option {
 struct route_option_list {
   int n;
   bool redirect_default_gateway;
+  bool redirect_local;
+  bool redirect_def1;
   struct route_option routes[MAX_ROUTES];
 };
 
@@ -122,11 +88,26 @@ struct route_list {
   bool routes_added;
   struct route_special_addr spec;
   bool redirect_default_gateway;
+  bool redirect_local;
+  bool redirect_def1;
   bool did_redirect_default_gateway;
 
   int n;
   struct route routes[MAX_ROUTES];
 };
+
+#if P2MP
+/* internal OpenVPN route */
+struct iroute {
+  in_addr_t network;
+  int netbits;
+  struct iroute *next;
+};
+#endif
+
+struct route_option_list *new_route_option_list (struct gc_arena *a);
+
+struct route_list *new_route_list (struct gc_arena *a);
 
 void add_route_to_option_list (struct route_option_list *l,
 			       const char *network,
@@ -139,18 +120,47 @@ void clear_route_list (struct route_list *rl);
 bool init_route_list (struct route_list *rl,
 		      const struct route_option_list *opt,
 		      const char *remote_endpoint,
-		      in_addr_t remote_host);
+		      in_addr_t remote_host,
+		      struct env_set *es);
 
 void add_routes (struct route_list *rl,
-		 bool delete_first);
+		 const struct tuntap *tt,
+		 unsigned int flags,
+		 const struct env_set *es);
 
-void delete_routes (struct route_list *rl);
-void setenv_routes (const struct route_list *rl);
+void delete_routes (struct route_list *rl,
+		    const struct tuntap *tt,
+		    unsigned int flags,
+		    const struct env_set *es);
+
+void setenv_routes (struct env_set *es, const struct route_list *rl);
 
 void print_route_options (const struct route_option_list *rol,
 			  int level);
 
 void print_routes (const struct route_list *rl, int level);
 
+#ifdef WIN32
+
+void show_routes (int msglev);
+bool test_routes (const struct route_list *rl, const struct tuntap *tt);
+bool add_route_ipapi (const struct route *r, const struct tuntap *tt);
+bool del_route_ipapi (const struct route *r, const struct tuntap *tt);
+
+#else
+static inline bool test_routes (const struct route_list *rl, const struct tuntap *tt) { return true; }
+#endif
+
+bool netmask_to_netbits (const in_addr_t network, const in_addr_t netmask, int *netbits);
+
+static inline in_addr_t
+netbits_to_netmask (const int netbits)
+{
+  const int addrlen = sizeof (in_addr_t) * 8;
+  in_addr_t mask = 0;
+  if (netbits > 0 && netbits <= addrlen)
+    mask = ~0 << (addrlen-netbits);
+  return mask;
+}
 
 #endif

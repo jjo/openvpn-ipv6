@@ -1,7 +1,9 @@
+export D=/root/openvpn/20/openvpn/tmp/easy-rsa
+
 # Edit this variable to point to
 # the openssl.cnf file included
 # with easy-rsa.
-export KEY_CONFIG=$HOME/easy-rsa/openssl.cnf
+export KEY_CONFIG=$D/openssl.cnf
 
 # Edit this variable to point to
 # your soon-to-be-created key
@@ -11,7 +13,7 @@ export KEY_CONFIG=$HOME/easy-rsa/openssl.cnf
 # a rm -rf on this directory
 # so make sure you define
 # it correctly!
-export KEY_DIR=$HOME/my-openvpn-keys
+export KEY_DIR=$D/keys
 
 # Increase this to 2048 if you
 # are paranoid.  If you do increase,
@@ -26,4 +28,4 @@ export KEY_COUNTRY=KG
 export KEY_PROVINCE=NA
 export KEY_CITY=BISHKEK
 export KEY_ORG="OpenVPN-TEST"
-export KEY_EMAIL="me@mail.kg"
+export KEY_EMAIL="me@myhost.mydomain"

@@ -31,6 +31,8 @@
 #ifndef SOCKS_H
 #define SOCKS_H
 
+#include "buffer.h"
+
 struct socks_proxy_info {
   bool defined;
   bool retry;
@@ -41,10 +43,10 @@ struct socks_proxy_info {
 
 void socks_adjust_frame_parameters (struct frame *frame, int proto);
 
-void init_socks_proxy (struct socks_proxy_info *p,
-		       const char *server,
-		       int port,
-		       bool retry);
+struct socks_proxy_info *new_socks_proxy (const char *server,
+					  int port,
+					  bool retry,
+					  struct gc_arena *gc);
 
 void establish_socks_proxy_passthru (struct socks_proxy_info *p,
 				     socket_descriptor_t sd, /* already open to proxy */
@@ -57,5 +59,11 @@ void establish_socks_proxy_udpassoc (struct socks_proxy_info *p,
 				     socket_descriptor_t udp_sd,
 				     struct sockaddr_in *relay_addr,
 				     volatile int *signal_received);
+
+void socks_process_incoming_udp (struct buffer *buf,
+				struct sockaddr_in *from);
+
+int socks_process_outgoing_udp (struct buffer *buf,
+				struct sockaddr_in *to);
 
 #endif

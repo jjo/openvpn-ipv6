@@ -79,15 +79,19 @@ packet_id_init (struct packet_id *p, int seq_backtrack, int time_backtrack)
 void
 packet_id_free (struct packet_id *p)
 {
-  ASSERT (p);
-  msg (D_PID_DEBUG_LOW, "PID packet_id_free");
-  free (p->rec.seq_list);
-  CLEAR (*p);
+  if (p)
+    {
+      msg (D_PID_DEBUG_LOW, "PID packet_id_free");
+      if (p->rec.seq_list)
+	free (p->rec.seq_list);
+      CLEAR (*p);
+    }
 }
 
 void
-packet_id_add (struct packet_id_rec *p, const struct packet_id_net *pin, time_t current)
+packet_id_add (struct packet_id_rec *p, const struct packet_id_net *pin)
 {
+  const time_t local_now = now;
   if (p->seq_list)
     {
       packet_id_type diff;
@@ -116,8 +120,8 @@ packet_id_add (struct packet_id_rec *p, const struct packet_id_net *pin, time_t 
 
       diff = p->id - pin->id;
       if (diff < (packet_id_type) CIRC_LIST_SIZE (p->seq_list)
-	  && current > SEQ_EXPIRED)
-	CIRC_LIST_ITEM (p->seq_list, diff) = current;
+	  && local_now > SEQ_EXPIRED)
+	CIRC_LIST_ITEM (p->seq_list, diff) = local_now;
     }
   else
     {
@@ -132,8 +136,9 @@ packet_id_add (struct packet_id_rec *p, const struct packet_id_net *pin, time_t 
  * time_backtrack.
  */
 void
-packet_id_reap (struct packet_id_rec *p, time_t current)
+packet_id_reap (struct packet_id_rec *p)
 {
+  const time_t local_now = now;
   if (p->time_backtrack)
     {
       int i;
@@ -143,13 +148,13 @@ packet_id_reap (struct packet_id_rec *p, time_t current)
 	  const time_t t = CIRC_LIST_ITEM (p->seq_list, i);
 	  if (t == SEQ_EXPIRED)
 	    break;
-	  if (!expire && t && t + p->time_backtrack < current)
+	  if (!expire && t && t + p->time_backtrack < local_now)
 	    expire = true;
 	  if (expire)
 	    CIRC_LIST_ITEM (p->seq_list, i) = SEQ_EXPIRED;
 	}
     }
-  p->last_reap = current;
+  p->last_reap = local_now;
 }
 
 /*
@@ -224,16 +229,71 @@ packet_id_test (const struct packet_id_rec *p,
     }
 }
 
-const char*
-packet_id_net_print (const struct packet_id_net *pin, bool print_timestamp)
+/*
+ * Read/write a packet ID to/from the buffer.  Short form is sequence number
+ * only.  Long form is sequence number and timestamp.
+ */
+
+bool
+packet_id_read (struct packet_id_net *pin, struct buffer *buf, bool long_form)
 {
-  struct buffer out = alloc_buf_gc (256);
+  packet_id_type net_id;
+  net_time_t net_time;
+
+  pin->id = 0;
+  pin->time = 0;
+
+  if (!buf_read (buf, &net_id, sizeof (net_id)))
+    return false;
+  pin->id = ntohpid (net_id);
+  if (long_form)
+    {
+      if (!buf_read (buf, &net_time, sizeof (net_time)))
+	return false;
+      pin->time = ntohtime (net_time);
+    }
+  return true;
+}
+
+bool
+packet_id_write (const struct packet_id_net *pin, struct buffer *buf, bool long_form, bool prepend)
+{
+  packet_id_type net_id = htonpid (pin->id);
+  net_time_t net_time = htontime (pin->time);
+
+  if (prepend)
+    {
+      if (long_form)
+	{
+	  if (!buf_write_prepend (buf, &net_time, sizeof (net_time)))
+	    return false;
+	}
+      if (!buf_write_prepend (buf, &net_id, sizeof (net_id)))
+	return false;
+    }
+  else
+    {
+      if (!buf_write (buf, &net_id, sizeof (net_id)))
+	return false;
+      if (long_form)
+	{
+	  if (!buf_write (buf, &net_time, sizeof (net_time)))
+	    return false;
+	}
+    }
+  return true;
+}
+
+const char *
+packet_id_net_print (const struct packet_id_net *pin, bool print_timestamp, struct gc_arena *gc)
+{
+  struct buffer out = alloc_buf_gc (256, gc);
 
   buf_printf (&out, "[ #" packet_id_format, (packet_id_print_type)pin->id);
   if (print_timestamp && pin->time)
       buf_printf (&out, " / time = (" packet_id_format ") %s", 
 		  (packet_id_print_type)pin->time,
-		  time_string (pin->time, false));
+		  time_string (pin->time, 0, false, gc));
 
   buf_printf (&out, " ]");
   return BSTR (&out);
@@ -247,7 +307,6 @@ packet_id_persist_init (struct packet_id_persist *p)
   p->fd = -1;
   p->time = p->time_last_written = 0;
   p->id = p->id_last_written = 0;
-  p->last_flush = 0;
 }
 
 /* close the file descriptor if it is open, and switch to disabled state */
@@ -266,6 +325,7 @@ packet_id_persist_close (struct packet_id_persist *p)
 void
 packet_id_persist_load (struct packet_id_persist *p, const char *filename)
 {
+  struct gc_arena gc = gc_new ();
   if (!packet_id_persist_enabled (p))
     {
       /* open packet-id persist file for both read and write */
@@ -295,7 +355,7 @@ packet_id_persist_load (struct packet_id_persist *p, const char *filename)
 	      p->time = p->time_last_written = image.time;
 	      p->id = p->id_last_written = image.id;
 	      msg (D_PID_PERSIST_DEBUG, "PID Persist Read from %s: %s",
-		   p->filename, packet_id_persist_print(p));
+		   p->filename, packet_id_persist_print (p, &gc));
 	    }
 	  else if (n == -1)
 	    {
@@ -305,6 +365,7 @@ packet_id_persist_load (struct packet_id_persist *p, const char *filename)
 	    }
 	}
     }
+  gc_free (&gc);
 }
 
 /* save persisted rec packet_id (time and id) to file (only if enabled state) */
@@ -317,6 +378,7 @@ packet_id_persist_save (struct packet_id_persist *p)
       struct packet_id_persist_file_image image;
       ssize_t n;
       off_t seek_ret;
+      struct gc_arena gc = gc_new ();
 
       image.time = p->time;
       image.id = p->id;
@@ -329,7 +391,7 @@ packet_id_persist_save (struct packet_id_persist *p)
 	      p->time_last_written = p->time;
 	      p->id_last_written = p->id;
 	      msg (D_PID_PERSIST_DEBUG, "PID Persist Write to %s: %s",
-		   p->filename, packet_id_persist_print(p));
+		   p->filename, packet_id_persist_print (p, &gc));
 	    }
 	  else
 	    {
@@ -344,6 +406,7 @@ packet_id_persist_save (struct packet_id_persist *p)
 	       "Cannot seek to beginning of --replay-persist file %s",
 	       p->filename);
 	}
+      gc_free (&gc);
     }
 }
 
@@ -358,10 +421,10 @@ packet_id_persist_load_obj (const struct packet_id_persist *p, struct packet_id 
     }
 }
 
-const char*
-packet_id_persist_print (const struct packet_id_persist *p)
+const char *
+packet_id_persist_print (const struct packet_id_persist *p, struct gc_arena *gc)
 {
-  struct buffer out = alloc_buf_gc (256);
+  struct buffer out = alloc_buf_gc (256, gc);
 
   buf_printf (&out, "[");
 
@@ -371,7 +434,7 @@ packet_id_persist_print (const struct packet_id_persist *p)
       if (p->time)
 	buf_printf (&out, " / time = (" packet_id_format ") %s",
 		    (packet_id_print_type)p->time,
-		    time_string (p->time, false));
+		    time_string (p->time, 0, false, gc));
     }
 
   buf_printf (&out, " ]");
@@ -380,7 +443,8 @@ packet_id_persist_print (const struct packet_id_persist *p)
 
 #ifdef PID_TEST
 
-void packet_id_interactive_test ()
+void
+packet_id_interactive_test ()
 {
   struct packet_id pid;
   struct packet_id_net pin;
@@ -397,25 +461,24 @@ void packet_id_interactive_test ()
     char buf[80];
     if (!fgets(buf, sizeof(buf), stdin))
       break;
+    update_time ();
     if (sscanf (buf, "%lu,%u", &pin.time, &pin.id) == 2)
       {
-	packet_id_reap_test (&pid.rec, time (NULL));
+	packet_id_reap_test (&pid.rec);
 	test = packet_id_test (&pid.rec, &pin);
-	printf ("packet_id_test (" packet_id_format ", " packet_id_format ") returned %d\n",
+	printf ("packet_id_test (" time_format ", " packet_id_format ") returned %d\n",
 		(time_type)pin.time,
 		(packet_id_print_type)pin.id,
 		test);
 	if (test)
-	  packet_id_add (&pid.rec, &pin, time (NULL));
+	  packet_id_add (&pid.rec, &pin);
       }
     else
       {
 	long_form = (count < 20);
 	packet_id_alloc_outgoing (&pid.send, &pin, long_form);
-	printf ("(" time_format "(" packet_id_format "), " time_format "(" packet_id_format "), %d)\n",
+	printf ("(" time_format "(" packet_id_format "), %d)\n",
 		(time_type)pin.time,
-		(time_type)pin.time,
-		(packet_id_print_type)pin.id,
 		(packet_id_print_type)pin.id,
 		long_form);
 	if (pid.send.id == 10)

@@ -108,6 +108,13 @@ secure channel.
 
 1. ./build-key deception (no password protection)
 2. OR ./build-key-pass deception (with password protection)
-3. deception.crt and deception.key will be built in your
+3. OR ./build-key-server deception (with nsCertType=server)
+4. deception.crt and deception.key will be built in your
    KEY_DIR directory, and deception.crt will be signed
    by your root CA.
+
+NOTES
+
+Show certificate fields:
+  openssl x509 -in cert.crt -text
+

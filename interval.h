@@ -24,34 +24,17 @@
  */
 
 /*
- * These routines are designed to optimize the calling of a routine
- * (normally used for tls_multi_process())
- * which can be called less frequently between triggers.
+ * The interval_ routines are designed to optimize the calling of a routine
+ * (normally tls_multi_process()) which can be called less frequently
+ * between triggers.
  */
 
 #ifndef INTERVAL_H
 #define INTERVAL_H
 
-#include "error.h"
-#include "misc.h"
+#include "otime.h"
 
 #define INTERVAL_DEBUG 0
-
-/*
- * Used to determine in how many seconds we should be
- * called again.
- */
-static inline void
-interval_earliest_wakeup (interval_t *wakeup, time_t at, time_t current) {
-  if (at > current)
-    {
-      const interval_t delta = (interval_t) (at - current);
-      if (delta < *wakeup)
-	*wakeup = delta;
-      if (*wakeup < 0)
-	*wakeup = 0;
-    }
-}
 
 /*
  * Designed to limit calls to expensive functions that need to be called
@@ -67,13 +50,7 @@ struct interval
   time_t last_test_true;
 };
 
-static inline void
-interval_init (struct interval *top, int horizon, int refresh)
-{
-  CLEAR (*top);
-  top->refresh = refresh;
-  top->horizon = horizon;
-}
+void interval_init (struct interval *top, int horizon, int refresh);
 
 /*
  * IF
@@ -88,21 +65,22 @@ interval_init (struct interval *top, int horizon, int refresh)
  */
 
 static inline bool
-interval_test (struct interval* top, time_t current)
+interval_test (struct interval* top)
 {
   bool trigger = false;
+  const time_t local_now = now;
 
-  if (top->future_trigger && current >= top->future_trigger)
+  if (top->future_trigger && local_now >= top->future_trigger)
     {
       trigger = true;
       top->future_trigger = 0;
     }
 
-  if (top->last_action + top->horizon > current ||
-      top->last_test_true + top->refresh <= current ||
+  if (top->last_action + top->horizon > local_now ||
+      top->last_test_true + top->refresh <= local_now ||
       trigger)
     {
-      top->last_test_true = current;
+      top->last_test_true = local_now;
 #if INTERVAL_DEBUG
       msg (D_INTERVAL, "INTERVAL interval_test true");
 #endif
@@ -115,10 +93,11 @@ interval_test (struct interval* top, time_t current)
 }
 
 static inline void
-interval_schedule_wakeup (struct interval* top, time_t current, interval_t *wakeup)
+interval_schedule_wakeup (struct interval* top, interval_t *wakeup)
 {
-  interval_earliest_wakeup (wakeup, top->last_test_true + top->refresh, current);
-  interval_earliest_wakeup (wakeup, top->future_trigger, current);
+  const time_t local_now = now;
+  interval_earliest_wakeup (wakeup, top->last_test_true + top->refresh, local_now);
+  interval_earliest_wakeup (wakeup, top->future_trigger, local_now);
 #if INTERVAL_DEBUG
   msg (D_INTERVAL, "INTERVAL interval_schedule wakeup=%d", (int)*wakeup);
 #endif
@@ -128,13 +107,13 @@ interval_schedule_wakeup (struct interval* top, time_t current, interval_t *wake
  * In wakeup seconds, interval_test will return true once.
  */
 static inline void
-interval_future_trigger (struct interval* top, interval_t wakeup, time_t current) {
+interval_future_trigger (struct interval* top, interval_t wakeup) {
   if (wakeup)
     {
 #if INTERVAL_DEBUG
       msg (D_INTERVAL, "INTERVAL interval_future_trigger %d", (int)wakeup);
 #endif
-      top->future_trigger = current + wakeup;
+      top->future_trigger = now + wakeup;
     }
 }
 
@@ -143,16 +122,16 @@ interval_future_trigger (struct interval* top, interval_t wakeup, time_t current
  * horizon seconds.
  */
 static inline void
-interval_action (struct interval* top, time_t current)
+interval_action (struct interval* top)
 {
 #if INTERVAL_DEBUG
   msg (D_INTERVAL, "INTERVAL action");
 #endif
-  top->last_action = current;
+  top->last_action = now;
 }
 
 /*
- * Measure when n seconds past an event have elapsed
+ * Measure when n seconds beyond an event have elapsed
  */
 
 struct event_timeout
@@ -185,48 +164,36 @@ event_timeout_clear_ret ()
 }
 
 static inline void
-event_timeout_init (struct event_timeout* et, time_t current, interval_t n)
+event_timeout_init (struct event_timeout* et, interval_t n, const time_t local_now)
 {
   et->defined = true;
   et->n = (n >= 0) ? n : 0;
-  et->last = current;
+  et->last = local_now;
 }
 
 static inline void
-event_timeout_reset (struct event_timeout* et, time_t current)
+event_timeout_reset (struct event_timeout* et)
 {
   if (et->defined)
-    et->last = current;
+    et->last = now;
 }
 
-static inline bool
-event_timeout_trigger (struct event_timeout* et, time_t current, struct timeval* tv)
-{
-  bool ret = false;
-  if (et->defined)
-    {
-      int wakeup = (int) et->last + et->n - current;
-      if (wakeup <= 0)
-	{
-#if INTERVAL_DEBUG
-	  msg (D_INTERVAL, "EVENT event_timeout_trigger (%d)", et->n);
-#endif
-	  et->last = current;
-	  wakeup = et->n;
-	  ret = true;
-	}
+/*
+ * This is the principal function for testing and triggering recurring
+ * timers and will return true on a timer signal event.
+ * If et_const_retry == ETT_DEFAULT and a signal occurs,
+ * the function will return true and *et will be armed for the
+ * next event.  If et_const_retry >= 0 and a signal occurs,
+ * *et will not be touched, but *tv will be set to
+ * minimum (*tv, et_const_retry) for a future re-test,
+ * and the function will return true.
+ */
 
-      if (wakeup < tv->tv_sec)
-	{
-#if INTERVAL_DEBUG
-	  msg (D_INTERVAL, "EVENT event_timeout_wakeup (%d/%d)", wakeup, et->n);
-#endif
-	  tv->tv_sec = wakeup;
-	  tv->tv_usec = 0;
-	}
-    }
-  return ret;
-}
+#define ETT_DEFAULT (-1)
+
+bool event_timeout_trigger (struct event_timeout *et,
+			    struct timeval *tv,
+			    const int et_const_retry);
 
 /*
  * Measure time intervals in microseconds

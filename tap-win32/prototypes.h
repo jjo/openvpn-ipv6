@@ -36,6 +36,11 @@ NTSTATUS DriverEntry
     IN PUNICODE_STRING p_RegistryPath
    );
 
+VOID TapDriverUnload
+   (
+    IN PDRIVER_OBJECT p_DriverObject
+   );
+
 NDIS_STATUS AdapterCreate
    (
     OUT PNDIS_STATUS p_ErrorStatus,
@@ -107,22 +112,22 @@ NTSTATUS TapDeviceHook
 
 NDIS_STATUS CreateTapDevice
    (
-    TapAdapterPointer p_Adapter
+    TapExtensionPointer p_Extension,
+    const char *p_Name
    );
 
 VOID DestroyTapDevice
    (
-    TapAdapterPointer p_Adapter
+    TapExtensionPointer p_Extension
    );
 
 VOID TapDeviceFreeResources
    (
-    TapAdapterPointer p_Adapter
+    TapExtensionPointer p_Extension
     );
 
 NTSTATUS CompleteIRP
    (
-    TapAdapterPointer p_Adapter,
     IN PIRP p_IRP,
     IN TapPacketPointer p_PacketBuffer,
     IN CCHAR PriorityBoost
@@ -136,17 +141,17 @@ VOID CancelIRPCallback
 
 VOID CancelIRP
    (
-    IN PDEVICE_OBJECT p_DeviceObject,
+    TapExtensionPointer p_Extension,
     IN PIRP p_IRP,
     BOOLEAN callback
    );
 
 VOID FlushQueues
    (
-    TapAdapterPointer p_Adapter
+    TapExtensionPointer p_Extension
    );
 
-VOID ResetTapDevState
+VOID ResetTapAdapterState
    (
     TapAdapterPointer p_Adapter
    );

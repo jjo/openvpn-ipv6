@@ -38,38 +38,39 @@
 //=============
 
 #define TAP_CONTROL_CODE(request,method) \
-  CTL_CODE (FILE_DEVICE_PHYSICAL_NETCARD | 8000, \
-            request, method, FILE_ANY_ACCESS)
+  CTL_CODE (FILE_DEVICE_UNKNOWN, request, method, FILE_ANY_ACCESS)
 
-#define TAP_IOCTL_GET_LASTMAC           TAP_CONTROL_CODE (0, METHOD_BUFFERED)
 #define TAP_IOCTL_GET_MAC               TAP_CONTROL_CODE (1, METHOD_BUFFERED)
-#define TAP_IOCTL_SET_STATISTICS        TAP_CONTROL_CODE (2, METHOD_BUFFERED)
-#define TAP_IOCTL_GET_VERSION           TAP_CONTROL_CODE (3, METHOD_BUFFERED)
-#define TAP_IOCTL_GET_MTU               TAP_CONTROL_CODE (4, METHOD_BUFFERED)
-#define TAP_IOCTL_GET_INFO              TAP_CONTROL_CODE (5, METHOD_BUFFERED)
-#define TAP_IOCTL_CONFIG_POINT_TO_POINT TAP_CONTROL_CODE (6, METHOD_BUFFERED)
-#define TAP_IOCTL_SET_MEDIA_STATUS      TAP_CONTROL_CODE (7, METHOD_BUFFERED)
-#define TAP_IOCTL_CONFIG_DHCP_MASQ      TAP_CONTROL_CODE (8, METHOD_BUFFERED)
-#define TAP_IOCTL_GET_LOG_LINE          TAP_CONTROL_CODE (9, METHOD_BUFFERED)
-#define TAP_IOCTL_CONFIG_DHCP_SET_OPT   TAP_CONTROL_CODE (10, METHOD_BUFFERED)
+#define TAP_IOCTL_GET_VERSION           TAP_CONTROL_CODE (2, METHOD_BUFFERED)
+#define TAP_IOCTL_GET_MTU               TAP_CONTROL_CODE (3, METHOD_BUFFERED)
+#define TAP_IOCTL_GET_INFO              TAP_CONTROL_CODE (4, METHOD_BUFFERED)
+#define TAP_IOCTL_CONFIG_POINT_TO_POINT TAP_CONTROL_CODE (5, METHOD_BUFFERED)
+#define TAP_IOCTL_SET_MEDIA_STATUS      TAP_CONTROL_CODE (6, METHOD_BUFFERED)
+#define TAP_IOCTL_CONFIG_DHCP_MASQ      TAP_CONTROL_CODE (7, METHOD_BUFFERED)
+#define TAP_IOCTL_GET_LOG_LINE          TAP_CONTROL_CODE (8, METHOD_BUFFERED)
+#define TAP_IOCTL_CONFIG_DHCP_SET_OPT   TAP_CONTROL_CODE (9, METHOD_BUFFERED)
 
 //=================
 // Registry keys
 //=================
 
-#define NETCARD_REG_KEY_2000 "SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}"
+#define ADAPTER_KEY "SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}"
 
-#define NETCARD_REG_KEY      "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\NetworkCards"
-
-#define REG_SERVICE_KEY      "SYSTEM\\CurrentControlSet\\Services"
-
-#define REG_CONTROL_NET      "SYSTEM\\CurrentControlSet\\Control\\Network\\{4D36E972-E325-11CE-BFC1-08002BE10318}"
+#define NETWORK_CONNECTIONS_KEY "SYSTEM\\CurrentControlSet\\Control\\Network\\{4D36E972-E325-11CE-BFC1-08002BE10318}"
 
 //======================
 // Filesystem prefixes
 //======================
 
-#define USERMODEDEVICEDIR "\\\\.\\"
+#define USERMODEDEVICEDIR "\\\\.\\Global\\"
 #define SYSDEVICEDIR      "\\Device\\"
-#define USERDEVICEDIR     "\\??\\"
+#define USERDEVICEDIR     "\\DosDevices\\Global\\"
 #define TAPSUFFIX         ".tap"
+
+//=========================================================
+// TAP_COMPONENT_ID -- This string defines the TAP driver
+// type -- different component IDs can reside in the system
+// simultaneously.
+//=========================================================
+
+#define TAP_COMPONENT_ID "tap0801"

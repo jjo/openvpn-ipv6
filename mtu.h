@@ -26,6 +26,8 @@
 #ifndef MTU_H
 #define MTU_H
 
+#include "buffer.h"
+
 /*
  * 
  * Packet maninipulation routes such as encrypt, decrypt, compress, decompress
@@ -62,18 +64,22 @@
 /*
  * Default MTU of network over which tunnel data will pass by TCP/UDP.
  */
-#define LINK_MTU_DEFAULT   1300
+#define LINK_MTU_DEFAULT   1500
 
 /*
  * Default MTU of tunnel device.
  */
-#define TUN_MTU_DEFAULT    1300
+#define TUN_MTU_DEFAULT    1500
 
 /*
  * MTU Defaults for TAP devices
  */
-#define TAP_MTU_DEFAULT        ETHERNET_MTU
 #define TAP_MTU_EXTRA_DEFAULT  32
+
+/*
+ * Default MSSFIX value, used for reducing TCP MTU size
+ */
+#define MSSFIX_DEFAULT     1450
 
 struct frame {
   /*
@@ -177,7 +183,10 @@ void frame_finalize (struct frame *frame,
 		     int tun_mtu);
 
 void frame_subtract_extra (struct frame *frame, const struct frame *src);
-void frame_print (const struct frame *frame, int level, const char *prefix);
+
+void frame_print (const struct frame *frame,
+		  int level,
+		  const char *prefix);
 
 void set_mtu_discover_type (int sd, int mtu_type);
 int translate_mtu_discover_type_name (const char *name);
@@ -192,6 +201,11 @@ int translate_mtu_discover_type_name (const char *name);
 void frame_set_mtu_dynamic (struct frame *frame, int mtu, unsigned int flags);
 
 /*
+ * allocate a buffer for socket or tun layer
+ */
+void alloc_buf_sock_tun (struct buffer *buf, const struct frame *frame, bool tuntap_buffer);
+
+/*
  * EXTENDED_SOCKET_ERROR_CAPABILITY functions -- print extra error info
  * on socket errors, such as PMTU size.  As of 2003.05.11, only works
  * on Linux 2.4+.
@@ -200,7 +214,7 @@ void frame_set_mtu_dynamic (struct frame *frame, int mtu, unsigned int flags);
 #if EXTENDED_SOCKET_ERROR_CAPABILITY
 
 void set_sock_extended_error_passing (int sd);
-const char *format_extended_socket_error (int fd, int* mtu);
+const char *format_extended_socket_error (int fd, int *mtu, struct gc_arena *gc);
 
 #endif
 

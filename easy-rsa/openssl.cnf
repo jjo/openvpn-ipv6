@@ -193,6 +193,15 @@ authorityKeyIdentifier=keyid,issuer:always
 #nsCaPolicyUrl
 #nsSslServerName
 
+[ server ]
+
+# JY ADDED -- Make a cert with nsCertType set to "server"
+basicConstraints=CA:FALSE
+nsCertType			= server
+nsComment			= "OpenSSL Generated Server Certificate"
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer:always
+
 [ v3_req ]
 
 # Extensions to add to a certificate request

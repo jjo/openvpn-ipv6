@@ -1,6 +1,8 @@
 OpenVPN on Windows notes, Copyright (C) James Yonan, 2003-2004
 --------------------------------------------------------------
 
+THIS IS A BETA RELEASE.
+
 Please report any bugs to the openvpn-users
 list.
 
@@ -13,12 +15,113 @@ Currently, OpenVPN runs on Win 2000/XP, Linux, Mac OS X,
 Solaris, FreeBSD, NetBSD, and OpenBSD, making it one of the
 most portable VPN packages today.
 
-This document is also available in HTML:
+Older versions of this document are also available in HTML:
 
 http://openvpn.sourceforge.net/INSTALL-win32.html
 
-What's new in 1.6.0
+What's new in the 2.0 Beta Series
 ---------------------------------
+
+OpenVPN 2.0 -- Project update, release notes, and sample config files
+
+The key features in the 2.0 beta series include:
+
+* A highly scalable server for handling multiple TCP/UDP clients over
+point-to-point tun interfaces, all using a single port number.  The server
+has been designed for maximum efficiency and scalability, and should scale to
+hundreds or even thousands of clients where the hardware and network bandwidth
+can support it.  The code includes a new O(N) scheduler based on a randomized
+treap binary tree algorithm plus efficient hash tables for looking up client
+instances.
+
+* The server configuration file is only slightly more complex than a
+configuration file for a single tunnel instance.  The server-side crypto
+configuration is simplified by the use of TLS which allows any incoming client
+to be accepted if (a) the client's certificate was signed by the master VPN CA
+and (b) the client certificate is not explicitly disallowed by a CRL
+(certificate revocation list).
+
+* The server is able to handle an arbitrary number of clients using a single
+TCP or UDP port, a single tun interface, and a single config file.  As such, it is
+designed to not overly stress the OS even when its own client load is high. 
+This means that the server can also run well on Windows which is not capable
+of scaling up to a large number of tun/tap interfaces.
+
+* The server configuration file adds serveral new options: (a) --ifconfig-pool
+allows the server to manage a DHCP-like pool of /30 subnets to be dynamically
+allocated to client instances, (b) --push allows the server to push certain
+options back to the client such as routes, ifconfig endpoints, and DHCP
+options for Windows machines without actually requiring a DHCP server, and (c)
+the new --mode option controls whether OpenVPN will run in multi-client UDP
+mode or classic peer-to-peer mode.
+
+* On the client side, --pull has been added, which basically says "accept
+certain config file options which the server pushes back to you."  There is
+obviously a security implication with --push/--pull in that the client is
+trusting the server to control its configuration.  As such, the client is
+strict about what kind of options it will accept from the server, and (by
+default) will not accept any option which would cause file modification or
+script execution.  The major win of the push/pull capability is that the same
+client configuration file can be used on each client provided each client has
+its own set of SSL/TLS keys which have been signed by the master CA.
+
+* The Windows TAP-Win32 driver has been extensively reworked based on some
+very good feedback I received from the
+microsoft.public.development.device.drivers newsgroup.  The goal is to
+eliminate required reboots after install or uninstall on certain platforms
+such as Win2K.  I would especially like to get feedback on whether this new
+driver fixes the rare problem of winsock corruption which has been reported to
+me by 3 users, but never reproduced by myself.  Also, this driver lets you
+explicitly set the TAP adapter MAC address in the adapter advanced properties
+dialog, a feature that has been suggested by several of you.  This driver
+should be backportable to OpenVPN 1.x.
+
+* The server requires TLS mode and will not work with static keys.  I don't
+see this as really being a disadvantage because the major reason to use static
+keys in the first place is that they are very easy to configure.  This
+advantage is lost in a scalable environment where potentially hundreds or
+thousands of client keys would need to be maintained by the server.  On the
+other hand, SSL/TLS is a big win for scalability and server-side managment
+because the server only needs a single pair of SSL/TLS keys.  It doesn't need
+to be personally familiar with every possible client, it only needs to check
+that a client's certificate was signed by the master CA certificate and that
+the client certificate is not in the CRL (certificate revocation list).
+
+* The server has been designed so that it can run with reduced privilege.
+
+* All 1.x features have been carried over to 2.0 except for the TLS thread
+feature.
+
+* For those of you who look at the source code, you will see major changes. 
+In OpenVPN 1.x the tunnel state is basically maintained on the stack in the
+openvpn() function.  In 2.0 an object has been added (called struct context)
+that fully encapsulates the state information of a tunnel instance.  The
+openvpn() function is now small and consise, with most support code having
+been moved to init.c and forward.c.
+
+* --remote can now specify a set of machines, or a hostname can be configured
+with multiple addresses in DNS.  A server will be randomly chosen from the list,
+and if the connect fails, another will be tried (see the --remote-random option).
+
+Caveats:
+
+* To get OpenVPN 2.0 to talk with the 1.5/1.6 versions, put this in the 1.x
+config file:
+
+  tun-mtu 1500
+  tun-mtu-extra 32
+  mssfix 1450
+  key-method 2
+
+* For TLS usage, --key-method 2 is now the default.  Use --key-method 1 to
+communicate with 1.x.
+
+Sample Configuration Files:
+
+http://openvpn.sourceforge.net/examples.html
+
+What's new in 1.6.0
+-------------------
 
 This release is primarily focused on bug fixes and minor
 feature improvements over 1.5.
@@ -355,6 +458,11 @@ Service Notes:
                 to "0" (default), each new instantiation will
 	        truncate the previous log file
 
+  log_append -- if set to "1", multiple instantiations of an OpenVPN
+                process will append onto the same log file, if set
+                to "0" (default), each new instantiation will
+	        truncate the previous log file
+
   priority   -- the windows priority class for each
                 instantiated OpenVPN process, can be one of:
 
@@ -554,7 +662,7 @@ configs:
   iptables -A INPUT -i tap+ -j ACCEPT
 
 * Make sure that both boxes can talk to each other
-  over UDP port 5000.  It is a good idea to
+  over UDP port 1194.  It is a good idea to
   ping the "remote" address in the config
   file before actually starting OpenVPN
   to confirm that it is reachable.
@@ -1058,7 +1166,7 @@ on a Windows system running OpenVPN are:
 (3) If you are running OpenVPN as a server on a Windows
     machine, you will need to configure your firewall
     to allow incoming clients to connect to OpenVPN's
-    port number which is UDP 5000 by default.
+    port number which is UDP 1194 by default.
 (4) In general, running OpenVPN as a client doesn't
     require any special firewall configuration,
     provided you use the --ping option to preserve
@@ -1394,18 +1502,22 @@ See instructions below for installing the kernel driver.
 Notes -- Manual Install/Update/Uninstall of the TAP-Win32 kernel driver
 -----------------------------------------------------------------------
 
-This is best done using devcon.exe, a DDK sample which is distributed
+This is best done using tapinstall.exe, which is distributed
 with the self-installing form of OpenVPN on Windows.  Cd to the
 directory which contains OemWin2k.inf and tapdrvr.sys.
 
 To install:
-  devcon install OemWin2k.inf TAP
+  tapinstall install OemWin2k.inf TAP0801
 
 To update:
-  devcon update OemWin2k.inf TAP
+  tapinstall update OemWin2k.inf TAP0801
 
 To uninstall:
-  devcon remove TAP
+  tapinstall remove TAP0801
+
+Note that the TAP0801 is the hardware ID of the
+TAP-Win32 driver and may change with future
+releases.
 
 By installing multiple times, you will create
 additional TAP-Win32 adapter instances, which can

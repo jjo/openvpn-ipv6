@@ -60,7 +60,7 @@
  * Control Manager which will cause an asynchronous call
  * of ServiceStop below.
  */
-#define EXIT_EVENT_NAME "openvpn_exit"
+#define EXIT_EVENT_NAME "openvpn_exit_1"
 
 static HANDLE exit_event = NULL;
 
@@ -325,7 +325,9 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
 	  mysnprintf (log_path, "%s\\%s", log_dir, log_file);
 
 	  /* construct command line */
-	  mysnprintf (command_line, "openvpn --config \"%s\"", find_obj.cFileName);
+	  mysnprintf (command_line, "openvpn --service %s 1 --config \"%s\"",
+		      EXIT_EVENT_NAME,
+		      find_obj.cFileName);
 
 	  /* Make security attributes struct for logfile handle so it can
 	     be inherited. */

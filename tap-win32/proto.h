@@ -38,6 +38,18 @@
 typedef unsigned char MACADDR [6];
 typedef unsigned long IPADDR;
 
+//-----------------
+// Ethernet address
+//-----------------
+
+typedef struct {
+  MACADDR addr;
+} ETH_ADDR;
+
+typedef struct {
+  ETH_ADDR list[NIC_MAX_MCAST_LIST];
+} MC_LIST;
+
 //----------------
 // Ethernet header
 //----------------

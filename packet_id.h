@@ -37,6 +37,7 @@
 #include "circ_list.h"
 #include "buffer.h"
 #include "error.h"
+#include "otime.h"
 
 /*
  * Enables OpenVPN to be compiled in special packet_id test mode.
@@ -94,15 +95,8 @@ typedef uint16_t net_time_t;
 /*
  * Printf formats for special types
  */
-#if SIZEOF_UNSIGNED_LONG == 4
-#define packet_id_format "%lu"
-typedef unsigned long packet_id_print_type;
-#elif SIZEOF_UNSIGNED_INT == 4
 #define packet_id_format "%u"
 typedef unsigned int packet_id_print_type;
-#else
-#error "cannot figure proper format to print uint32_t"
-#endif
 
 /*
  * Maximum allowed backtrack in
@@ -161,7 +155,6 @@ struct packet_id_persist
   packet_id_type id;       /* sequence number */
   time_t time_last_written;
   packet_id_type id_last_written;
-  time_t last_flush;
 };
 
 struct packet_id_persist_file_image
@@ -224,12 +217,10 @@ bool packet_id_test (const struct packet_id_rec *p,
 
 /* change our current state to reflect an accepted packet id */
 void packet_id_add (struct packet_id_rec *p,
-		    const struct packet_id_net *pin,
-		    time_t current);
+		    const struct packet_id_net *pin);
 
 /* expire TIME_BACKTRACK sequence numbers */ 
-void packet_id_reap (struct packet_id_rec *p,
-		     time_t current);
+void packet_id_reap (struct packet_id_rec *p);
 
 /*
  * packet ID persistence
@@ -251,7 +242,15 @@ void packet_id_persist_save (struct packet_id_persist *p);
 void packet_id_persist_load_obj (const struct packet_id_persist *p, struct packet_id* pid);
 
 /* return an ascii string representing a packet_id_persist object */
-const char *packet_id_persist_print (const struct packet_id_persist *p);
+const char *packet_id_persist_print (const struct packet_id_persist *p, struct gc_arena *gc);
+
+/*
+ * Read/write a packet ID to/from the buffer.  Short form is sequence number
+ * only.  Long form is sequence number and timestamp.
+ */
+
+bool packet_id_read (struct packet_id_net *pin, struct buffer *buf, bool long_form);
+bool packet_id_write (const struct packet_id_net *pin, struct buffer *buf, bool long_form, bool prepend);
 
 /*
  * Inline functions.
@@ -275,21 +274,7 @@ packet_id_persist_save_obj (struct packet_id_persist *p, const struct packet_id*
     }
 }
 
-/* flush the current packet_id to disk, once per n seconds */
-static inline void
-packet_id_persist_flush (struct packet_id_persist *p, time_t current, int n)
-{
-  if (packet_id_persist_enabled (p))
-    {
-      if (!p->last_flush || p->last_flush + n < current)
-	{
-	  packet_id_persist_save (p);
-	  p->last_flush = current;
-	}
-    }
-}
-
-const char* packet_id_net_print(const struct packet_id_net *pin, bool print_timestamp);
+const char* packet_id_net_print(const struct packet_id_net *pin, bool print_timestamp, struct gc_arena *gc);
 
 #ifdef PID_TEST
 void packet_id_interactive_test();
@@ -316,88 +301,35 @@ static inline void
 packet_id_alloc_outgoing (struct packet_id_send *p, struct packet_id_net *pin, bool long_form)
 {
   if (!p->time)
-    p->time = time (NULL);
+    p->time = now;
   pin->id = ++p->id;
   if (!pin->id)
     {
       ASSERT (long_form);
-      p->time = time (NULL);
+      p->time = now;
       pin->id = p->id = 1;
     }
   pin->time = p->time;
 }
 
-/*
- * Read/write a packet ID to/from the buffer.  Short form is sequence number
- * only.  Long form is sequence number and timestamp.
- */
-
 static inline bool
-packet_id_read (struct packet_id_net *pin, struct buffer *buf, bool long_form)
-{
-  packet_id_type net_id;
-  net_time_t net_time;
-
-  pin->id = 0;
-  pin->time = 0;
-
-  if (!buf_read (buf, &net_id, sizeof (net_id)))
-    return false;
-  pin->id = ntohpid (net_id);
-  if (long_form)
-    {
-      if (!buf_read (buf, &net_time, sizeof (net_time)))
-	return false;
-      pin->time = ntohtime (net_time);
-    }
-  return true;
-}
-
-static inline bool
-packet_id_write (const struct packet_id_net *pin, struct buffer *buf, bool long_form, bool prepend)
-{
-  packet_id_type net_id = htonpid (pin->id);
-  net_time_t net_time = htontime (pin->time);
-
-  if (prepend)
-    {
-      if (long_form)
-	{
-	  if (!buf_write_prepend (buf, &net_time, sizeof (net_time)))
-	    return false;
-	}
-      if (!buf_write_prepend (buf, &net_id, sizeof (net_id)))
-	return false;
-    }
-  else
-    {
-      if (!buf_write (buf, &net_id, sizeof (net_id)))
-	return false;
-      if (long_form)
-	{
-	  if (!buf_write (buf, &net_time, sizeof (net_time)))
-	    return false;
-	}
-    }
-  return true;
-}
-
-static inline bool
-check_timestamp_delta (time_t current, time_t remote, unsigned int max_delta)
+check_timestamp_delta (time_t remote, unsigned int max_delta)
 {
   unsigned int abs;
-  if (current >= remote)
-    abs = current - remote;
+  const time_t local_now = now;
+
+  if (local_now >= remote)
+    abs = local_now - remote;
   else
-    abs = remote - current;
+    abs = remote - local_now;
   return abs <= max_delta;
 }
 
 static inline void
-packet_id_reap_test (struct packet_id_rec *p, time_t current)
+packet_id_reap_test (struct packet_id_rec *p)
 {
-  if (p->last_reap + SEQ_REAP_INTERVAL <= current)
-    packet_id_reap (p, current);
+  if (p->last_reap + SEQ_REAP_INTERVAL <= now)
+    packet_id_reap (p);
 }
 
 #endif /* PACKET_ID_H */

@@ -40,7 +40,7 @@ MemAlloc (ULONG p_Size, BOOLEAN zero)
     {
       __try
       {
-	if (NdisAllocateMemoryWithTag (&l_Return, p_Size, '6PAT')
+	if (NdisAllocateMemoryWithTag (&l_Return, p_Size, 'APAT')
 	    == NDIS_STATUS_SUCCESS)
 	  {
 	    if (zero)

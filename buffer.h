@@ -29,12 +29,26 @@
 #include "basic.h"
 #include "thread.h"
 
+/* basic buffer class for OpenVPN */
+
 struct buffer
 {
   int capacity;	   /* size of buffer allocated by malloc */
   int offset;	   /* data starts at data + offset, offset > 0 to allow for efficient prepending */
   int len;	   /* length of data that starts at data + offset */
   uint8_t *data;
+};
+
+/* for garbage collection */
+
+struct gc_entry
+{
+  struct gc_entry *next;
+};
+
+struct gc_arena
+{
+  struct gc_entry *list;
 };
 
 #define BPTR(buf)  ((buf)->data + (buf)->offset)
@@ -45,13 +59,54 @@ struct buffer
 #define BSTR(buf)  ((char *)BPTR(buf))
 #define BCAP(buf)  (buf_forward_capacity (buf))
 
-struct buffer alloc_buf (size_t size);
-struct buffer clone_buf (const struct buffer* buf);
-struct buffer alloc_buf_gc (size_t size);	/* allocate buffer with garbage collection */
+void buf_clear (struct buffer *buf);
+
 struct buffer clear_buf (void);
 void free_buf (struct buffer *buf);
 
+bool buf_assign (struct buffer *dest, const struct buffer *src);
+
+
+
+/* for dmalloc debugging */
+
+#ifdef DMALLOC
+
+#define alloc_buf(size)               alloc_buf_debug (size, __FILE__, __LINE__)
+#define alloc_buf_gc(size, gc)        alloc_buf_gc_debug (size, gc, __FILE__, __LINE__);
+#define clone_buf(buf)                clone_buf_debug (buf, __FILE__, __LINE__);
+#define gc_malloc(size, clear, arena) gc_malloc_debug (size, clear, arena, __FILE__, __LINE__)
+#define string_alloc(str, gc)         string_alloc_debug (str, gc, __FILE__, __LINE__)
+#define string_alloc_buf(str, gc)     string_alloc_buf_debug (str, gc, __FILE__, __LINE__)
+
+struct buffer alloc_buf_debug (size_t size, const char *file, int line);
+struct buffer alloc_buf_gc_debug (size_t size, struct gc_arena *gc, const char *file, int line);
+struct buffer clone_buf_debug (const struct buffer* buf, const char *file, int line);
+void *gc_malloc_debug (size_t size, bool clear, struct gc_arena *a, const char *file, int line);
+char *string_alloc_debug (const char *str, struct gc_arena *gc, const char *file, int line);
+struct buffer string_alloc_buf_debug (const char *str, struct gc_arena *gc, const char *file, int line);
+
+#else
+
+struct buffer alloc_buf (size_t size);
+struct buffer alloc_buf_gc (size_t size, struct gc_arena *gc); /* allocate buffer with garbage collection */
+struct buffer clone_buf (const struct buffer* buf);
+void *gc_malloc (size_t size, bool clear, struct gc_arena *a);
+char *string_alloc (const char *str, struct gc_arena *gc);
+struct buffer string_alloc_buf (const char *str, struct gc_arena *gc);
+
+#endif
+
 /* inline functions */
+
+static inline void
+buf_reset (struct buffer *buf)
+{
+  buf->capacity = 0;
+  buf->offset = 0;
+  buf->len = 0;
+  buf->data = NULL;
+}
 
 static inline bool
 buf_init (struct buffer *buf, int offset)
@@ -70,28 +125,22 @@ buf_defined (struct buffer *buf)
 }
 
 static inline void
-buf_clear (struct buffer *buf)
-{
-  memset (buf->data, 0, buf->capacity);
-  buf->len = 0;
-  buf->offset = 0;
-}
-
-static inline void
 buf_set_write (struct buffer *buf, uint8_t *data, int size)
 {
   buf->len = 0;
   buf->offset = 0;
   buf->capacity = size;
   buf->data = data;
+  if (size > 0 && data)
+    *data = 0;
 }
 
 static inline void
-buf_set_read (struct buffer *buf, uint8_t *data, int size)
+buf_set_read (struct buffer *buf, const uint8_t *data, int size)
 {
   buf->len = buf->capacity = size;
   buf->offset = 0;
-  buf->data = data;
+  buf->data = (uint8_t *)data;
 }
 
 /* Like strncpy but makes sure dest is always null terminated */
@@ -135,11 +184,18 @@ int openvpn_snprintf(char *str, size_t size, const char *format, ...)
     ;
 
 /*
- * remove trailing characters
+ * remove/add trailing characters
  */
 
+void buf_null_terminate (struct buffer *buf);
+void buf_chomp (struct buffer *buf);
 void buf_rmtail (struct buffer *buf, uint8_t remove);
+
+/*
+ * non-buffer string functions
+ */
 void chomp (char *str);
+void string_null_terminate (char *str, int len, int capacity);
 
 /*
  * Write string in buf to file descriptor fd.
@@ -158,18 +214,23 @@ void buf_catrunc (struct buffer *buf, const char *str);
  */
 void convert_to_one_line (struct buffer *buf);
 
+/*
+ * Parse a string based on a given delimiter char
+ */
+bool buf_parse (struct buffer *buf, const int delim, char *line, const int size);
 
 /*
  * Hex dump -- Output a binary buffer to a hex string and return it.
  */
 char *
 format_hex_ex (const uint8_t *data, int size, int maxoutput,
-	       int space_break, const char* separator);
+	       int space_break, const char* separator,
+	       struct gc_arena *gc);
 
 static inline char *
-format_hex (const uint8_t *data, int size, int maxoutput)
+format_hex (const uint8_t *data, int size, int maxoutput, struct gc_arena *gc)
 {
-  return format_hex_ex(data, size, maxoutput, 4, " ");
+  return format_hex_ex (data, size, maxoutput, 4, " ", gc);
 }
 
 /*
@@ -182,13 +243,20 @@ struct buffer buf_sub (struct buffer *buf, int size, bool prepend);
  */
 
 static inline bool
-buf_safe (struct buffer *buf, int len)
+buf_safe (const struct buffer *buf, int len)
 {
   return len >= 0 && buf->offset + buf->len + len <= buf->capacity;
 }
 
+static inline bool
+buf_safe_bidir (const struct buffer *buf, int len)
+{
+  const int newlen = buf->len + len;
+  return newlen >= 0 && buf->offset + newlen <= buf->capacity;
+}
+
 static inline int
-buf_forward_capacity (struct buffer *buf)
+buf_forward_capacity (const struct buffer *buf)
 {
   int ret = buf->capacity - (buf->offset + buf->len);
   if (ret < 0)
@@ -197,7 +265,7 @@ buf_forward_capacity (struct buffer *buf)
 }
 
 static inline int
-buf_forward_capacity_total (struct buffer *buf)
+buf_forward_capacity_total (const struct buffer *buf)
 {
   int ret = buf->capacity - buf->offset;
   if (ret < 0)
@@ -206,9 +274,18 @@ buf_forward_capacity_total (struct buffer *buf)
 }
 
 static inline int
-buf_reverse_capacity (struct buffer *buf)
+buf_reverse_capacity (const struct buffer *buf)
 {
   return buf->offset;
+}
+
+static inline bool
+buf_inc_len (struct buffer *buf, int inc)
+{
+  if (!buf_safe_bidir (buf, inc))
+    return false;
+  buf->len += inc;
+  return true;
 }
 
 /*
@@ -416,7 +493,7 @@ buf_read_u32 (struct buffer *buf, bool *good)
 }
 
 static inline bool
-buf_string_match (struct buffer *src, const void *match, int size)
+buf_string_match (const struct buffer *src, const void *match, int size)
 {
   if (size != src->len)
     return false;
@@ -424,12 +501,16 @@ buf_string_match (struct buffer *src, const void *match, int size)
 }
 
 static inline bool
-buf_string_match_head (struct buffer *src, const void *match, int size)
+buf_string_match_head (const struct buffer *src, const void *match, int size)
 {
   if (size < 0 || size > src->len)
     return false;
   return memcmp (BPTR (src), match, size) == 0;
 }
+
+bool buf_string_match_head_str (const struct buffer *src, const char *match);
+bool buf_string_compare_advance (struct buffer *src, const char *match);
+int buf_substring_len (const struct buffer *buf, char delim);
 
 /*
  * Bitwise operations
@@ -442,68 +523,155 @@ xor (uint8_t *dest, const uint8_t *src, int len)
 }
 
 /*
+ * Classify and mutate strings based on character types.
+ */
+
+/*#define CHARACTER_CLASS_DEBUG*/
+
+/* character classes */
+
+#define CC_ANY                (1<<0)
+#define CC_NULL               (1<<1)
+
+#define CC_ALNUM              (1<<2)
+#define CC_ALPHA              (1<<3)
+#define CC_ASCII              (1<<4)
+#define CC_CNTRL              (1<<5)
+#define CC_DIGIT              (1<<6)
+#define CC_PRINT              (1<<7)
+#define CC_PUNCT              (1<<8)
+#define CC_SPACE              (1<<9)
+#define CC_XDIGIT             (1<<10)
+
+#define CC_BLANK              (1<<11)
+#define CC_NEWLINE            (1<<12)
+#define CC_CR                 (1<<13)
+
+#define CC_BACKSLASH          (1<<14)
+#define CC_UNDERBAR           (1<<15)
+#define CC_DASH               (1<<16)
+#define CC_DOT                (1<<17)
+#define CC_COMMA              (1<<18)
+#define CC_COLON              (1<<19)
+#define CC_SLASH              (1<<20)
+#define CC_SINGLE_QUOTE       (1<<21)
+#define CC_DOUBLE_QUOTE       (1<<22)
+#define CC_REVERSE_QUOTE      (1<<23)
+#define CC_AT                 (1<<24)
+#define CC_EQUAL              (1<<25)
+
+/* macro classes */
+#define CC_NAME               (CC_ALNUM|CC_UNDERBAR)
+#define CC_CRLF               (CC_CR|CC_NEWLINE)
+
+bool char_class (const char c, const unsigned int flags);
+bool string_class (const char *str, const unsigned int inclusive, const unsigned int exclusive);
+bool string_mod (char *str, const unsigned int inclusive, const unsigned int exclusive, const char replace);
+
+const char *string_mod_const (const char *str,
+			      const unsigned int inclusive,
+			      const unsigned int exclusive,
+			      const char replace,
+			      struct gc_arena *gc);
+
+#ifdef CHARACTER_CLASS_DEBUG
+void character_class_debug (void);
+#endif
+
+/*
  * Very basic garbage collection, mostly for routines that return
  * char ptrs to malloced strings.
  */
 
-struct gc_entry
-{
-  struct gc_entry *back;
-  int level;
-};
-
-struct gc_thread
-{
-  int gc_count;
-  int gc_level;
-  struct gc_entry *gc_stack;
-};
-
-extern struct gc_thread x_gc_thread[N_THREADS];
-
-void *gc_malloc (size_t size);
+void x_gc_free (struct gc_arena *a);
 
 static inline void
-x_gc_free (void *p) {
-  free (p);
+gc_init (struct gc_arena *a)
+{
+  a->list = NULL;
 }
 
 static inline void
-gc_collect (int level)
+gc_detach (struct gc_arena *a)
 {
-  struct gc_entry *e;
-  struct gc_thread* thread = &x_gc_thread[thread_number()];
-
-  while ((e = thread->gc_stack))
-    {
-      if (e->level < level)
-	break;
-      /*printf("GC FREE " ptr_format " lev=%d\n", e, e->level); */
-      --thread->gc_count;
-      thread->gc_stack = e->back;
-      x_gc_free (e);
-    }
+  gc_init (a);
 }
 
-static inline int
-gc_new_level (void)
+static inline struct gc_arena
+gc_new (void)
 {
-  struct gc_thread* thread = &x_gc_thread[thread_number()];
-  return ++thread->gc_level;
+  struct gc_arena ret;
+  ret.list = NULL;
+  return ret;
 }
 
 static inline void
-gc_free_level (int level)
+gc_free (struct gc_arena *a)
 {
-  struct gc_thread* thread = &x_gc_thread[thread_number()];
-
-  gc_collect (level);
-  thread->gc_level = level - 1;
+  if (a->list)
+    x_gc_free (a);
 }
 
-#if 0
-#define GCCC debug_gc_check_corrupt(__FILE__, __LINE__)
-void debug_gc_check_corrupt (const char *file, int line);
-#endif
+static inline void
+gc_reset (struct gc_arena *a)
+{
+  gc_free (a);
+}
+
+/*
+ * Allocate memory to hold a structure
+ */
+
+void out_of_memory (void);
+
+#define ALLOC_OBJ(dptr, type) \
+{ \
+  check_malloc_return ((dptr) = (type *) malloc (sizeof (type))); \
+}
+
+#define ALLOC_OBJ_CLEAR(dptr, type) \
+{ \
+  ALLOC_OBJ (dptr, type); \
+  memset ((dptr), 0, sizeof(type)); \
+}
+
+#define ALLOC_ARRAY(dptr, type, n) \
+{ \
+  check_malloc_return ((dptr) = (type *) malloc (sizeof (type) * (n))); \
+}
+
+#define ALLOC_ARRAY_GC(dptr, type, n, gc) \
+{ \
+  (dptr) = (type *) gc_malloc (sizeof (type) * (n), false, (gc)); \
+}
+
+#define ALLOC_ARRAY_CLEAR(dptr, type, n) \
+{ \
+  ALLOC_ARRAY (dptr, type, n); \
+  memset ((dptr), 0, (sizeof(type) * (n))); \
+}
+
+#define ALLOC_ARRAY_CLEAR_GC(dptr, type, n, gc) \
+{ \
+  (dptr) = (type *) gc_malloc (sizeof (type) * (n), true, (gc)); \
+}
+
+#define ALLOC_OBJ_GC(dptr, type, gc) \
+{ \
+  (dptr) = (type *) gc_malloc (sizeof (type), false, (gc)); \
+}
+
+#define ALLOC_OBJ_CLEAR_GC(dptr, type, gc) \
+{ \
+  (dptr) = (type *) gc_malloc (sizeof (type), true, (gc)); \
+}
+
+static inline void
+check_malloc_return (void *p)
+{
+  void out_of_memory (void);
+  if (!p)
+    out_of_memory ();
+}
 
 #endif /* BUFFER_H */

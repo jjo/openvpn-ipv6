@@ -26,19 +26,52 @@
 #ifndef ERROR_H
 #define ERROR_H
 
+#include "basic.h"
+#include "thread.h"
+
+//#define ABORT_ON_ERROR
+
+#define ERR_BUF_SIZE 1024
+
+struct gc_arena;
+
+/*
+ * Where should messages be printed before syslog is opened?
+ * Not used if OPENVPN_DEBUG_COMMAND_LINE is defined.
+ */
+#define OPENVPN_MSG_FP stdout
+
+/*
+ * Exit status codes
+ */
+
+#define OPENVPN_EXIT_STATUS_GOOD                    0
+#define OPENVPN_EXIT_STATUS_ERROR                   1
+#define OPENVPN_EXIT_STATUS_USAGE                   1
+#define OPENVPN_EXIT_STATUS_CANNOT_OPEN_DEBUG_FILE  1
+
+/*
+ * Special command line debugging mode.
+ * If OPENVPN_DEBUG_COMMAND_LINE
+ * is defined, contents of argc/argv will
+ * be dumped to OPENVPN_DEBUG_FILE as well
+ * as all other OpenVPN messages.
+ */
+
+/* #define OPENVPN_DEBUG_COMMAND_LINE */
+#define OPENVPN_DEBUG_FILE PACKAGE ".log"
+
 /* String and Error functions */
 
-#include "basic.h"
-
 #ifdef WIN32
-# define openvpn_errno()         GetLastError()
-# define openvpn_errno_socket()  WSAGetLastError()
-# define openvpn_strerror(e)     strerror_win32(e)
-  const char *strerror_win32 (DWORD errnum);
+# define openvpn_errno()             GetLastError()
+# define openvpn_errno_socket()      WSAGetLastError()
+# define openvpn_strerror(e, gc)     strerror_win32(e, gc)
+  const char *strerror_win32 (DWORD errnum, struct gc_arena *gc);
 #else
-# define openvpn_errno()         errno
-# define openvpn_errno_socket()  errno
-# define openvpn_strerror(x)     strerror(x)
+# define openvpn_errno()             errno
+# define openvpn_errno_socket()      errno
+# define openvpn_strerror(x, gc)     strerror(x)
 #endif
 
 /*
@@ -46,7 +79,7 @@
  * but rather through macros or inline functions defined below.
  */
 extern unsigned int x_debug_level;
-extern int msg_line_num;
+extern int x_msg_line_num;
 
 /* msg() flags */
 
@@ -64,12 +97,14 @@ extern int msg_line_num;
 #define M_NOMUTE          (1<<12)        /* don't do mute processing */
 #define M_NOPREFIX        (1<<13)        /* don't show date/time prefix */
 #define M_USAGE_SMALL     (1<<14)        /* fatal options error, call usage_small */
+#define M_MSG_VIRT_OUT    (1<<15)        /* output message through msg_status_output callback */
 
 /* flag combinations which are frequently used */
 #define M_ERR     (M_FATAL | M_ERRNO)
 #define M_SOCKERR (M_FATAL | M_ERRNO_SOCK)
 #define M_SSLERR  (M_FATAL | M_SSL)
 #define M_USAGE   (M_USAGE_SMALL | M_NOPREFIX)
+#define M_CLIENT  (M_MSG_VIRT_OUT|M_NOMUTE)
 
 /*
  * Mute levels are designed to avoid large numbers of
@@ -88,14 +123,16 @@ extern int msg_line_num;
  * mute_level: don't print more than n (--mute n) consecutive messages at
  *             a given mute level, or if 0 disable muting and print everything.
  */
-#define LOGLEV(log_level, mute_level, other) (((log_level)-1) | ENCODE_MUTE_LEVEL(mute_level) | other)
+#define LOGLEV(log_level, mute_level, other) ((log_level) | ENCODE_MUTE_LEVEL(mute_level) | other)
 
 /*
  * If compiler supports variable arguments in macros, define
  * msg() as a macro for optimization win.
  */
 
-#define MSG_TEST(flags) ((((unsigned int)flags) & M_DEBUG_LEVEL) < x_debug_level || ((flags) & M_FATAL))
+bool dont_mute (unsigned int flags); /* check muting filter */
+
+#define MSG_TEST(flags) (((((unsigned int)flags) & M_DEBUG_LEVEL) <= x_debug_level) && dont_mute (flags))
 
 #if defined(HAVE_CPP_VARARG_MACRO_ISO) && !defined(__LCLINT__)
 #define HAVE_VARARG_MACROS
@@ -104,11 +141,13 @@ extern int msg_line_num;
 #define HAVE_VARARG_MACROS
 #define msg(flags, args...) do { if (MSG_TEST(flags)) x_msg((flags), args); } while (false)
 #else
-#warning this compiler appears to lack vararg macros which will cause a significant degradation in efficiency (you can ignore this warning if you are using LCLINT)
+# ifndef _MSC_VER	/* MSVC++ doesn't have #warning... */
+# warning this compiler appears to lack vararg macros which will cause a significant degradation in efficiency (you can ignore this warning if you are using LCLINT)
+# endif
 #define msg x_msg
 #endif
 
-void x_msg (unsigned int flags, const char *format, ...)
+void x_msg (const unsigned int flags, const char *format, ...)
 #ifdef __GNUC__
     __attribute__ ((format (printf, 2, 3)))
 #endif
@@ -119,8 +158,15 @@ void x_msg (unsigned int flags, const char *format, ...)
  */
 
 void error_reset (void);
-void set_debug_level (int level);
-void set_mute_cutoff (int cutoff);
+void set_suppress_timestamps (bool suppressed);
+
+bool set_debug_level (int level);
+bool set_mute_cutoff (int cutoff);
+
+int get_debug_level (void);
+int get_mute_cutoff (void);
+
+const char *msg_flags_string (const unsigned int flags, struct gc_arena *gc);
 
 /*
  * File to print messages to before syslog is opened.
@@ -137,12 +183,12 @@ void assert_failed (const char *filename, int line);
 static inline bool
 check_debug_level (unsigned int level)
 {
-  return (level & M_DEBUG_LEVEL) < x_debug_level;
+  return (level & M_DEBUG_LEVEL) <= x_debug_level;
 }
 
 /* syslog output */
 
-void open_syslog (const char *pgmname);
+void open_syslog (const char *pgmname, bool stdio_to_null);
 void close_syslog ();
 
 /* log file output */
@@ -160,6 +206,7 @@ struct tuntap;
 
 extern unsigned int x_cs_info_level;
 extern unsigned int x_cs_verbose_level;
+extern unsigned int x_cs_err_delay_ms;
 
 void reset_check_status (void);
 void set_check_status (unsigned int info_level, unsigned int verbose_level);
@@ -174,6 +221,99 @@ check_status (int status, const char *description, struct link_socket *sock, str
 {
   if (status < 0 || check_debug_level (x_cs_verbose_level))
     x_check_status (status, description, sock, tt);
+}
+
+static inline void
+set_check_status_error_delay (unsigned int milliseconds)
+{
+  x_cs_err_delay_ms = milliseconds;
+}
+
+/*
+ * In multiclient mode, put a client-specific prefix
+ * before each message.
+ *
+ * TODO: x_msg_prefix should be thread-local
+ */
+
+extern const char *x_msg_prefix;
+
+#ifdef USE_PTHREAD
+extern pthread_key_t x_msg_prefix_key;
+#endif
+
+void msg_thread_init (void);
+void msg_thread_uninit (void);
+
+static inline void
+msg_set_prefix (const char *prefix)
+{
+#ifdef USE_PTHREAD
+  if (openvpn_thread_enabled ())
+    {
+      ASSERT (!pthread_setspecific (x_msg_prefix_key, prefix));
+    }
+  else
+#endif
+    x_msg_prefix = prefix;
+}
+
+static inline const char *
+msg_get_prefix (void)
+{
+#ifdef USE_PTHREAD
+  if (openvpn_thread_enabled ())
+    return (const char *) pthread_getspecific (x_msg_prefix_key);
+  else
+#endif
+    return x_msg_prefix;
+}
+
+/*
+ * Allow MSG to be redirected through a virtual_output object
+ */
+
+struct virtual_output;
+
+extern const struct virtual_output *x_msg_virtual_output;
+
+static inline void
+msg_set_virtual_output (const struct virtual_output *vo)
+{
+  x_msg_virtual_output = vo;
+}
+
+static inline const struct virtual_output *
+msg_get_virtual_output (void)
+{
+  return x_msg_virtual_output;
+}
+
+/*
+ * Return true if this is a system error
+ * which can be safely ignored.
+ */
+static inline bool
+ignore_sys_error (const int err)
+{
+  /* I/O operation pending */
+#ifdef WIN32
+  if (err == WSAEWOULDBLOCK)
+    return true;
+#else
+  if (err == EAGAIN)
+    return true;
+#endif
+
+#if 0 /* if enabled, suppress ENOBUFS errors */
+#ifdef ENOBUFS
+  /* No buffer space available */
+  if (err == ENOBUFS)
+    return true;
+#endif
+#endif
+
+  return false;
 }
 
 #include "errlevel.h"

@@ -58,9 +58,9 @@ session_id_random (struct session_id *sid)
 }
 
 const char *
-session_id_print (const struct session_id *sid)
+session_id_print (const struct session_id *sid, struct gc_arena *gc)
 {
-  return format_hex (sid->id, SID_SIZE, 0);
+  return format_hex (sid->id, SID_SIZE, 0, gc);
 }
 
 #else

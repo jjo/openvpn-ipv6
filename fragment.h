@@ -26,8 +26,6 @@
 #ifndef FRAGMENT_H
 #define FRAGMENT_H
 
-#ifdef FRAGMENT_ENABLE
-
 #include "common.h"
 #include "buffer.h"
 #include "interval.h"
@@ -81,7 +79,7 @@ struct fragment_master {
   int outgoing_frag_id;            /* each fragment in a datagram is numbered 0 to MAX_FRAGS-1 */ 
 
   struct buffer outgoing;          /* outgoing datagram, free if current_frag_id == 0 */
-  struct buffer outgoing_return;   /* buffer to return outgoing fragment to code in openvpn.c */
+  struct buffer outgoing_return;   /* buffer to return outgoing fragment */
 
   /* incoming fragments from remote */
   struct fragment_list incoming;
@@ -155,10 +153,10 @@ void fragment_frame_init (struct fragment_master *f, const struct frame *frame);
 void fragment_free (struct fragment_master *f);
 
 void fragment_incoming (struct fragment_master *f, struct buffer *buf,
-			const struct frame* frame, const time_t current);
+			const struct frame* frame);
 
 void fragment_outgoing (struct fragment_master *f, struct buffer *buf,
-			const struct frame* frame, const time_t current);
+			const struct frame* frame);
 
 bool fragment_ready_to_send (struct fragment_master *f, struct buffer *buf,
 			     const struct frame* frame);
@@ -166,17 +164,17 @@ bool fragment_ready_to_send (struct fragment_master *f, struct buffer *buf,
 /*
  * Private functions.
  */
-void fragment_wakeup (struct fragment_master *f, struct frame *frame, time_t current);
+void fragment_wakeup (struct fragment_master *f, struct frame *frame);
 
 /*
  * Inline functions
  */
 
 static inline void
-fragment_housekeeping (struct fragment_master *f, struct frame *frame, time_t current, struct timeval *tv)
+fragment_housekeeping (struct fragment_master *f, struct frame *frame, struct timeval *tv)
 {
-  if (event_timeout_trigger (&f->wakeup, current, tv))
-    fragment_wakeup (f, frame, current);
+  if (event_timeout_trigger (&f->wakeup, tv, ETT_DEFAULT))
+    fragment_wakeup (f, frame);
 }
 
 static inline bool
@@ -184,7 +182,5 @@ fragment_outgoing_defined (struct fragment_master *f)
 {
   return f->outgoing.len > 0;
 }
-
-#endif /* FRAGMENT_ENABLE */
 
 #endif

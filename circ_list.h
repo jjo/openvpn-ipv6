@@ -36,7 +36,7 @@ struct name { \
   int x_size; \
   int x_cap; \
   int x_sizeof; \
-  type x_list[0]; \
+  type x_list[EMPTY_ARRAY_SIZE]; \
 }
 
 #define CIRC_LIST_PUSH(obj, item) \
@@ -67,7 +67,7 @@ struct name { \
 { \
   const int so = sizeof (list_type) + sizeof ((dest)->x_list[0]) * (size); \
   (dest) = (list_type *) malloc (so); \
-  ASSERT (dest); \
+  check_malloc_return (dest); \
   memset ((dest), 0, so); \
   (dest)->x_cap = size; \
   (dest)->x_sizeof = so; \

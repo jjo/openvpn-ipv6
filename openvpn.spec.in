@@ -1,6 +1,6 @@
 Summary:	A Secure UDP Tunneling Daemon
-Name:		@PACKAGE@
-Version:	@VERSION@
+Name:           @PACKAGE@
+Version:        @VERSION@
 Release:	1
 URL:		http://sourceforge.net/projects/openvpn/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
@@ -11,6 +11,9 @@ Vendor:		James Yonan <jim@yonan.net>
 Packager:	bishop clark (LC957) <bishop@platypus.bc.ca>
 BuildRoot:	%{_tmppath}/%{name}-%(id -un)
 
+%{!?_without_lzo:BuildRequires: lzo-devel}
+%{!?_without_lzo:Requires:   	lzo}
+
 %description
 OpenVPN is a robust and highly flexible tunneling application that
 uses all of the encryption, authentication, and certification features
@@ -18,13 +21,19 @@ of the OpenSSL library to securely tunnel IP networks over a single
 UDP port. It can use the Marcus Franz Xaver Johannes Oberhumer's LZO
 library for compression.
 
+%if "%{_vendor}" == "suse" || "%{_vendor}" == "pc"
+%define VENDOR SuSE
+%else
+%define VENDOR %_vendor
+%endif
+
 %define debug_package %{nil}
 
 %prep
 %setup -q
 
 %build
-%configure --enable-pthread
+%configure %{?_without_lzo:--disable-lzo}
 %__make
 
 %install
@@ -34,8 +43,15 @@ library for compression.
 %__install -c -m 755 %{name}.8 %{buildroot}%{_mandir}/man8
 %__install -c -d -m 755 %{buildroot}%{_sbindir}
 %__install -c -m 755 %{name} %{buildroot}%{_sbindir}
+
+%if "%{VENDOR}" == "SuSE"
+%__install -c -d -m 755 %{buildroot}/etc/init.d
+%__install -c -m 755 suse/%{name}.init %{buildroot}/etc/init.d/%{name}
+%else
 %__install -c -d -m 755 %{buildroot}/etc/rc.d/init.d
 %__install -c -m 755 sample-scripts/%{name}.init %{buildroot}/etc/rc.d/init.d/%{name}
+%endif
+
 %__install -c -d -m 755 %{buildroot}/etc/%{name}
 
 %__mkdir_p %{buildroot}%{_datadir}/%{name}
@@ -52,12 +68,19 @@ case "`uname -r`" in
 	;;
 esac
 /sbin/chkconfig --add %{name}
+%if "%{VENDOR}" == "SuSE"
+/etc/init.d/openvpn restart
+%else
 /sbin/service %{name} condrestart
-
+%endif
 %preun
 if [ "$1" = 0 ]
 then
+	%if "%{VENDOR}" == "SuSE"
+	/etc/init.d/openvpn stop
+	%else
 	/sbin/service %{name} stop
+	%endif
 	/sbin/chkconfig --del %{name}
 fi
 
@@ -71,6 +94,10 @@ fi
 /etc/rc.d/init.d/%{name}
 
 %changelog
+
+* Sun Nov 7 2004 Umberto Nicoletti
+- SuSE support
+
 * Wed Aug 18 2004 Bishop Clark (LC957) <bishop@platypus.bc.ca>
 - restrict what we claim in /etc/ to avoid ownership conflicts
 

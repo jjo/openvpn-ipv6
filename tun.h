@@ -34,8 +34,10 @@
 #include "buffer.h"
 #include "error.h"
 #include "mtu.h"
-#include "io.h"
+#include "win32.h"
+#include "event.h"
 #include "proto.h"
+#include "misc.h"
 
 #ifdef WIN32
 
@@ -86,6 +88,16 @@ struct tuntap_options {
   /* NBDD (45) */
   in_addr_t nbdd[N_DHCP_ADDR];
   int nbdd_len;
+
+  bool dhcp_renew;
+  bool dhcp_pre_release;
+  bool dhcp_release;
+};
+
+#elif TARGET_LINUX
+
+struct tuntap_options {
+  int txqueuelen;
 };
 
 #else
@@ -102,6 +114,7 @@ struct tuntap_options {
 
 struct tuntap
 {
+# define TUNNEL_TYPE(tt) ((tt) ? ((tt)->type) : DEV_TYPE_UNDEF)
   int type; /* DEV_TYPE_x as defined in proto.h */
 
   bool did_ifconfig_setup;
@@ -111,7 +124,10 @@ struct tuntap
 
   struct tuntap_options options; /* options set on command line */
 
-  char actual[256]; /* actual name of TUN/TAP dev, usually including unit number */
+  char *actual_name; /* actual name of TUN/TAP dev, usually including unit number */
+
+  /* number of TX buffers */
+  int txqueuelen;
 
   /* ifconfig parameters */
   in_addr_t local;
@@ -122,6 +138,7 @@ struct tuntap
   HANDLE hand;
   struct overlapped_io reads;
   struct overlapped_io writes;
+  struct rw_handle rw_handle;
 
   /* used for setting interface address via IP Helper API
      or DHCP masquerade */
@@ -129,6 +146,10 @@ struct tuntap
   ULONG ipapi_context;
   ULONG ipapi_instance;
   in_addr_t adapter_netmask;
+
+  /* Windows adapter index for TAP-Win32 adapter,
+     ~0 if undefined */
+  DWORD adapter_index;
 #else
   int fd;   /* file descriptor for TUN/TAP dev */
 #endif
@@ -137,51 +158,23 @@ struct tuntap
   int ip_fd;
 #endif
 
+  /* used for printing status info only */
+  unsigned int rwflags_debug;
+
   /* Some TUN/TAP drivers like to be ioctled for mtu
-   after open */
+     after open */
   int post_open_mtu;
 };
 
-/*
- * These macros are called in the context of the openvpn() function,
- * and help to abstract away the differences between Win32 and Posix.
- */
-
+static inline bool
+tuntap_defined (const struct tuntap *tt)
+{
 #ifdef WIN32
-
-#define TUNTAP_SET_READ(tt)  \
-  { if (tt->hand != NULL) { \
-      wait_add (&event_wait, tt->reads.overlapped.hEvent); \
-      tun_read_queue (tt, 0); }}
-
-#define TUNTAP_SET_WRITE(tt) \
-  { if (tt->hand != NULL) \
-      wait_add (&event_wait, tt->writes.overlapped.hEvent); }
-
-#define TUNTAP_ISSET(tt, set) \
-  (tt->hand != NULL \
-  && wait_trigger (&event_wait, tt->set.overlapped.hEvent))
-
-#define TUNTAP_SETMAXFD(tt)
-
-#define TUNTAP_READ_STAT(tt) \
-   (tt->hand != NULL \
-   ? overlapped_io_state_ascii (&tt->reads,  "tr") : "trX")
-
-#define TUNTAP_WRITE_STAT(tt) \
-   (tt->hand != NULL \
-   ? overlapped_io_state_ascii (&tt->writes, "tw") : "twX")
-
+  return tt && tt->hand != NULL;
 #else
-
-#define TUNTAP_SET_READ(tt)   { if (tt->fd >= 0)   FD_SET   (tt->fd, &event_wait.reads); }
-#define TUNTAP_SET_WRITE(tt)  { if (tt->fd >= 0)   FD_SET   (tt->fd, &event_wait.writes); }
-#define TUNTAP_ISSET(tt, set)      (tt->fd >= 0 && FD_ISSET (tt->fd, &event_wait.set))
-#define TUNTAP_SETMAXFD(tt)   { if (tt->fd >= 0)   wait_update_maxfd (&event_wait, tt->fd); }
-#define TUNTAP_READ_STAT(tt)  (TUNTAP_ISSET (tt, reads) ?  "TR" : "tr")
-#define TUNTAP_WRITE_STAT(tt) (TUNTAP_ISSET (tt, writes) ? "TW" : "tw")
-
+  return tt && tt->fd >= 0;
 #endif
+}
 
 /*
  * Function prototypes
@@ -201,22 +194,28 @@ int read_tun (struct tuntap* tt, uint8_t *buf, int len);
 void tuncfg (const char *dev, const char *dev_type, const char *dev_node,
 	     bool ipv6, int persist_mode);
 
-const char *guess_tuntap_dev (const char *dev, const char *dev_type,
-			      const char *dev_node);
+const char *guess_tuntap_dev (const char *dev,
+			      const char *dev_type,
+			      const char *dev_node,
+			      struct gc_arena *gc);
 
-void init_tun (struct tuntap *tt,
-	       const char *dev,       /* --dev option */
-	       const char *dev_type,  /* --dev-type option */
-	       const char *ifconfig_local_parm,          /* --ifconfig parm 1 */
-	       const char *ifconfig_remote_netmask_parm, /* --ifconfig parm 2 */
-	       in_addr_t local_public,
-	       in_addr_t remote_public,
-	       const struct frame *frame,
-	       const struct tuntap_options *options);
+struct tuntap *init_tun (const char *dev,       /* --dev option */
+			 const char *dev_type,  /* --dev-type option */
+			 const char *ifconfig_local_parm,          /* --ifconfig parm 1 */
+			 const char *ifconfig_remote_netmask_parm, /* --ifconfig parm 2 */
+			 in_addr_t local_public,
+			 in_addr_t remote_public,
+			 const bool strict_warn,
+			 struct env_set *es);
+
+void init_tun_post (struct tuntap *tt,
+		    const struct frame *frame,
+		    const struct tuntap_options *options);
 
 void do_ifconfig (struct tuntap *tt,
 		  const char *actual,    /* actual device name */
-		  int tun_mtu);
+		  int tun_mtu,
+		  const struct env_set *es);
 
 const char *dev_component_in_dev_node (const char *dev_node);
 
@@ -224,23 +223,11 @@ bool is_dev_type (const char *dev, const char *dev_type, const char *match_type)
 int dev_type_enum (const char *dev, const char *dev_type);
 const char *dev_type_string (const char *dev, const char *dev_type);
 
-const char *ifconfig_options_string (const struct tuntap* tt,
-				     bool remote,
-				     bool disable);
+const char *ifconfig_options_string (const struct tuntap* tt, bool remote, bool disable, struct gc_arena *gc);
 
 /*
  * Inline functions
  */
-
-static inline bool
-tuntap_defined (const struct tuntap* tt)
-{
-#ifdef WIN32
-  return tt->hand != NULL;
-#else
-  return tt->fd >= 0;
-#endif
-}
 
 static inline void
 tun_adjust_frame_parameters (struct frame* frame, int size)
@@ -255,7 +242,8 @@ tun_adjust_frame_parameters (struct frame* frame, int size)
 
 #define IFCONFIG_BEFORE_TUN_OPEN 0
 #define IFCONFIG_AFTER_TUN_OPEN  1
-#define IFCONFIG_DEFAULT         1
+
+#define IFCONFIG_DEFAULT         IFCONFIG_AFTER_TUN_OPEN
 
 static inline int
 ifconfig_order(void)
@@ -281,32 +269,46 @@ ifconfig_order(void)
 
 #define TUN_PASS_BUFFER
 
+struct tap_reg
+{
+  const char *guid;
+  struct tap_reg *next;
+};
+
+struct panel_reg
+{
+  const char *name;
+  const char *guid;
+  struct panel_reg *next;
+};
+
 int ascii2ipset (const char* name);
 const char *ipset2ascii (int index);
-const char *ipset2ascii_all (void);
-
-/* op for get_device_guid */
-
-#define GET_DEV_UID_NORMAL           0
-#define GET_DEV_UID_DEFAULT          1
-#define GET_DEV_UID_ENUMERATE        2
-#define GET_DEV_UID_MAX              3
-
-const char *get_device_guid (const char *name,
-			     char *actual_name,
-			     int actual_name_size,
-			     int op);
+const char *ipset2ascii_all (struct gc_arena *gc);
 
 void verify_255_255_255_252 (in_addr_t local, in_addr_t remote);
 
-void show_tap_win32_adapters (void);
+const IP_ADAPTER_INFO *get_adapter_info_list (struct gc_arena *gc);
+const IP_ADAPTER_INFO *get_tun_adapter (const struct tuntap *tt, const IP_ADAPTER_INFO *list);
+bool is_adapter_up (const struct tuntap *tt, const IP_ADAPTER_INFO *list);
+bool is_ip_in_adapter_subnet (const IP_ADAPTER_INFO *ai, const in_addr_t ip, in_addr_t *highest_netmask);
+DWORD adapter_index_of_ip (const IP_ADAPTER_INFO *list, const in_addr_t ip, int *count);
+
+void show_tap_win32_adapters (int msglev, int warnlev);
+void show_adapters (int msglev);
+
 void show_valid_win32_tun_subnets (void);
-const char *tap_win32_getinfo (struct tuntap *tt);
+const char *tap_win32_getinfo (const struct tuntap *tt, struct gc_arena *gc);
 void tun_show_debug (struct tuntap *tt);
+
+bool dhcp_release (const struct tuntap *tt);
+bool dhcp_renew (const struct tuntap *tt);
 
 int tun_read_queue (struct tuntap *tt, int maxsize);
 int tun_write_queue (struct tuntap *tt, struct buffer *buf);
 int tun_finalize (HANDLE h, struct overlapped_io *io, struct buffer *buf);
+
+const char *get_netsh_id (const char *dev_node, struct gc_arena *gc);
 
 static inline bool
 tuntap_stop (int status)
@@ -364,5 +366,46 @@ tuntap_stop (int status)
 }
 
 #endif
+
+/*
+ * TUN/TAP I/O wait functions
+ */
+
+static inline event_t
+tun_event_handle (const struct tuntap *tt)
+{
+#ifdef WIN32
+  return &tt->rw_handle;
+#else
+  return tt->fd;
+#endif
+}
+
+static inline unsigned int
+tun_set (struct tuntap *tt,
+	 struct event_set *es,
+	 unsigned int rwflags,
+	 void *arg,
+	 unsigned int *persistent)
+{
+  if (tuntap_defined (tt))
+    {
+      /* if persistent is defined, call event_ctl only if rwflags has changed since last call */
+      if (!persistent || *persistent != rwflags)
+	{
+	  event_ctl (es, tun_event_handle (tt), rwflags, arg);
+	  if (persistent)
+	    *persistent = rwflags;
+	}
+#ifdef WIN32
+      if (rwflags & EVENT_READ)
+	tun_read_queue (tt, 0);
+#endif
+      tt->rwflags_debug = rwflags;
+    }
+  return rwflags;
+}
+
+const char *tun_stat (const struct tuntap *tt, unsigned int rwflags, struct gc_arena *gc);
 
 #endif /* TUN_H */

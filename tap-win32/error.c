@@ -31,9 +31,12 @@
 // DEBUGGING OUTPUT
 //-----------------
 
+const char *g_LastErrorFilename;
+int g_LastErrorLineNumber;
+
 #if DBG
 
-static DebugOutput g_Debug;
+DebugOutput g_Debug;
 
 BOOLEAN
 NewlineExists (const char *str, int len)
@@ -69,10 +72,11 @@ MyDebugFree ()
 VOID
 MyDebugPrint (const unsigned char* format, ...)
 {
-  if (g_Debug.text && g_Debug.capacity > 0)
+  if (g_Debug.text && g_Debug.capacity > 0 && CAN_WE_PRINT)
     {
-      const LONG n = InterlockedIncrement (&g_Debug.use);
-      if (n <= 1)
+      BOOLEAN owned;
+      ACQUIRE_MUTEX_ADAPTIVE (&g_Debug.lock, owned);
+      if (owned)
 	{
 	  const int remaining = (int)g_Debug.capacity - (int)g_Debug.out;
 
@@ -99,10 +103,11 @@ MyDebugPrint (const unsigned char* format, ...)
 	    }
 	  else
 	    g_Debug.error = TRUE;
+
+	  RELEASE_MUTEX (&g_Debug.lock);
 	}
       else
 	g_Debug.error = TRUE;
-      InterlockedDecrement (&g_Debug.use);
     }
 }
 
@@ -116,8 +121,9 @@ GetDebugLine (char *buf, const int len)
 
   if (g_Debug.text && g_Debug.capacity > 0)
     {
-      const LONG n = InterlockedIncrement (&g_Debug.use);
-      if (n <= 1)
+      BOOLEAN owned;
+      ACQUIRE_MUTEX_ADAPTIVE (&g_Debug.lock, owned);
+      if (owned)
 	{
 	  int i = 0;
 
@@ -153,9 +159,9 @@ GetDebugLine (char *buf, const int len)
 	    }
 	  else
 	    ret = TRUE;
-	}
-      
-      InterlockedDecrement (&g_Debug.use);
+
+	  RELEASE_MUTEX (&g_Debug.lock);
+	}      
     }
   return ret;
 }

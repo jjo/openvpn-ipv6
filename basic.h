@@ -31,6 +31,8 @@
 #define true 1
 #define false 0
 
+#define BOOL_CAST(x) ((x) ? (true) : (false))
+
 /* size of an array */
 #define SIZE(x) (sizeof(x)/sizeof(x[0]))
 

@@ -77,7 +77,7 @@ iptables -A INPUT -p tcp --dport ssh -j ACCEPT
 # approach (see the OpenVPN HOWTO),
 # then comment out the line below.
 
-iptables -A INPUT -p udp --dport 5000 -j ACCEPT
+iptables -A INPUT -p udp --dport 1194 -j ACCEPT
 
 # Allow packets from TUN/TAP devices.
 # When OpenVPN is run in a secure mode,

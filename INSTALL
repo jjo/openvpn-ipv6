@@ -1,6 +1,6 @@
 Installation instructions for OpenVPN, a Secure Tunneling Daemon
 
-Copyright (C) 2002 by James Yonan. This program is free software;
+Copyright (C) 2002-2004 by James Yonan. This program is free software;
 you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or
@@ -34,13 +34,12 @@ SUPPORTED PLATFORMS:
   (4) Mac OS X Darwin
   (5) FreeBSD
   (6) NetBSD
-  (7) Windows (Win 2K + XP only so far
-      -- see INSTALL-win32.txt for more info)
+  (7) Windows (Win 2K and higher)
 
 SUPPORTED PROCESSOR ARCHITECTURES:
    In general, OpenVPN is word size and endian independent, so
    most processors should be supported.  Architectures known to
-   work include Intel x86, Alpha, Sparc, and ARM.
+   work include Intel x86, Alpha, Sparc, Amd64, and ARM.
 
 REQUIRES:
   (1) TUN and/or TAP driver to allow user-space programs to control
@@ -223,12 +222,21 @@ TUN/TAP Driver Configuration:
 
 * OpenBSD:
 
-  OpenBSD ships with tun0 and tun1 installed by default.
+  OpenBSD ships with tun0 and tun1 installed by default on pre-3.5 systems,
+  while 3.5 and later have dynamically created tun* devices so you only need
+  to create an empty /etc/hostname.tun0 (tun1, tun2 and so on) for each tun
+  you plan to use to create the device(s) at boot.
 
 * Mac OS X:
 
-  Obtain Christoph Pfisterer's TUN driver at
-  http://chrisp.de/en/projects/tunnel.html
+  2004.10.26: Mattias Nissler has developed a new TUN/TAP driver for
+  MAC OS X:
+
+  http://www-user.rhrk.uni-kl.de/~nissler/tuntap/    
+
+  Christoph Pfisterer's old TUN driver can be obtained at
+  http://chrisp.de/en/projects/tunnel.html -- note that it
+  is no longer being maintained.
 
 * Solaris9 Sparc/64
 
@@ -249,33 +257,19 @@ TUN/TAP Driver Configuration:
 
 CAVEATS & BUGS:
 
-* The Windows TAP-Win32 driver should not be used on SMP systems prior
-  to beta8, and beta8 should be considered experimental when run on
-  SMP systems.
-
 * I have noticed cases where TCP sessions tunneled over the Linux
   TAP driver (kernel 2.4.21 and 2.4.22) stall when lower --mssfix
   values are used.  The TCP sessions appear to unstall and resume
   normally when the remote VPN endpoint is pinged.
-
-* OpenVPN works fine with the 1.1 TUN/TAP driver in the Linux 2.2 kernels,
-  and with the integrated 1.4 TUN/TAP driver in the Linux 2.4 kernels, but
-  there's a "gray area" in the 2.4 kernels before 2.4.7 where various
-  things may break due to the TUN/TAP driver and other kernel components
-  being in a state of flux, so I wouldn't recommend using OpenVPN on these
-  kernels unless you are prepared to do some debugging and testing.
-
-* Pthread support is not yet stable on OpenBSD or any platform that implements
-  threads in user-space without supporting true preemptive scheduling
-  between threads.  Pthread implementations which are compatible with Linux
-  or Solaris implementations should work fine with OpenVPN.
 
 * If run through a firewall using OpenBSDs packet filter PF and the
   filter rules include a "scrub" directive, you may get problems talking
   to Linux hosts over the tunnel, since the scrubbing will kill packets
   sent from Linux hosts if they are fragmented. This is usually seen as
   tunnels where small packets and pings get through but large packets
-  and "regular traffic" don't.
+  and "regular traffic" don't. To circumvent this, add "no-df" to
+  the scrub directive so that the packet filter will let fragments with
+  the "dont fragment"-flag set through anyway.
 
 * Mixing OFB or CFB cipher modes with static key mode is not recommended,
   and is flagged as an error on OpenVPN versions 1.2.1 and greater.
