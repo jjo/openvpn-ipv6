@@ -81,14 +81,14 @@
 #define OPENSSL_free(x) free(x)
 
 static inline int
-EVP_CipherInit_ov (EVP_CIPHER_CTX *ctx, const EVP_CIPHER *type, unsigned char *key, unsigned char *iv, int enc)
+EVP_CipherInit_ov (EVP_CIPHER_CTX *ctx, const EVP_CIPHER *type, uint8_t *key, uint8_t *iv, int enc)
 {
   EVP_CipherInit (ctx, type, key, iv, enc);
   return 1;
 }
 
 static inline int
-EVP_CipherUpdate_ov (EVP_CIPHER_CTX *ctx, unsigned char *out, int *outl, unsigned char *in, int inl)
+EVP_CipherUpdate_ov (EVP_CIPHER_CTX *ctx, uint8_t *out, int *outl, uint8_t *in, int inl)
 {
   EVP_CipherUpdate (ctx, out, outl, in, inl);
   return 1;
@@ -107,13 +107,13 @@ cipher_ok (const char* name)
 #else
 
 static inline int
-EVP_CipherInit_ov (EVP_CIPHER_CTX *ctx, const EVP_CIPHER *type, unsigned char *key, unsigned char *iv, int enc)
+EVP_CipherInit_ov (EVP_CIPHER_CTX *ctx, const EVP_CIPHER *type, uint8_t *key, uint8_t *iv, int enc)
 {
   return EVP_CipherInit (ctx, type, key, iv, enc);
 }
 
 static inline int
-EVP_CipherUpdate_ov (EVP_CIPHER_CTX *ctx, unsigned char *out, int *outl, unsigned char *in, int inl)
+EVP_CipherUpdate_ov (EVP_CIPHER_CTX *ctx, uint8_t *out, int *outl, uint8_t *in, int inl)
 {
   return EVP_CipherUpdate (ctx, out, outl, in, inl);
 }
@@ -136,8 +136,8 @@ cipher_ok (const char* name)
  */
 struct key_type
 {
-  unsigned char cipher_length;
-  unsigned char hmac_length;
+  uint8_t cipher_length;
+  uint8_t hmac_length;
   const EVP_CIPHER *cipher;
   const EVP_MD *digest;
 };
@@ -147,8 +147,8 @@ struct key_type
  */
 struct key
 {
-  unsigned char cipher[MAX_CIPHER_KEY_LENGTH];
-  unsigned char hmac[MAX_HMAC_KEY_LENGTH];
+  uint8_t cipher[MAX_CIPHER_KEY_LENGTH];
+  uint8_t hmac[MAX_HMAC_KEY_LENGTH];
 };
 
 /*
@@ -178,7 +178,7 @@ struct crypto_options
   struct key_ctx_bi *key_ctx_bi;
   struct packet_id *packet_id;
   bool packet_id_long_form;
-  unsigned char *iv;
+  uint8_t *iv;
 };
 
 void init_key_type (struct key_type *kt, const char *ciphername,
@@ -191,7 +191,7 @@ void write_key_file (const struct key *key, const char *filename);
 
 void generate_key_random (struct key *key, const struct key_type *kt);
 
-void randomize_iv (unsigned char *iv);
+void randomize_iv (uint8_t *iv);
 
 void check_replay_iv_consistency(const struct key_type *kt, bool packet_id, bool iv);
 

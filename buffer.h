@@ -34,7 +34,7 @@ struct buffer
   int capacity;	   /* size of buffer allocated by malloc */
   int offset;	   /* data starts at data + offset, offset > 0 to allow for efficient prepending */
   int len;	   /* length of data that starts at data + offset */
-  unsigned char *data;
+  uint8_t *data;
 };
 
 #define BPTR(buf)  ((buf)->data + (buf)->offset)
@@ -68,7 +68,7 @@ buf_clear (struct buffer *buf)
 }
 
 static inline void
-buf_set_write (struct buffer *buf, unsigned char *data, int size)
+buf_set_write (struct buffer *buf, uint8_t *data, int size)
 {
   buf->len = 0;
   buf->offset = 0;
@@ -77,7 +77,7 @@ buf_set_write (struct buffer *buf, unsigned char *data, int size)
 }
 
 static inline void
-buf_set_read (struct buffer *buf, unsigned char *data, int size)
+buf_set_read (struct buffer *buf, uint8_t *data, int size)
 {
   buf->len = buf->capacity = size;
   buf->offset = 0;
@@ -108,11 +108,11 @@ void buf_catrunc (struct buffer *buf, const char *str);
  * Hex dump -- Output a binary buffer to a hex string and return it.
  */
 char *
-format_hex_ex (const unsigned char *data, int size, int maxoutput,
+format_hex_ex (const uint8_t *data, int size, int maxoutput,
 	       int space_break, char* separator);
 
 static inline char *
-format_hex (const unsigned char *data, int size, int maxoutput)
+format_hex (const uint8_t *data, int size, int maxoutput)
 {
   return format_hex_ex(data, size, maxoutput, 4, " ");
 }
@@ -161,7 +161,7 @@ buf_reverse_capacity (struct buffer *buf)
  * Return NULL if no space.
  */
 
-static inline unsigned char *
+static inline uint8_t *
 buf_prepend (struct buffer *buf, int size)
 {
   if (size > buf->offset)
@@ -186,10 +186,10 @@ buf_advance (struct buffer *buf, int size)
  * Return NULL if no space.
  */
 
-static inline unsigned char *
+static inline uint8_t *
 buf_write_alloc (struct buffer *buf, int size)
 {
-  unsigned char *ret;
+  uint8_t *ret;
   if (!buf_safe (buf, size))
     return NULL;
   ret = BPTR (buf) + buf->len;
@@ -197,16 +197,16 @@ buf_write_alloc (struct buffer *buf, int size)
   return ret;
 }
 
-static inline unsigned char *
+static inline uint8_t *
 buf_write_alloc_prepend (struct buffer *buf, int size, bool prepend)
 {
   return prepend ? buf_prepend (buf, size) : buf_write_alloc (buf, size);
 }
 
-static inline unsigned char *
+static inline uint8_t *
 buf_read_alloc (struct buffer *buf, int size)
 {
-  unsigned char *ret;
+  uint8_t *ret;
   if (buf->len < size)
     return NULL;
   ret = BPTR (buf);
@@ -218,7 +218,7 @@ buf_read_alloc (struct buffer *buf, int size)
 static inline bool
 buf_write (struct buffer *dest, const void *src, int size)
 {
-  unsigned char *cp = buf_write_alloc (dest, size);
+  uint8_t *cp = buf_write_alloc (dest, size);
   if (!cp)
     return false;
   memcpy (cp, src, size);
@@ -228,7 +228,7 @@ buf_write (struct buffer *dest, const void *src, int size)
 static inline bool
 buf_write_prepend (struct buffer *dest, const void *src, int size)
 {
-  unsigned char *cp = buf_prepend (dest, size);
+  uint8_t *cp = buf_prepend (dest, size);
   if (!cp)
     return false;
   memcpy (cp, src, size);
@@ -244,7 +244,7 @@ buf_copy (struct buffer *dest, const struct buffer *src)
 static inline bool
 buf_read (struct buffer *src, void *dest, int size)
 {
-  unsigned char *cp = buf_read_alloc (src, size);
+  uint8_t *cp = buf_read_alloc (src, size);
   if (!cp)
     return false;
   memcpy (dest, cp, size);

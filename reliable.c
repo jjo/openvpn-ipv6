@@ -65,7 +65,7 @@ reliable_ack_read (struct reliable_ack * ack,
 		   struct buffer * buf, const struct session_id * sid)
 {
   int i;
-  unsigned char count;
+  uint8_t count;
   packet_id_type net_pid;
   packet_id_type pid;
   struct session_id session_id_remote;
@@ -100,7 +100,7 @@ error:
   return false;
 }
 
-#define ACK_SIZE(n) (sizeof (unsigned char) + ((n) ? SID_SIZE : 0) + sizeof (packet_id_type) * (n))
+#define ACK_SIZE(n) (sizeof (uint8_t) + ((n) ? SID_SIZE : 0) + sizeof (packet_id_type) * (n))
 
 /* write a packet ID acknowledgement record to buf, */
 /* removing all acknowledged entries from ack */
@@ -110,7 +110,7 @@ reliable_ack_write (struct reliable_ack * ack,
 		    const struct session_id * sid, int max, bool prepend)
 {
   int i, j;
-  unsigned char n;
+  uint8_t n;
   struct buffer sub;
 
   n = ack->len;
@@ -154,7 +154,7 @@ const char*
 reliable_ack_print(struct buffer* buf)
 {
   int i;
-  unsigned char n_ack;
+  uint8_t n_ack;
   struct session_id sid_ack;
   packet_id_type pid;
   struct buffer out = alloc_buf_gc (256);

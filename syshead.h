@@ -26,7 +26,9 @@
 #ifndef SYSHEAD_H
 #define SYSHEAD_H
 
+#ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
+#endif
 
 #ifdef HAVE_SYS_WAIT_H
 # include <sys/wait.h>
@@ -49,37 +51,82 @@
 # endif
 #endif
 
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <unistd.h>
-#include <signal.h>
-#include <stdio.h>
-#include <string.h>
-#include <ctype.h>
-#include <errno.h>
-#include <syslog.h>
-#include <pwd.h>
+#endif
 
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#ifdef HAVE_STDARG_H
+#include <stdarg.h>
+#endif
+
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
+#ifdef HAVE_SIGNAL_H
+#include <signal.h>
+#endif
+
+#ifdef HAVE_STDIO_H
+#include <stdio.h>
+#endif
+
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+
+#ifdef HAVE_CTYPE_H
+#include <ctype.h>
+#endif
+
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+
+#ifdef HAVE_SYSLOG_H
+#include <syslog.h>
+#endif
+
+#ifdef HAVE_PWD_H
+#include <pwd.h>
 #endif
 
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
 
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+
+#ifdef HAVE_NET_IF_H
+#include <net/if.h>
+#endif
+
 #ifdef TARGET_LINUX
 
 #ifdef HAVE_LINUX_IF_TUN_H
 #include <linux/if_tun.h>
-#endif
-
-#ifdef HAVE_LINUX_IF_H
-#include <linux/if.h>
 #endif
 
 #endif /* TARGET_LINUX */
@@ -89,10 +136,6 @@
 #ifdef HAVE_STROPTS_H
 #include <stropts.h>
 #undef S_ERROR
-#endif
-
-#ifdef HAVE_NET_IF_H
-#include <net/if.h>
 #endif
 
 #ifdef HAVE_NET_IF_TUN_H

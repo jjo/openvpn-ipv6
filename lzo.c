@@ -168,13 +168,13 @@ lzo_compress (struct buffer *buf, struct buffer work,
   /* did compression save us anything ? */
   if (compressed && work.len < buf->len)
     {
-      unsigned char *header = buf_prepend (&work, 1);
+      uint8_t *header = buf_prepend (&work, 1);
       *header = YES_COMPRESS;
       *buf = work;
     }
   else
     {
-      unsigned char *header = buf_prepend (buf, 1);
+      uint8_t *header = buf_prepend (buf, 1);
       *header = NO_COMPRESS;
     }
 }
@@ -185,7 +185,7 @@ lzo_decompress (struct buffer *buf, struct buffer work,
 		const struct frame* frame)
 {
   int zlen = MTU_EXTRA_SIZE (frame);
-  unsigned char c;		/* flag indicating whether or not our peer compressed */
+  uint8_t c;		/* flag indicating whether or not our peer compressed */
   int err;
 
   if (buf->len <= 0)
@@ -233,10 +233,10 @@ lzo_decompress (struct buffer *buf, struct buffer work,
  */
 void lzo_print_stats (struct lzo_compress_workspace *lzo_compwork)
 {
-  msg (M_INFO, " pre-compress bytes:   %10u", lzo_compwork->pre_compress);
-  msg (M_INFO, " post-compress bytes:  %10u", lzo_compwork->post_compress);
-  msg (M_INFO, " pre-decompress bytes: %10u", lzo_compwork->pre_decompress);
-  msg (M_INFO, " post-decompress bytes:%10u", lzo_compwork->post_decompress);
+  msg (M_INFO, " pre-compress bytes:   %10lu", lzo_compwork->pre_compress);
+  msg (M_INFO, " post-compress bytes:  %10lu", lzo_compwork->post_compress);
+  msg (M_INFO, " pre-decompress bytes: %10lu", lzo_compwork->pre_decompress);
+  msg (M_INFO, " post-decompress bytes:%10lu", lzo_compwork->post_decompress);
 }
 
 #endif /* USE_LZO */

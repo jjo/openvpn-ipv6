@@ -44,8 +44,8 @@ void clear_tuntap (struct tuntap *tuntap);
 void open_tun (const char *dev, struct tuntap *tt);
 void close_tun (struct tuntap *tt);
 
-int write_tun (struct tuntap* tt, unsigned char *buf, int len);
-int read_tun (struct tuntap* tt, unsigned char *buf, int len);
+int write_tun (struct tuntap* tt, uint8_t *buf, int len);
+int read_tun (struct tuntap* tt, uint8_t *buf, int len);
 
 void tuncfg (const char *dev, int persist_mode);
 

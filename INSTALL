@@ -26,10 +26,6 @@ REQUIRES:
       this package already installed.  OpenVPN may also be compatible
       with other non-TUN/TAP implementations of virtual tun devices
       available on other unices, but has not yet been extensively tested.
-  (3) Gnu make, automake, and autoconf
-      -- available from ftp://ftp.gnu.org/gnu/
-      and is normally included with most Linux distributions.  OpenBSD
-      users can easily install them from the "ports" collection.
 
 OPTIONAL (but recommended):
   (1) OpenSSL library, necessary for encryption, version 0.9.5 or higher
@@ -44,7 +40,6 @@ OPTIONAL (for debugging only):
 
 BUILD commands:
 
-	./autogen.sh
 	./configure
 	make
 	make install

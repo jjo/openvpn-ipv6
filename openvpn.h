@@ -23,4 +23,4 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#define TITLE "OpenVPN " VERSION " " TARGET_ALIAS " built on " __DATE__
+#define TITLE PACKAGE_STRING " " TARGET_ALIAS " built on " __DATE__

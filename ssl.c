@@ -121,6 +121,7 @@ free_ssl_lib ()
 int
 pem_password_callback (char *buf, int size, int rwflag, void *u)
 {
+#ifdef HAVE_GETPASS
   static char passbuf[256];
 
   if (!strlen (passbuf))
@@ -138,7 +139,9 @@ pem_password_callback (char *buf, int size, int rwflag, void *u)
       CLEAR (passbuf);
       return strlen (buf);
     }
-
+#else
+  msg (M_FATAL, "Sorry but I can't read a password from the console because this operating system or C library doesn't support the getpass() function");
+#endif
   return 0;
 }
 
@@ -214,7 +217,7 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
       buf_set_write (&out, command, sizeof (command));
       buf_printf (&out, "%s %d %s", verify_command, ctx->error_depth, txt);
       msg (D_TLS_DEBUG, "executing verify command: %s", command);
-      ret = system (command);
+      ret = openvpn_system (command);
       if (ret != -1 && WEXITSTATUS (ret) == 0)
 	{
 	  msg (D_HANDSHAKE, "VERIFY SCRIPT OK: depth=%d, %s",
@@ -958,9 +961,9 @@ swap_hmac (struct buffer *buf, const struct crypto_options *co, bool incoming)
     const int osid_size = 1 + SID_SIZE;
 
     int e1, e2;
-    unsigned char *b = BPTR (buf);
-    unsigned char buf1[SWAP_BUF_SIZE];
-    unsigned char buf2[SWAP_BUF_SIZE];
+    uint8_t *b = BPTR (buf);
+    uint8_t buf1[SWAP_BUF_SIZE];
+    uint8_t buf2[SWAP_BUF_SIZE];
 
     if (incoming)
       {
@@ -1053,7 +1056,7 @@ write_control_auth (struct tls_session *session,
 		    bool prepend_ack,
 		    time_t current)
 {
-  unsigned char *header;
+  uint8_t *header;
   struct buffer null = clear_buf ();
 
   ASSERT (ADDR (ks->remote_addr));
@@ -1264,7 +1267,7 @@ tls_process (struct tls_multi *multi,
 	    {
 	      if (transmit_rate_limiter(session, wakeup, current))
 		{
-		  unsigned char *header;
+		  uint8_t *header;
 		  int opcode;
 		  struct buffer b;
 
@@ -1881,7 +1884,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 
       /* get opcode and key ID */
       {
-	unsigned char c = *BPTR (buf);
+	uint8_t c = *BPTR (buf);
 	op = c >> P_OPCODE_SHIFT;
 	key_id = c & P_KEY_ID_MASK;
       }
@@ -2232,7 +2235,7 @@ void
 tls_post_encrypt (struct tls_multi *multi, struct buffer *buf)
 {
   struct key_state *ks;
-  unsigned char *op;
+  uint8_t *op;
 
   ks = multi->save_ks;
   multi->save_ks = NULL;
@@ -2256,7 +2259,7 @@ protocol_dump (struct buffer *buffer, unsigned int flags)
   struct buffer out = alloc_buf_gc (256);
   struct buffer buf = *buffer;
 
-  unsigned char c;
+  uint8_t c;
   int op;
   int key_id;
   int i;
@@ -2301,7 +2304,7 @@ protocol_dump (struct buffer *buffer, unsigned int flags)
   if (tls_auth_hmac_size)
     {
       struct packet_id_net pin;
-      unsigned char tls_auth_hmac[MAX_HMAC_KEY_LENGTH];
+      uint8_t tls_auth_hmac[MAX_HMAC_KEY_LENGTH];
 
       ASSERT (tls_auth_hmac_size <= MAX_HMAC_KEY_LENGTH);
 

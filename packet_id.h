@@ -44,12 +44,13 @@
 #include "error.h"
 
 typedef uint32_t packet_id_type;
+typedef uint32_t net_time_t;
 
 /* convert a packet_id_type to and from network order */
 #define htonpid(x) htonl(x)
 #define ntohpid(x) ntohl(x)
 
-/* convert a time_t to and from network order */
+/* convert a net_time_t to and from network order */
 #define htontime(x) htonl(x)
 #define ntohtime(x) ntohl(x)
 
@@ -165,7 +166,7 @@ static inline bool
 packet_id_read (struct packet_id_net *pin, struct buffer *buf, bool long_form)
 {
   packet_id_type net_id;
-  time_t net_time;
+  net_time_t net_time;
 
   pin->id = 0;
   pin->time = 0;
@@ -186,7 +187,7 @@ static inline bool
 packet_id_write (const struct packet_id_net *pin, struct buffer *buf, bool long_form, bool prepend)
 {
   packet_id_type net_id = htonpid (pin->id);
-  time_t net_time = htontime (pin->time);
+  net_time_t net_time = htontime (pin->time);
 
   if (prepend)
     {

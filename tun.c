@@ -75,7 +75,7 @@ do_ifconfig (const char *dev,
 #endif
 
       msg (M_INFO, "%s", command_line);
-      if (system (command_line) != 0)
+      if (openvpn_system (command_line) != 0)
 	msg (M_ERR, "ifconfig failed");
     }
 }
@@ -210,13 +210,13 @@ close_tun (struct tuntap *tt)
 }
 
 int
-write_tun (struct tuntap* tt, unsigned char *buf, int len)
+write_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
   return write (tt->fd, buf, len);
 }
 
 int
-read_tun (struct tuntap* tt, unsigned char *buf, int len)
+read_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
   return read (tt->fd, buf, len);
 }
@@ -345,7 +345,7 @@ close_tun (struct tuntap* tt)
 }
 
 int
-write_tun (struct tuntap* tt, unsigned char *buf, int len)
+write_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
   struct strbuf sbuf;
   sbuf.len = len;
@@ -354,7 +354,7 @@ write_tun (struct tuntap* tt, unsigned char *buf, int len)
 }
 
 int
-read_tun (struct tuntap* tt, unsigned char *buf, int len)
+read_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
   struct strbuf sbuf;
   int f = 0;
@@ -381,7 +381,7 @@ close_tun (struct tuntap* tt)
 }
 
 int
-write_tun (struct tuntap* tt, unsigned char *buf, int len)
+write_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
   u_int32_t type = htonl (AF_INET);
   struct iovec iv[2];
@@ -395,7 +395,7 @@ write_tun (struct tuntap* tt, unsigned char *buf, int len)
 }
 
 int
-read_tun (struct tuntap* tt, unsigned char *buf, int len)
+read_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
   struct iovec iv[2];
   u_int32_t type;
@@ -438,15 +438,43 @@ close_tun (struct tuntap* tt)
 }
 
 int
-write_tun (struct tuntap* tt, unsigned char *buf, int len)
+write_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
   return write (tt->fd, buf, len);
 }
 
 int
-read_tun (struct tuntap* tt, unsigned char *buf, int len)
+read_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
   return read (tt->fd, buf, len);
 }
 
 #endif /* TARGET_FREEBSD */
+
+#ifdef TARGET_GENERIC
+
+void
+open_tun (const char *dev, struct tuntap *tt)
+{
+  open_tun_generic (dev, tt);
+}
+
+void
+close_tun (struct tuntap* tt)
+{
+  close_tun_generic (tt);
+}
+
+int
+write_tun (struct tuntap* tt, uint8_t *buf, int len)
+{
+  return write (tt->fd, buf, len);
+}
+
+int
+read_tun (struct tuntap* tt, uint8_t *buf, int len)
+{
+  return read (tt->fd, buf, len);
+}
+
+#endif /* TARGET_GENERIC */

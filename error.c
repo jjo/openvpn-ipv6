@@ -95,7 +95,11 @@ _msg (unsigned int flags, const char *format, ...)
 
   if ((flags & M_ERRNO) && e)
     {
+#ifdef HAVE_STRERROR
       snprintf (m2, ERR_BUF_SIZE, "%s: %s (errno=%d)", m1, strerror (e), e);
+#else
+      snprintf (m2, ERR_BUF_SIZE, "%s (errno=%d)", m1, e);
+#endif
       SWAP;
     }
 
@@ -129,7 +133,9 @@ _msg (unsigned int flags, const char *format, ...)
 
   if (_is_daemon)
     {
+#if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
       syslog (level, "%s", m1);
+#endif
     }
   else
     {
@@ -162,9 +168,15 @@ become_daemon (bool daemon_flag, const char *cd)
 {
   if (daemon_flag)
     {
+#if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
       if (daemon (cd != NULL, 0) < 0)
 	msg (M_ERR, "daemon() failed");
       openlog ("openvpn", LOG_PID, 0);
+#else
+      msg (M_WARN, "Warning: this operating system lacks daemon logging features, therefore if I become a daemon, I won't be able to log status or error messages");
+      if (daemon (cd != NULL, 0) < 0)
+	msg (M_ERR, "daemon() failed");
+#endif
       _is_daemon = true;
     }
 }

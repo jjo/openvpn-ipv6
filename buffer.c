@@ -39,7 +39,7 @@ alloc_buf (size_t size)
   buf.capacity = size;
   buf.offset = 0;
   buf.len = 0;
-  buf.data = (unsigned char *) malloc (size);
+  buf.data = (uint8_t *) malloc (size);
   ASSERT (buf.data);
   if (size)
     *buf.data = 0;
@@ -53,7 +53,7 @@ alloc_buf_gc (size_t size)
   buf.capacity = size;
   buf.offset = 0;
   buf.len = 0;
-  buf.data = (unsigned char *) gc_malloc (size);
+  buf.data = (uint8_t *) gc_malloc (size);
   if (size)
     *buf.data = 0;
   return buf;
@@ -66,7 +66,7 @@ clone_buf (const struct buffer* buf)
   ret.capacity = buf->capacity;
   ret.offset = buf->offset;
   ret.len = buf->len;
-  ret.data = (unsigned char *) malloc (buf->capacity);
+  ret.data = (uint8_t *) malloc (buf->capacity);
   ASSERT (ret.data);
   memcpy (BPTR (&ret), BPTR (buf), BLEN (buf));
   return ret;
@@ -95,7 +95,7 @@ struct buffer
 buf_sub (struct buffer *buf, int size, bool prepend)
 {
   struct buffer ret;
-  unsigned char *data;
+  uint8_t *data;
 
   CLEAR (ret);
   data = prepend ? buf_prepend (buf, size) : buf_write_alloc (buf, size);
@@ -159,7 +159,7 @@ gc_malloc (size_t size)
   e->level = thread->gc_level;
   e->back = thread->gc_stack;
   thread->gc_stack = e;
-  /*printf("GC MALLOC 0x%08x size=%d lev=%d\n", e, s, e->level); */
+  /*printf("GC MALLOC 0x%08zx size=%d lev=%d\n", e, s, e->level); */
   return (void *) e + sizeof (struct gc_entry);
 }
 
@@ -173,7 +173,7 @@ gc_collect (int level)
     {
       if (e->level < level)
 	break;
-      /*printf("GC FREE 0x%08x lev=%d\n", e, e->level); */
+      /*printf("GC FREE 0x%08zx lev=%d\n", e, e->level); */
       --thread->gc_count;
       thread->gc_stack = e->back;
       _gc_free (e);
@@ -194,7 +194,7 @@ debug_gc_check_corrupt (const char *file, int line)
   while (e = stack)
     {
       if (e->level > thread->gc_level)
-	printf ("GC CORRUPT 0x%08x lev=%d back=0x%08x file=%s line=%d\n", e,
+	printf ("GC CORRUPT 0x%08zx lev=%d back=0x%08zx file=%s line=%d\n", e,
 		e->level, e->back, file, line);
       stack = e->back;
     }
@@ -206,7 +206,7 @@ debug_gc_check_corrupt (const char *file, int line)
  */
 
 char *
-format_hex_ex (const unsigned char *data, int size, int maxoutput,
+format_hex_ex (const uint8_t *data, int size, int maxoutput,
 	       int space_break, char* separator)
 {
   struct buffer out = alloc_buf_gc (maxoutput ? maxoutput :

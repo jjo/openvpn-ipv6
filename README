@@ -12,7 +12,6 @@ For the latest version of OpenVPN, go to:
 
 To Build and Install,
 
-	./autogen.sh
 	./configure
 	make
 	make install

@@ -88,7 +88,7 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
       /* Do Encrypt from buf -> work */
       if (ctx->cipher)
 	{
-	  unsigned char *iv = opt->iv;
+	  uint8_t *iv = opt->iv;
 	  const int iv_size = EVP_CIPHER_CTX_iv_length (ctx->cipher);
 	  const unsigned int mode = EVP_CIPHER_CTX_mode (ctx->cipher);  
 	  int outlen;
@@ -148,7 +148,7 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 	  /* prepend the IV to the ciphertext */
 	  if (iv)
 	    {
-	      unsigned char *output = buf_prepend (&work, iv_size);
+	      uint8_t *output = buf_prepend (&work, iv_size);
 	      ASSERT (output);
 	      memcpy (output, iv, iv_size);
 
@@ -175,7 +175,7 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
       if (ctx->hmac)
 	{
 	  int hmac_len;
-	  unsigned char *output;
+	  uint8_t *output;
 
 	  HMAC_Init (ctx->hmac, NULL, 0, NULL);
 	  HMAC_Update (ctx->hmac, BPTR (&work), BLEN (&work));
@@ -212,7 +212,7 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
       if (ctx->hmac)
 	{
 	  int hmac_len;
-	  unsigned char local_hmac[MAX_HMAC_KEY_LENGTH]; /* HMAC of ciphertext computed locally */
+	  uint8_t local_hmac[MAX_HMAC_KEY_LENGTH]; /* HMAC of ciphertext computed locally */
 	  int in_hmac_len;
 
 	  HMAC_Init (ctx->hmac, NULL, 0, NULL);
@@ -242,7 +242,7 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
 	{
 	  const unsigned int mode = EVP_CIPHER_CTX_mode (ctx->cipher);
 	  const int iv_size = EVP_CIPHER_CTX_iv_length (ctx->cipher);
-	  unsigned char iv[EVP_MAX_IV_LENGTH];
+	  uint8_t iv[EVP_MAX_IV_LENGTH];
 	  int outlen;
 
 	  /* initialize work buffer with EXTRA_FRAME bytes of prepend capacity */
@@ -698,7 +698,7 @@ generate_key_random (struct key *key, const struct key_type *kt)
 }
 
 void
-randomize_iv (unsigned char *iv)
+randomize_iv (uint8_t *iv)
 {
   if (RAND_bytes (iv, EVP_MAX_IV_LENGTH) < 0)
     msg (M_SSLERR, "RAND_bytes failed");
@@ -747,8 +747,8 @@ test_crypto (const struct crypto_options *co, struct frame* frame)
 	msg (M_FATAL, "SELF TEST FAILED, src.len=%d buf.len=%d", src.len, buf.len);
       for (j = 0; j < i; ++j)
 	{
-	  const unsigned char in = *(BPTR (&src) + j);
-	  const unsigned char out = *(BPTR (&buf) + j);
+	  const uint8_t in = *(BPTR (&src) + j);
+	  const uint8_t out = *(BPTR (&buf) + j);
 	  if (in != out)
 	    msg (M_FATAL, "SELF TEST FAILED, pos=%d in=%d out=%d", j, in, out);
 	}
@@ -773,7 +773,7 @@ get_tls_handshake_key (const struct key_type *key_type,
       /* get key material for hmac */
       {
 	int digest_len;
-	unsigned char digest[MAX_HMAC_KEY_LENGTH];
+	uint8_t digest[MAX_HMAC_KEY_LENGTH];
 	EVP_MD_CTX md;
 
 	CLEAR (key);
@@ -782,7 +782,7 @@ get_tls_handshake_key (const struct key_type *key_type,
 	/* read passphrase file */
 	{
 	  const int min_passphrase_size = 8;
-	  unsigned char buf[512];
+	  uint8_t buf[512];
 	  int total_size = 0;
 	  int fd = open (passphrase_file, O_RDONLY);
 
@@ -847,9 +847,9 @@ read_key_file (struct key *key, const char *filename)
   const int gc_level = gc_new_level ();
   struct buffer in = alloc_buf_gc (512);
   int state = 0;
-  unsigned char* out = (unsigned char*) key;
+  uint8_t* out = (uint8_t*) key;
   int count = 0;
-  unsigned char hex_byte[3] = {0, 0, 0};
+  uint8_t hex_byte[3] = {0, 0, 0};
   int hb_index = 0;
   int line_num = 1;
   int line_index = 0;
@@ -952,7 +952,7 @@ write_key_file (const struct key *key, const char *filename)
     msg (M_ERR, "Cannot open shared secret file %s for write", filename);
 
   /* format key as ascii */
-  fmt = format_hex_ex ((unsigned const char*)key, sizeof (*key), 0, 8, "\n");
+  fmt = format_hex_ex ((const uint8_t*)key, sizeof (*key), 0, 8, "\n");
   buf_printf (&out, "%s\n", static_key_head);
   buf_printf (&out, "%s\n", fmt);
   buf_printf (&out, "%s\n", static_key_foot);
@@ -994,8 +994,8 @@ write_key (const struct key *key, const struct key_type *kt,
 int
 read_key (struct key *key, const struct key_type *kt, struct buffer *buf)
 {
-  unsigned char cipher_length;
-  unsigned char hmac_length;
+  uint8_t cipher_length;
+  uint8_t hmac_length;
 
   CLEAR (*key);
   if (!buf_read (buf, &cipher_length, 1))
@@ -1030,11 +1030,10 @@ show_available_ciphers ()
   int nid;
 
   printf ("The following ciphers and cipher modes are available\n"
-	  "for use with OpenVPN.\n"
-	  "Each cipher name is shown in brackets and may be used as a\n"
-	  "parameter to the --cipher option.  The default key size is\n"
-	  "shown as well as whether or not it can be changed with\n"
-	  "the --keysize directive.\n\n");
+	  "for use with OpenVPN.  Each cipher shown below may be\n"
+	  "used as a parameter to the --cipher option.  The default\n"
+	  "key size is shown as well as whether or not it can be\n"
+          "changed with the --keysize directive.\n\n");
 
   for (nid = 0; nid < 10000; ++nid)	/* is there a better way to get the size of the nid list? */
     {
@@ -1062,8 +1061,7 @@ show_available_digests ()
 	  "OpenVPN.  A message digest is used in conjunction with\n"
 	  "the HMAC function, to authenticate received packets.\n"
 	  "You can specify a message digest as parameter to\n"
-	  "the --auth option.\n"
-	  "Each message digest is shown below in brackets.\n\n");
+	  "the --auth option.\n\n");
 
   for (nid = 0; nid < 10000; ++nid)
     {

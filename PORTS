@@ -1,28 +1,66 @@
 OpenVPN
 Copyright 2002 by James Yonan <jim@yonan.net>
 
+  OpenVPN has been written to try to avoid features
+  that are not standardized well across different
+  OSes, so porting OpenVPN itself will probably be
+  straightforward if a tun driver already exists.
+
+  Where special OS features are used, they are usually
+  bracketed with #ifdef HAVE_SOME_FUNCTION.
+
 CURRENTLY SUPPORTED PLATFORMS:
 
-  * Linux 2.2+ (Tested on RedHat 6.2 through 7.2)
-
+  * Linux 2.2+
+  * Solaris
+  * Max OS X Darwin (experimental)
   * OpenBSD 3.0 (experimental) -- maintained
     by Janne Johansson <icepic@users.sourceforge.net>
+  * FreeBSD (experimental)
 
 PORTING NOTES:
 
+  * Make sure that OpenSSL will build on your
+    platform.
+  * Make sure that a tun device module exists
+    for your platform.  See
+    http://vtun.sourceforge.net/tun/ for examples
+    of tun and tap drivers that have been written
+    for Linux, Solaris, and FreeBSD.
+  * Make sure you have version 2.50 or higher
+    of autoconf.  You will need a matching automake
+    as well.
+  * Edit configure.ac, adding platform specific
+    config code, and a TARGET_YOUROS define.
   * Add platform-specific includes to syshead.h.
-
-  * #ifdef the do_ifconfig() function in misc.c to generate
-    a correct "ifconfig" command for your platform.
-
-WISHLIST:
-
-  I think a windows port of OpenVPN would be awesome.
-
-  I've written OpenVPN to try to avoid features
-  that are not standardized well across different
-  OSes such as forking and multi-threading,
-  so I don't think porting OpenVPN itself will be much
-  of a problem.  I would probably do it in a weekend
-  if somebody got the TUN/TAP driver ported over
-  first. -- James
+  * Add an #ifdef TARGET_YOUROS to the do_ifconfig()
+    function in tun.c to generate a correct "ifconfig"
+    command for your platform.
+  * Add an #ifdef TARGET_YOUROS block in tun.c and define
+    the open_tun, close_tun, read_tun, and write_tun
+    functions.  See the TARGET_GENERIC block for an
+    example of interfacing to the simplest kind of
+    tun device.
+  * After you successfully build OpenVPN, try:
+      (1) ./openvpn --genkey --secret key
+      (2) ./openvpn --test-crypto --secret key
+  * For the next test, confirm that the UDP socket
+    functionality is working independently of the
+    tun device, by doing something like:
+      ./openvpn --remote localhost --verb 8 --ping 1 --dev null
+  * Now try with --remote [a real host]
+  * Now try with a real tun device, you will
+    need to figure out the appropriate ifconfig
+    command to use once openvpn has opened the tun
+    device.
+  * Once you have simple tests working on the tun device,
+    try more complex tests such as using TLS mode.
+  * Stress test the link by doing ping -f across it.
+  * Make sure that packet fragmenting is happening
+    correctly by doing a ping -s 2000 or higher.
+  * If your system supports pthreads, try building
+    with ./configure --enable-pthread and do a stress
+    test in TLS mode.
+  * When it's working, submit your patch to
+    <openvpn-devel@lists.sourceforge.net>
+    and rejoice.

@@ -197,7 +197,7 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
    * It should be of sufficient length and randomness
    * so as not to collide with other tunnel data.
    */
-  static const unsigned char ping_string[] = {
+  static const uint8_t ping_string[] = {
     0x2a, 0x18, 0x7b, 0xf3, 0x64, 0x1e, 0xb4, 0xcb,
     0x07, 0xed, 0x2d, 0x0a, 0x98, 0x1f, 0xc7, 0x48
   };
@@ -255,7 +255,7 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
   struct packet_id packet_id;
 
   /* our residual iv from all encrypts */
-  unsigned char iv[EVP_MAX_IV_LENGTH];
+  uint8_t iv[EVP_MAX_IV_LENGTH];
 #endif
 
   /*
@@ -840,10 +840,10 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 	  if (signal_received == SIGUSR2)
 	    {
 	      msg (M_INFO, "Current OpenVPN Statistics:");
-	      msg (M_INFO, " TUN/TAP read bytes:   %10u", tun_read_bytes);
-	      msg (M_INFO, " TUN/TAP write bytes:  %10u", tun_write_bytes);
-	      msg (M_INFO, " UDP read bytes:       %10u", udp_read_bytes);
-	      msg (M_INFO, " UDP write bytes:      %10u", udp_write_bytes);
+	      msg (M_INFO, " TUN/TAP read bytes:   %10lu", tun_read_bytes);
+	      msg (M_INFO, " TUN/TAP write bytes:  %10lu", tun_write_bytes);
+	      msg (M_INFO, " UDP read bytes:       %10lu", udp_read_bytes);
+	      msg (M_INFO, " UDP write bytes:      %10lu", udp_write_bytes);
 #ifdef USE_LZO
 	      if (options->comp_lzo)
 		  lzo_print_stats (&lzo_compwork);		  

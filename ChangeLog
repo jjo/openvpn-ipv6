@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.05.06 -- Version 1.1.1.9
+2002.05.08 -- Version 1.1.1.10
 
 * Added configuration file support via
   the --config option.
@@ -12,6 +12,14 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   to improve tunnel packet forwarding
   latency.  pthread support can be enabled
   with the --enable-pthread configure option.
+* Numerous portability fixes to ease
+  porting to other OSes.
+* Backported to OpenSSL 0.9.5
+* Ported to Solaris.
+* Eliminated automake/autoconf dependency
+  for non-developers.
+* Ported configure.in to configure.ac
+  and autoconf 2.50+.
 * SIGHUP signal now causes OpenVPN to restart
   and re-read command line and or config file,
   in conformance with canonical daemon behaviour.
@@ -23,8 +31,6 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   including compression statistics.
 * Added --writepid option to write main
   process ID to a file.
-* Backported to OpenSSL 0.9.5
-* Ported to Solaris.
 
 2002.04.22 -- Version 1.1.1
 	

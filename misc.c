@@ -37,6 +37,7 @@
 void
 do_chroot (const char *path)
 {
+#ifdef HAVE_CHROOT
   const char *top = "/";
   if (path)
     {
@@ -46,12 +47,16 @@ do_chroot (const char *path)
 	msg (M_ERR, "cd to '%s' failed", top);
       msg (M_INFO, "chroot to '%s' and cd to '%s' succeeded", path, top);
     }
+#else
+  msg (M_FATAL, "Sorry but I can't chroot to '%s' because this operating system doesn't support the chroot() system call", path);
+#endif
 }
 
 /* Set UID of process */
 void
 set_user (const char *username)
 {
+#if defined(HAVE_GETPWNAM) && defined(HAVE_SETUID)
   if (username)
     {
       struct passwd *pw;
@@ -63,18 +68,25 @@ set_user (const char *username)
 	msg (M_ERR, "setuid('%s') failed", username);
       msg (M_INFO, "UID set to %s", username);
     }
+#else
+  msg (M_FATAL, "Sorry but I can't setuid to '%s' because this operating system doesn't support the getpwname() or setuid() system calls", username);
+#endif
 }
 
 /* Change process priority */
 void
 set_nice (int niceval)
 {
+#ifdef HAVE_NICE
   if (niceval)
     {
       if (nice (niceval) < 0)
 	msg (M_ERR, "nice %d failed", niceval);
       msg (M_INFO, "nice %d succeeded", niceval);
     }
+#else
+  msg (M_FATAL, "Sorry but I can't set nice priority to '%d' because this operating system doesn't support the nice() system call", niceval);
+#endif
 }
 
 /* Run a shell script with one arg */
@@ -97,7 +109,7 @@ run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu,
 		command, arg, tun_mtu, udp_mtu,
 		ifconfig_local, ifconfig_remote);
       msg (M_INFO, "%s", command_line);
-      if (system (command_line) != 0)
+      if (openvpn_system (command_line) != 0)
 	msg (M_ERR, "script failed");
     }
 }
@@ -106,6 +118,7 @@ run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu,
 void
 write_pid (const char* filename)
 {
+#ifdef HAVE_GETPID
   if (filename)
     {
       FILE* fp = fopen (filename, "w");
@@ -114,6 +127,9 @@ write_pid (const char* filename)
       fprintf(fp, "%d\n", pid);
       fclose (fp);
     }
+#else
+  msg (M_FATAL, "Sorry but I can't write my pid to '%s' because this operating system doesn't support the getpid() system call", filename);
+#endif
 }
 
 #ifdef _POSIX_MEMLOCK
@@ -133,6 +149,7 @@ do_mlockall(bool print_msg)
 int
 daemon(int nochdir, int noclose)
 {
+#if defined(HAVE_FORK) && defined(HAVE_DUP2)
   int fd;
 
   switch (fork())
@@ -159,7 +176,24 @@ daemon(int nochdir, int noclose)
       if (fd > 2)
 	close (fd);
     }
+#else
+  msg (M_FATAL, "Sorry but I can't become a daemon because this operating system doesn't support either the daemon(), fork() or dup2() system calls");
+#endif
   return (0);
 }
 
 #endif
+
+/*
+ * Wrapper around the system() call.
+ */
+int
+openvpn_system (char *command)
+{
+#ifdef HAVE_SYSTEM
+  return system (command);
+#else
+  msg (M_FATAL, "Sorry but I can't execute the shell command '%s' because this operating system doesn't support the system() call", command);
+  return -1; /* NOTREACHED */
+#endif
+}

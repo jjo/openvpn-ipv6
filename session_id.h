@@ -41,7 +41,7 @@
 
 struct session_id
 {
-  unsigned char id[8];
+  uint8_t id[8];
 };
 
 extern const struct session_id _session_id_zero;

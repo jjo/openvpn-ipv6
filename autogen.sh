@@ -50,4 +50,4 @@ cd $ORIGDIR || exit 1
 
 echo 
 echo "Now type './configure' and 'make' to compile $PROJECT. You can do this" 
-echo "in a separate build directory if you wish"
+echo "in a separate build directory if you wish."
