@@ -177,7 +177,7 @@ void x_msg (unsigned int flags, const char *format, ...)
     {
       int nerrs = 0;
       int err;
-      while (err = ERR_get_error ())
+      while ((err = ERR_get_error ()))
 	{
 	  snprintf (m2, ERR_BUF_SIZE, "%s: %s", m1, ERR_error_string (err, NULL));
 	  SWAP;

@@ -1025,7 +1025,7 @@ openvpn (const struct options *options,
 		udp_read_bytes += buf.len;
 
 	      /* check recvfrom status */
-	      check_status (buf.len, "read from UDP", NULL);
+	      check_status (buf.len, "read from UDP", &udp_socket);
 
 	      /* take action to corrupt packet if we are in gremlin test mode */
 	      if (options->gremlin) {

@@ -500,4 +500,6 @@ reliable_debug_print (const struct reliable *rel, char *desc)
 
 #endif
 
+#else
+static void dummy(void) {}
 #endif /* USE_CRYPTO && USE_SSL*/

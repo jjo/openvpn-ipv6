@@ -239,4 +239,6 @@ void lzo_print_stats (struct lzo_compress_workspace *lzo_compwork)
   msg (M_INFO, " post-decompress bytes:" counter_format, lzo_compwork->post_decompress);
 }
 
+#else
+static void dummy(void) {}
 #endif /* USE_LZO */

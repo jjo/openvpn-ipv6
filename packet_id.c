@@ -124,7 +124,7 @@ packet_id_net_print (const struct packet_id_net *pin)
     }
 
   buf_printf (&out, " ]");
-  return out.data;
+  return (char *)out.data;
 }
 
 /* initialize the packet_id_persist structure in a disabled state */
@@ -265,7 +265,7 @@ packet_id_persist_print (const struct packet_id_persist *p)
     }
 
   buf_printf (&out, " ]");
-  return out.data;
+  return (char *)out.data;
 }
 
 #ifdef PID_TEST

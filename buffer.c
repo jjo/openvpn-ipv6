@@ -115,14 +115,14 @@ buf_printf (struct buffer *buf, char *format, ...)
 {
   va_list arglist;
 
-  char *ptr = BEND (buf);
+  uint8_t *ptr = BEND (buf);
   int cap = buf_forward_capacity (buf);
 
   va_start (arglist, format);
-  vsnprintf (ptr, cap, format, arglist);
+  vsnprintf ((char *)ptr, cap, format, arglist);
   va_end (arglist);
 
-  buf->len += strlen (ptr);
+  buf->len += strlen ((char *)ptr);
 }
 
 /*
@@ -137,7 +137,7 @@ buf_catrunc (struct buffer *buf, const char *str)
       int len = strlen (str) + 1;
       if (len < buf_forward_capacity_total (buf))
 	{
-	  strncpynt (buf->data + buf->capacity - len, str, len);
+	  strncpynt ((char *)(buf->data + buf->capacity - len), str, len);
 	}
     }
 }
@@ -148,7 +148,7 @@ buf_catrunc (struct buffer *buf, const char *str)
 void
 convert_to_one_line (struct buffer *buf)
 {
-  char *cp = BPTR(buf);
+  uint8_t *cp = BPTR(buf);
   int len = BLEN(buf);
   while (len--)
     {
@@ -185,7 +185,7 @@ gc_collect (int level)
   struct gc_entry *e;
   struct gc_thread* thread = &x_gc_thread[thread_number()];
 
-  while (e = thread->gc_stack)
+  while ((e = thread->gc_stack))
     {
       if (e->level < level)
 	break;
@@ -235,5 +235,5 @@ format_hex_ex (const uint8_t *data, int size, int maxoutput,
       buf_printf (&out, "%02x", data[i]);
     }
   buf_catrunc (&out, "[more...]");
-  return out.data;
+  return (char *)out.data;
 }

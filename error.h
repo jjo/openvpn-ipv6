@@ -56,7 +56,7 @@ extern int msg_line_num;
  */
 #define M_ERRNO_EMBEDDED  (1<<12)        /* indicates that errno value is embedded in flags */
 #define GET_EMBEDDED_ERRNO(flags) (((flags) >> 24) & 0xFF)      
-#define EMBEDDED_ERRNO_MASK(ev) ((((ev) & 0xFF) << 24) | M_ERRNO_EMBEDDED | M_ERRNO)
+#define EMBEDDED_ERRNO_MASK(ev) (((((ev) >= 0 && (ev) < 256) ? (ev) : 0) << 24) | M_ERRNO_EMBEDDED | M_ERRNO)
 
 /* flag combinations which are frequently used */
 #define M_ERR     (M_FATAL | M_ERRNO)

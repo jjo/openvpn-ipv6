@@ -184,7 +184,7 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 	  HMAC_Update (ctx->hmac, BPTR (&work), BLEN (&work));
 	  output = buf_prepend (&work, HMAC_size (ctx->hmac));
 	  ASSERT (output);
-	  HMAC_Final (ctx->hmac, output, &hmac_len);
+	  HMAC_Final (ctx->hmac, output, (unsigned int *)&hmac_len);
 	  ASSERT (hmac_len == HMAC_size (ctx->hmac));
 	}
 
@@ -229,7 +229,7 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
 
 	  HMAC_Update (ctx->hmac, BPTR (buf) + hmac_len,
 		       BLEN (buf) - hmac_len);
-	  HMAC_Final (ctx->hmac, local_hmac, &in_hmac_len);
+	  HMAC_Final (ctx->hmac, local_hmac, (unsigned int *)&in_hmac_len);
 	  ASSERT (hmac_len == in_hmac_len);
 
 	  /* Compare locally computed HMAC with packet HMAC */
@@ -883,9 +883,9 @@ read_key_file (struct key *key, const char *filename)
   if (fd == -1)
     msg (M_ERR, "Cannot open shared secret file %s", filename);
 
-  while (size = read (fd, in.data, in.capacity))
+  while ((size = read (fd, in.data, in.capacity)))
     {
-      const char *cp = in.data;
+      const char *cp = (char *)in.data;
       while (size)
 	{
 	  const char c = *cp;
@@ -923,7 +923,7 @@ read_key_file (struct key *key, const char *filename)
 		    if (hb_index == 2)
 		      {
 			unsigned int u;
-			ASSERT(sscanf(hex_byte, "%x", &u) == 1);
+			ASSERT(sscanf((const char *)hex_byte, "%x", &u) == 1);
 			*out++ = u;
 			hb_index = 0;
 			if (++count == keylen)
@@ -982,7 +982,7 @@ write_key_file (const struct key *key, const char *filename)
   buf_printf (&out, "%s\n", static_key_foot);
 
   /* write data to file */
-  len = strlen (BPTR(&out));
+  len = strlen ((char *)BPTR(&out));
   size = write (fd, BPTR(&out), len);
   if (size != len)
     msg (M_ERR, "Write error on shared secret file %s", filename);

@@ -285,7 +285,7 @@ system_error_message (int stat)
       else
 	buf_printf (&out, "shell command exited with error status: %d", cmd_ret);
     }
-  return out.data;
+  return (const char *)out.data;
 }
 
 /*

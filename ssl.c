@@ -228,7 +228,7 @@ static void
 system_safe_string (char *cp)
 {
   int c;
-  while (c = *cp)
+  while ((c = *cp))
     {
       if (isalnum (c)
 	  || c == '/'
@@ -494,7 +494,7 @@ show_available_tls_ciphers ()
 
   printf ("Available TLS Ciphers,\n");
   printf ("listed in order of preference:\n\n");
-  while (cipher_name = SSL_get_cipher_list (ssl, priority++))
+  while ((cipher_name = SSL_get_cipher_list (ssl, priority++)))
     printf ("%s\n", cipher_name);
   printf ("\n");
 
@@ -2491,4 +2491,6 @@ done:
   return out.data;
 }
 
+#else
+static void dummy(void) {}
 #endif /* USE_CRYPTO && USE_SSL*/

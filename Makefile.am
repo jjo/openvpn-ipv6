@@ -46,4 +46,4 @@ EXTRA_DIST = $(man_MANS) \
 	     sample-scripts openvpn.spec.in
 
 dist-hook:
-	cd $(distdir) && for i in $(EXTRA_DIST) ; do find $$i -name CVS -type d -prune -exec rm -r '{}' ';' ; rm -f `find $$i -type f | egrep '(^|\/)(\.)?\#|\~$$'` ; done
+	cd $(distdir) && for i in $(EXTRA_DIST) ; do find $$i -name CVS -type d -prune -exec rm -r '{}' ';' ; rm -f `find $$i -type f | egrep '(^|\/)\.?\#|\~$$'` ; done

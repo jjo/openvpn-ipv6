@@ -72,7 +72,7 @@ x_check_status (int status, const char *description, struct udp_socket *sock)
 	  if (mtu > 0)
 	    sock->mtu = mtu;
 	  if (out.len)
-	      msg (lev, "%s [Extended Error Return: '%s']", description, BPTR(&out));
+	      msg (lev, "%s [%s]", description, BPTR(&out));
 	    else
 	      msg (lev, "%s", description);
 	}
@@ -255,7 +255,7 @@ udp_socket_set_outgoing_addr (const struct buffer *buf,
 	    {
 	      char command[256];
 	      struct buffer out;
-	      buf_set_write (&out, command, sizeof (command));
+	      buf_set_write (&out, (uint8_t *)command, sizeof (command));
 	      buf_printf (&out, "%s %s",
 			  sock->ipchange_command,
 			  print_sockaddr_ex (&usa->actual, true, " "));
@@ -356,5 +356,5 @@ print_sockaddr_ex (const struct sockaddr_in *addr, bool do_port, const char* sep
 
       buf_printf (&out, "%d", port);
     }
-  return out.data;
+  return (char *)out.data;
 }

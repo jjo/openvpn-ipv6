@@ -60,4 +60,6 @@ session_id_print (const struct session_id *sid)
   return format_hex (sid->id, SID_SIZE, 0);
 }
 
+#else
+static void dummy(void) {}
 #endif /* USE_CRYPTO && USE_SSL*/

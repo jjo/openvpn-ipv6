@@ -609,7 +609,7 @@ write_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
   struct strbuf sbuf;
   sbuf.len = len;
-  sbuf.buf = buf;
+  sbuf.buf = (char *)buf;
   return putmsg (tt->fd, NULL, &sbuf, 0) >= 0 ? sbuf.len : -1;
 }
 
@@ -620,7 +620,7 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
   int f = 0;
 
   sbuf.maxlen = len;
-  sbuf.buf = buf;
+  sbuf.buf = (char *)buf;
   return getmsg (tt->fd, NULL, &sbuf, &f) >= 0 ? sbuf.len : -1;
 }
 
