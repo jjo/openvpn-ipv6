@@ -200,7 +200,7 @@ void x_msg (unsigned int flags, const char *format, ...)
 
   if (use_syslog)
     {
-#if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
+#if SYSLOG_CAPABILITY
       syslog (level, "%s", m1);
 #endif
     }
@@ -233,33 +233,18 @@ assert_failed (const char *filename, int line)
 }
 
 void
-become_daemon (const char *cd)
+open_syslog (void)
 {
-#if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
-  if (daemon (cd != NULL, 0) < 0)
-    msg (M_ERR, "daemon() failed");
+#if SYSLOG_CAPABILITY
   if (!msgfp)
     {
       openlog ("openvpn", LOG_PID, LOG_DAEMON);
       use_syslog = true;
-    }
-#else
-  msg (M_WARN, "Warning on use of --daemon: this operating system lacks daemon logging features, therefore when I become a daemon, I won't be able to log status or error messages");
-  if (daemon (cd != NULL, 0) < 0)
-    msg (M_ERR, "daemon() failed");
-#endif
-}
 
-void
-become_inetd_server (void)
-{
-#if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
-  if (!msgfp)
-    {
-      openlog ("openvpn", LOG_PID, LOG_DAEMON);
-      use_syslog = true;
+      /* Better idea: pipe stdout/stderr output to msg() */
+      set_std_files_to_null ();
     }
 #else
-  msg (M_WARN, "Warning on use of --inetd: this operating system lacks syslog logging features, therefore I won't be able to log status or error messages as an inetd server");
+  msg (M_WARN, "Warning on use of --daemon/--inetd: this operating system lacks daemon logging features, therefore when I become a daemon, I won't be able to log status or error messages");
 #endif
 }

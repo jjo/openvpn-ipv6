@@ -36,12 +36,12 @@
 #define M_INFO               LOGLEV(1, 0, 0)         /* default informational messages */
 
 #define D_LINK_ERRORS        LOGLEV(1, 10, M_NONFATAL)   /* show link errors from main event loop */
-#define D_CRYPT_ERRORS       LOGLEV(1, 11, M_NONFATAL)   /* show errors from encrypt/decrypt */
-#define D_TLS_ERRORS         LOGLEV(1, 12, M_NONFATAL)   /* show TLS control channel errors */
-#define D_RESOLVE_ERRORS     LOGLEV(1, 13, M_NONFATAL)   /* show hostname resolve errors */
-#define D_COMP_ERRORS        LOGLEV(1, 14, M_NONFATAL)   /* show compression errors */
-#define D_PID_PERSIST        LOGLEV(1, 15, M_NONFATAL)   /* show packet_id persist errors */
-#define D_FRAG_ERRORS        LOGLEV(1, 16, M_NONFATAL)   /* show fragmentation errors */
+#define D_CRYPT_ERRORS       LOGLEV(1, 10, M_NONFATAL)   /* show errors from encrypt/decrypt */
+#define D_TLS_ERRORS         LOGLEV(1, 10, M_NONFATAL)   /* show TLS control channel errors */
+#define D_RESOLVE_ERRORS     LOGLEV(1, 10, M_NONFATAL)   /* show hostname resolve errors */
+#define D_COMP_ERRORS        LOGLEV(1, 10, M_NONFATAL)   /* show compression errors */
+#define D_PID_PERSIST        LOGLEV(1, 10, M_NONFATAL)   /* show packet_id persist errors */
+#define D_FRAG_ERRORS        LOGLEV(1, 10, M_NONFATAL)   /* show fragmentation errors */
 
 #define D_HANDSHAKE          LOGLEV(2, 20, 0)        /* show data & control channel handshakes */
 #define D_MTU_INFO           LOGLEV(2, 21, 0)        /* show debugging MTU info */
@@ -75,7 +75,7 @@
 #define D_PID_DEBUG          LOGLEV(9, 70, M_DEBUG)  /* show packet-id debugging info */
 #define D_PID_PERSIST_DEBUG  LOGLEV(9, 70, M_DEBUG)  /* show packet-id persist debugging info */
 #define D_UDP_RW_VERBOSE     LOGLEV(9, 70, M_DEBUG)  /* show UDP reads/writes with greater verbosity */
-#define D_TLS_THREAD_DEBUG   LOGLEV(5, 70, M_DEBUG)  /* CHANGEME show detailed info from TLS thread routines */
+#define D_TLS_THREAD_DEBUG   LOGLEV(9, 70, M_DEBUG)  /* show detailed info from TLS thread routines */
 
 #define D_SHAPER_DEBUG       LOGLEV(10, 70, M_DEBUG)  /* show traffic shaper info */
 

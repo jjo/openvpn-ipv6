@@ -130,8 +130,7 @@ check_debug_level (unsigned int level)
   return (level & M_DEBUG_LEVEL) < x_debug_level;
 }
 
-void become_daemon (const char *cd);
-void become_inetd_server (void);
+void open_syslog (void);
 
 #include "errlevel.h"
 

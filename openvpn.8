@@ -28,7 +28,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "25 April 2003"
+.TH openvpn 8 "2 May 2003"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -964,23 +964,32 @@ your OpenVPN control files in one location.
 .B --chroot dir
 Chroot to
 .B dir
-before initialization.  
+after initialization.  
 .B --chroot
 essentially redefines
 .B dir
 as being the top
 level directory tree (/).  OpenVPN will therefore
-be unable to access any file outside this tree.
+be unable to access any files outside this tree.
 This can be desirable from a security standpoint.
 
-The caveat here is that every file that
-OpenVPN might possibly need must exist within the chroot directory tree,
-including special files such
-.B /dev/random
-(which is used by OpenVPN to generate random keys and IVs).
+Since the chroot operation is delayed until after
+initialization, most OpenVPN options that reference
+files will operate in a pre-chroot context.
+
+In many cases, the
+.B dir
+parameter can point to an empty directory, however
+complications can result when scripts or restarts
+are executed after the chroot operation.
 .TP
 .B --daemon
-Become a daemon and write all messages to the syslog file (such as /var/log/messages).
+Become a daemon after all initialization functions are completed.
+This option will cause all message and error output to
+be sent to the syslog file (such as /var/log/messages),
+except for the output of shell scripts and
+ifconfig commands,
+which will go to /dev/null unless otherwise redirected.
 .TP
 .B --passtos
 Set the TOS field of the tunnel packet to what the payload's TOS is.
@@ -993,7 +1002,11 @@ This option precludes the use of
 .B --daemon, --local,
 or
 .B --remote.
-Note that each OpenVPN tunnel requires a separate UDP port and
+Note that this option causes message and error output to be handled in the same
+way as the
+.B --daemon
+option.
+Also note that each OpenVPN tunnel requires a separate UDP port and
 a separate inetd or xinetd entry.  See the OpenVPN HOWTO for an example
 on using OpenVPN with xinetd:
 .I http://openvpn.sourceforge.net/howto.html
@@ -1309,7 +1322,7 @@ would be something like this:
 
 or
 
-.B openvpn --test-crypto --secret key --verb 8
+.B openvpn --test-crypto --secret key --verb 9
 
 This option is very useful to test OpenVPN after it has been ported to
 a new platform, or to isolate problems in the compiler, OpenSSL
@@ -1869,11 +1882,11 @@ you will get a weird feedback loop.
 .LP
 On may:
 .IP
-.B openvpn --remote june.kg --dev tun1 --ifconfig 10.4.0.1 10.4.0.2 --verb 8
+.B openvpn --remote june.kg --dev tun1 --ifconfig 10.4.0.1 10.4.0.2 --verb 9
 .LP
 On june:
 .IP
-.B openvpn --remote may.kg --dev tun1 --ifconfig 10.4.0.2 10.4.0.1 --verb 8
+.B openvpn --remote may.kg --dev tun1 --ifconfig 10.4.0.2 10.4.0.1 --verb 9
 .LP
 Now verify the tunnel is working by pinging across the tunnel.
 .LP
@@ -1886,11 +1899,11 @@ On june:
 .B ping 10.4.0.1
 .LP
 The
-.B --verb 8
+.B --verb 9
 option will produce verbose output, similar to the
 .BR tcpdump (8)
 program.  Omit the
-.B --verb 8
+.B --verb 9
 option to have OpenVPN run quietly.
 .SS Example 2: A tunnel with static-key security (i.e. using a pre-shared secret)
 First build a static key on may.

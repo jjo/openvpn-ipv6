@@ -30,6 +30,7 @@
 #include "common.h"
 #include "error.h"
 
+/* persistant across SIGUSR1s */
 struct udp_socket_addr
 {
   struct sockaddr_in local;

@@ -257,4 +257,13 @@
 #define EXTENDED_SOCKET_ERROR_CAPABILITY 0
 #endif
 
+/*
+ * Do we have a syslog capability?
+ */
+#if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
+#define SYSLOG_CAPABILITY 1
+#else
+#define SYSLOG_CAPABILITY 0
+#endif
+
 #endif

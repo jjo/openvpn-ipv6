@@ -37,6 +37,7 @@
 #include "crypto.h"
 #include "options.h"
 #include "openvpn.h"
+#include "misc.h"
 
 #include "memdbg.h"
 
@@ -62,10 +63,10 @@ static const char usage_message[] =
   "--lport port    : UDP port # for local (default=%d).\n"
   "--rport port    : UDP port # for remote (default=%d).\n"
   "--nobind        : Do not bind to local address and port.\n"
-  "--dev tunX|tapX : tun/tap device (X can be omitted for dynamic device in\n"
+  "--dev tunX|tapX : TUN/TAP device (X can be omitted for dynamic device in\n"
   "                  Linux 2.4+).\n"
   "--dev-type dt   : Which device type are we using? (dt = tun or tap) Use\n"
-  "                  this option only if the tun/tap device used with --dev\n"
+  "                  this option only if the TUN/TAP device used with --dev\n"
   "                  does not begin with \"tun\" or \"tap\".\n"
   "--dev-node node : Explicitly set the device node rather than using\n"
   "                  /dev/net/tun, /dev/tun, /dev/tap, etc.\n"
@@ -79,22 +80,23 @@ static const char usage_message[] =
   "                  Implies --udp-mtu %d if neither --udp-mtu or --tun-mtu\n"
   "                  explicitly specified.\n"
   "--shaper n      : Restrict output to peer to n bytes per second.\n"
-  "--inactive n    : Exit after n seconds of inactivity on tun/tap device.\n"
+  "--inactive n    : Exit after n seconds of inactivity on TUN/TAP device.\n"
   "--ping-exit n   : Exit if n seconds pass without reception of remote ping.\n"
   "--ping-restart n: Restart if n seconds pass without reception of remote ping.\n"
   "--ping-timer-rem: Run the --ping-exit/--ping-restart timer only if we have a\n"
   "                  remote address.\n"
   "--ping n        : Ping remote once every n seconds over UDP port.\n"
-  "--persist-tun   : Keep tun/tap device open across SIGUSR1 or --ping-restart.\n"
+  "--persist-tun   : Keep TUN/TAP device open across SIGUSR1 or --ping-restart.\n"
   "--persist-remote-ip : Keep remote IP address across SIGUSR1 or --ping-restart.\n"
   "--persist-local-ip  : Keep local IP address across SIGUSR1 or --ping-restart.\n"
   "--persist-key   : Don't re-read key files across SIGUSR1 or --ping-restart.\n"
 #if PASSTOS_CAPABILITY
   "--passtos       : TOS passthrough (applies to IPv4 only).\n"
 #endif
-  "--tun-mtu n     : Take the tun/tap device MTU to be n and derive the\n"
+  "--tun-mtu n     : Take the TUN/TAP device MTU to be n and derive the\n"
   "                  UDP MTU from it (default=%d).\n"
-  "--tun-mtu-extra n : Assume that tun/tap device might return as many as n bytes\n"
+  "--tun-mtu-extra n : Assume that TUN/TAP device might return as many\n"
+  "                  as n bytes\n"
   "                  more than the tun-mtu size on read (default=%d).\n"
   "--udp-mtu n     : Take the UDP device MTU to be n and derive the tun MTU\n"
   "                  from it (disabled by default).\n"
@@ -112,7 +114,7 @@ static const char usage_message[] =
   "--mlock         : Disable Paging -- ensures key material and tunnel\n"
   "                  data will never be written to disk.\n"
   "--up cmd        : Shell cmd to execute after successful tun device open.\n"
-  "                  Execute as: cmd tun/tap-dev tun-mtu udp-mtu \\\n"
+  "                  Execute as: cmd TUN/TAP-dev tun-mtu udp-mtu \\\n"
   "                              ifconfig-local-ip ifconfig-remote-ip\n"
   "                  (pre --user or --group UID/GID change)\n"
   "--down cmd      : Shell cmd to run after tun device close.\n"
@@ -120,9 +122,9 @@ static const char usage_message[] =
   "                  (script parameters are same as --up option)\n"
   "--user user     : Set UID to user after initialization.\n"
   "--group group   : Set GID to group after initialization.\n"
-  "--chroot dir    : Chroot to this directory before initialization.\n"
+  "--chroot dir    : Chroot to this directory after initialization.\n"
   "--cd dir        : Change to this directory before initialization.\n"
-  "--daemon        : Become a daemon.\n"
+  "--daemon        : Become a daemon after initialization.\n"
   "--inetd         : Run as an inetd or xinetd server.\n"
   "--writepid file : Write main process ID to file.\n"
   "--nice n        : Change process priority (>0 = lower, <0 = higher).\n"
@@ -227,10 +229,10 @@ static const char usage_message[] =
 #endif				/* USE_CRYPTO */
 #ifdef TUNSETPERSIST
   "\n"
-  "Tun/Tap config mode (available with linux 2.4+):\n"
+  "TUN/TAP config mode (available with linux 2.4+):\n"
   "--mktun         : Create a persistent tunnel.\n"
   "--rmtun         : Remove a persistent tunnel.\n"
-  "--dev tunX|tapX : tun/tap device\n"
+  "--dev tunX|tapX : TUN/TAP device\n"
   "--dev-type dt   : Device type.  See tunnel options above for details.\n"
 #endif
  ;
@@ -785,7 +787,7 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       ++i;
       options->cd_dir = p2;
-      if (chdir (p2))
+      if (openvpn_chdir (p2))
 	msg (M_ERR, "cd to '%s' failed", p2);
     }
   else if (streq (p1, "writepid") && p2)
@@ -805,14 +807,18 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     }
   else if (streq (p1, "daemon"))
     {
-      options->daemon = true;
+      if (!options->daemon) {
+	options->daemon = true;
+	open_syslog ();
+      }
     }
   else if (streq (p1, "inetd"))
     {
       if (!options->inetd)
 	{
 	  options->inetd = true;
-	  become_inetd_server ();
+	  save_inetd_socket_descriptor ();
+	  open_syslog ();
 	}
     }
   else if (streq (p1, "mlock"))

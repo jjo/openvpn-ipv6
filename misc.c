@@ -41,67 +41,90 @@
 void
 do_chroot (const char *path)
 {
-#ifdef HAVE_CHROOT
-  const char *top = "/";
   if (path)
     {
+#ifdef HAVE_CHROOT
+      const char *top = "/";
       if (chroot (path))
 	msg (M_ERR, "chroot to '%s' failed", path);
-      if (chdir (top))
+      if (openvpn_chdir (top))
 	msg (M_ERR, "cd to '%s' failed", top);
       msg (M_INFO, "chroot to '%s' and cd to '%s' succeeded", path, top);
-    }
 #else
-  msg (M_FATAL, "Sorry but I can't chroot to '%s' because this operating system doesn't appear to support the chroot() system call", path);
+      msg (M_FATAL, "Sorry but I can't chroot to '%s' because this operating system doesn't appear to support the chroot() system call", path);
 #endif
+    }
 }
 
-/* Set UID of process */
+/* Get/Set UID of process */
+
 void
-set_user (const char *username)
+get_user (const char *username, struct user_state *state)
 {
-#if defined(HAVE_GETPWNAM) && defined(HAVE_SETUID)
+  CLEAR (*state);
   if (username)
     {
-      struct passwd *pw;
-
-      pw = getpwnam (username);
-      if (!pw)
+#if defined(HAVE_GETPWNAM) && defined(HAVE_SETUID)
+      state->pw = getpwnam (username);
+      if (!state->pw)
 	msg (M_ERR, "failed to find UID for user %s", username);
-      if (setuid (pw->pw_uid))
-	msg (M_ERR, "setuid('%s') failed", username);
-      msg (M_INFO, "UID set to %s", username);
-    }
+      state->username = username;
 #else
-  msg (M_FATAL, "Sorry but I can't setuid to '%s' because this operating system doesn't appear to support the getpwname() or setuid() system calls", username);
+      msg (M_FATAL, "Sorry but I can't setuid to '%s' because this operating system doesn't appear to support the getpwname() or setuid() system calls", username);
+#endif
+    }
+}
+
+void
+set_user (const struct user_state *state)
+{
+#if defined(HAVE_GETPWNAM) && defined(HAVE_SETUID)
+  if (state->username && state->pw)
+    {
+      if (setuid (state->pw->pw_uid))
+	msg (M_ERR, "setuid('%s') failed", state->username);
+      msg (M_INFO, "UID set to %s", state->username);
+    }
 #endif
 }
 
-/* Set GID of process */
+/* Get/Set GID of process */
+
 void
-set_group (const char *groupname)
+get_group (const char *groupname, struct group_state *state)
 {
-#if defined(HAVE_GETGRNAM) && defined(HAVE_SETGID)
+  CLEAR (*state);
   if (groupname)
     {
-      struct group *gr;
-      gr = getgrnam (groupname);
-      if (!gr)
+#if defined(HAVE_GETGRNAM) && defined(HAVE_SETGID)
+      state->gr = getgrnam (groupname);
+      if (!state->gr)
 	msg (M_ERR, "failed to find GID for group %s", groupname);
-      if (setgid (gr->gr_gid))
-	msg (M_ERR, "setgid('%s') failed", groupname);
-      msg (M_INFO, "GID set to %s", groupname);
+      state->groupname = groupname;
+#else
+      msg (M_FATAL, "Sorry but I can't setgid to '%s' because this operating system doesn't appear to support the getgrnam() or setgid() system calls", groupname);
+#endif
+    }
+}
+
+void
+set_group (const struct group_state *state)
+{
+#if defined(HAVE_GETGRNAM) && defined(HAVE_SETGID)
+  if (state->groupname && state->gr)
+    {
+      if (setgid (state->gr->gr_gid))
+	msg (M_ERR, "setgid('%s') failed", state->groupname);
+      msg (M_INFO, "GID set to %s", state->groupname);
 #ifdef HAVE_SETGROUPS
       {
         gid_t gr_list[1];
-	gr_list[0] = gr->gr_gid;
+	gr_list[0] = state->gr->gr_gid;
 	if (setgroups (1, gr_list))
-	  msg (M_ERR, "setgroups('%s') failed", groupname);
+	  msg (M_ERR, "setgroups('%s') failed", state->groupname);
       }
 #endif
     }
-#else
-  msg (M_FATAL, "Sorry but I can't setgid to '%s' because this operating system doesn't appear to support the getgrnam() or setgid() system calls", groupname);
 #endif
 }
 
@@ -109,16 +132,16 @@ set_group (const char *groupname)
 void
 set_nice (int niceval)
 {
-#ifdef HAVE_NICE
   if (niceval)
     {
+#ifdef HAVE_NICE
       if (nice (niceval) < 0)
 	msg (M_ERR, "nice %d failed", niceval);
       msg (M_INFO, "nice %d succeeded", niceval);
-    }
 #else
-  msg (M_FATAL, "Sorry but I can't set nice priority to '%d' because this operating system doesn't appear to support the nice() system call", niceval);
+      msg (M_FATAL, "Sorry but I can't set nice priority to '%d' because this operating system doesn't appear to support the nice() system call", niceval);
 #endif
+    }
 }
 
 /* Pass tunnel endpoint and MTU parms to a user-supplied script */
@@ -145,24 +168,36 @@ run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu,
     }
 }
 
-/* Write our PID to a file */
+/* Get the file we will later write our process ID to */
 void
-write_pid (const char* filename)
+get_pid_file (const char* filename, struct pid_state *state)
 {
-#ifdef HAVE_GETPID
+  CLEAR (*state);
   if (filename)
     {
-      FILE* fp = fopen (filename, "w");
-      const pid_t pid = getpid ();
-
-      if (!fp)
+#ifdef HAVE_GETPID
+      state->fp = fopen (filename, "w");
+      if (!state->fp)
 	msg (M_ERR, "Open error on pid file %s", filename);
-      fprintf(fp, "%d\n", pid);
-      if (fclose (fp))
-	msg (M_ERR, "Close error on pid file %s", filename);
-    }
+      state->filename = filename;
 #else
-  msg (M_FATAL, "Sorry but I can't write my pid to '%s' because this operating system doesn't appear to support the getpid() system call", filename);
+      msg (M_FATAL, "Sorry but I can't write my pid to '%s' because this operating system doesn't appear to support the getpid() system call", filename);
+#endif
+    }
+}
+
+/* Write our PID to a file */
+void
+write_pid (const struct pid_state *state)
+{
+#ifdef HAVE_GETPID
+  if (state->filename && state->fp)
+    {
+      const pid_t pid = getpid (); 
+      fprintf(state->fp, "%d\n", pid);
+      if (fclose (state->fp))
+	msg (M_ERR, "Close error on pid file %s", state->filename);
+    }
 #endif
 }
 
@@ -185,9 +220,7 @@ do_mlockall(bool print_msg)
 int
 daemon(int nochdir, int noclose)
 {
-#if defined(HAVE_FORK) && defined(HAVE_DUP2)
-  int fd;
-
+#if defined(HAVE_FORK) && defined(HAVE_SETSID)
   switch (fork())
     {
     case -1:
@@ -202,9 +235,27 @@ daemon(int nochdir, int noclose)
     return (-1);
 
   if (!nochdir)
-    chdir ("/");
+    openvpn_chdir ("/");
 
-  if (!noclose && (fd = open ("/dev/null", O_RDWR, 0)) != -1)
+  if (!noclose)
+    set_std_files_to_null ();
+#else
+  msg (M_FATAL, "Sorry but I can't become a daemon because this operating system doesn't appear to support either the daemon() or fork() system calls");
+#endif
+  return (0);
+}
+
+#endif
+
+/*
+ * Set standard file descriptors to /dev/null
+ */
+void
+set_std_files_to_null ()
+{
+#if defined(HAVE_DUP) && defined(HAVE_DUP2)
+  int fd;
+  if ((fd = open ("/dev/null", O_RDWR, 0)) != -1)
     {
       dup2 (fd, 0);
       dup2 (fd, 1);
@@ -212,13 +263,38 @@ daemon(int nochdir, int noclose)
       if (fd > 2)
 	close (fd);
     }
-#else
-  msg (M_FATAL, "Sorry but I can't become a daemon because this operating system doesn't appear to support either the daemon(), fork() or dup2() system calls");
 #endif
-  return (0);
 }
 
+/*
+ * Wrapper for chdir library function
+ */
+int
+openvpn_chdir (const char* dir)
+{
+#ifdef HAVE_CHDIR
+  return chdir (dir);
+#else
+  return -1;
 #endif
+}
+
+/*
+ *  dup inetd/xinetd socket descriptor and save
+ */
+
+int inetd_socket_descriptor = -1;
+
+void
+save_inetd_socket_descriptor ()
+{
+  inetd_socket_descriptor = INETD_SOCKET_DESCRIPTOR;
+#if defined(HAVE_DUP) && defined(HAVE_DUP2)
+  /* use handle passed by inetd/xinetd */
+  if ((inetd_socket_descriptor = dup (INETD_SOCKET_DESCRIPTOR)) < 0)
+    msg (M_ERR, "dup(%d) failed", INETD_SOCKET_DESCRIPTOR);
+#endif
+}
 
 /*
  * Wrapper around the system() call.
@@ -244,15 +320,15 @@ warn_if_group_others_accessible(const char* filename)
   struct stat st;
   if (stat (filename, &st))
     {
-      msg (M_WARN, "WARNING: cannot stat %s", filename);
+      msg (M_WARN, "WARNING: cannot stat file '%s'", filename);
     }
   else
     {
       if (st.st_mode & (S_IRWXG|S_IRWXO))
-	msg (M_WARN, "WARNING: file %s is group or others accessible", filename);
+	msg (M_WARN, "WARNING: file '%s' is group or others accessible", filename);
     }
 #else
-  msg (M_WARN, "WARNING: cannot stat %s (stat function missing)", filename);
+  msg (M_WARN, "WARNING: cannot stat file '%s' (stat function missing)", filename);
 #endif
 }
 

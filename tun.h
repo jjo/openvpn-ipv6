@@ -28,7 +28,7 @@
 #include "mtu.h"
 
 /*
- * Define a tun/tap dev.
+ * Define a TUN/TAP dev.
  */
 
 struct tuntap
@@ -38,7 +38,7 @@ struct tuntap
   int ip_fd;
 #endif
   bool ipv6;
-  char actual[64]; /* actual name of tun/tap dev, usually including unit number */
+  char actual[64]; /* actual name of TUN/TAP dev, usually including unit number */
 };
 
 void clear_tuntap (struct tuntap *tuntap);

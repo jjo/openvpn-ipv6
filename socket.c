@@ -36,8 +36,6 @@
 
 #include "memdbg.h"
 
-#define INETD_SOCKET_DESCRIPTOR 0
-
 /* begin check status */
 
 unsigned int x_cs_info_level;
@@ -175,7 +173,8 @@ udp_socket_init (struct udp_socket *sock,
   /* were we started by inetd or xinetd? */
   if (inetd)
     {
-      sock->sd = INETD_SOCKET_DESCRIPTOR;
+      ASSERT (inetd_socket_descriptor >= 0);
+      sock->sd = inetd_socket_descriptor;
     }
   else
     {

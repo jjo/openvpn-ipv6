@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.2.29], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.2.32], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -247,16 +247,17 @@ AC_SEARCH_LIBS(gethostbyname, resolv nsl)
 
 dnl optional library functions
 AC_FUNC_FORK
-AC_CHECK_FUNCS(daemon chroot getpwnam setuid nice system getpid dup2 dnl
+AC_CHECK_FUNCS(daemon chroot getpwnam setuid nice system getpid dup dup2 dnl
 	       getpass strerror syslog openlog mlockall getgrnam setgid dnl
-	       setgroups stat flock readv writev setsockopt getsockopt)
+	       setgroups stat flock readv writev setsockopt getsockopt dnl
+	       setsid chdir)
 AC_REPLACE_FUNCS(inet_aton)
 AC_CACHE_SAVE
 
 dnl Required library functions
 AC_FUNC_MEMCMP
 AC_FUNC_MALLOC
-AC_CHECK_FUNCS(gettimeofday select socket gethostbyname inet_ntoa memset vsnprintf, [],
+AC_CHECK_FUNCS(time gettimeofday select socket gethostbyname inet_ntoa memset vsnprintf, [],
 	[AC_MSG_ERROR([Required library function not found])])
 
 dnl

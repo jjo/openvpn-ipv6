@@ -71,6 +71,24 @@ Upcoming version 1.4.0
 * Fixed potential deadlock when pthread support
   is used on OSes that allocate a small socketpair()
   message buffer.
+* Fixed openvpn.init to be sh compliant
+  (Bishop Clark).
+* Changed --daemon to wait until all
+  initialization is finished before becoming a
+  daemon, for the benefit of initialization
+  scripts that want a useful return status from
+  the openvpn command.
+* Made openvpn.init script more robust, including
+  positive indication of initialization errors
+  in the openvpn daemon and better sanity checks.
+* Changed --chroot to wait until initialization
+  is finished before calling chroot(), and allow
+  the use of --user and --group with --chroot.
+* When syslog logging is enabled (--daemon or
+  --inetd), set stdin/stdout/stderr to point
+  to /dev/null.
+* For inetd instantiations, dup socket descriptor
+  to a >2 value.
 
 2002.10.23 -- Version 1.3.2
 

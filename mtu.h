@@ -109,7 +109,7 @@ struct frame {
 
   /*
    * extra_tun: max number of bytes in excess of tun mtu size that we might read
-   * or write from tun/tap device.
+   * or write from TUN/TAP device.
    */
   int extra_tun;
 
@@ -163,7 +163,7 @@ struct frame {
 
 /*
  * These values are used as maximum size constraints
- * on read() or write() from tun/tap device or UDP port.
+ * on read() or write() from TUN/TAP device or UDP port.
  */
 #define MAX_RW_SIZE_TUN(f)       (PAYLOAD_SIZE(f))
 #define MAX_RW_SIZE_UDP(f)       (EXPANDED_SIZE(f))

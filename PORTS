@@ -49,14 +49,12 @@ PORTING NOTES:
     functions.  If your tun/tap virtual device is
     sufficiently generic, you may be able to use the
     default case.
-  * After you successfully build OpenVPN, try:
-      (1) ./openvpn --genkey --secret key
-      (2) ./openvpn --test-crypto --secret key
-    to test the crypto subsystem.
+  * After you successfully build OpenVPN, run
+    the loopback tests as described in INSTALL.
   * For the next test, confirm that the UDP socket
     functionality is working independently of the
     tun device, by doing something like:
-      ./openvpn --remote localhost --verb 8 --ping 1 --dev null
+      ./openvpn --remote localhost --verb 9 --ping 1 --dev null
   * Now try with --remote [a real host]
   * Now try with a real tun/tap device, you will
     need to figure out the appropriate ifconfig
