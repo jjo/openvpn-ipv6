@@ -45,5 +45,5 @@ void
 set_cloexec (int fd)
 {
   if (fcntl (fd, F_SETFD, FD_CLOEXEC) < 0)
-    msg (M_ERR, "Set file descriptor to FD_CLOEXEC failed");
+    msg (M_ERR, "Set FD_CLOEXEC flag on file descriptor failed");
 }
