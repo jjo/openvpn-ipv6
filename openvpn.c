@@ -31,7 +31,6 @@
 #include "error.h"
 #include "options.h"
 #include "socket.h"
-#include "openvpn.h"
 #include "buffer.h"
 #include "crypto.h"
 #include "ssl.h"
@@ -42,6 +41,7 @@
 #include "shaper.h"
 #include "thread.h"
 #include "interval.h"
+#include "openvpn.h"
 
 #include "memdbg.h"
 
@@ -73,7 +73,7 @@ signal_handler_exit (int signum)
 #define PROTO_DUMP(buf) protocol_dump(buf, \
 				      PD_SHOW_DATA | \
 				      (tls_multi ? PD_TLS : 0) | \
-				      (options->tls_auth_file ? key_type.hmac_length : 0) \
+				      (options->tls_auth_file ? ks->key_type.hmac_length : 0) \
 				      )
 #else
 #define TLS_MODE (false)
@@ -89,10 +89,6 @@ static void print_frame_parms(int level, const struct frame *frame, const char* 
        frame->extra_buffer,
        frame->extra_tun);
 }
-
-/*
- * Used to disable paging.
- */
 
 /*
  * Finish initialization of the frame MTU parameters
@@ -125,6 +121,45 @@ static void *test_crypto_thread (void *arg);
 #endif
 
 /*
+ * Our global key schedules, packaged thusly
+ * to facilitate --persist-key.
+ */
+
+struct key_schedule
+{
+#ifdef USE_CRYPTO
+  /* which cipher, HMAC digest, and key sizes are we using? */
+  struct key_type   key_type;
+
+  /* pre-shared static key, read from a file */
+  struct key_ctx_bi static_key;
+
+#ifdef USE_SSL
+  /* our global SSL context */
+  SSL_CTX           *ssl_ctx;
+
+  /* optional authentication HMAC key for TLS control channel */
+  struct key_ctx_bi tls_auth_key;
+
+#endif /* USE_SSL */
+#endif /* USE_CRYPTO */
+};
+
+static void
+key_schedule_free(struct key_schedule* ks)
+{
+#ifdef USE_CRYPTO
+  free_key_ctx_bi (&ks->static_key);
+#ifdef USE_SSL
+  if (ks->ssl_ctx)
+    SSL_CTX_free (ks->ssl_ctx);
+  free_key_ctx_bi (&ks->tls_auth_key);
+#endif /* USE_SSL */
+#endif /* USE_CRYPTO */
+  CLEAR (*ks);
+}
+
+/*
  * Do the work.  Initialize and enter main event loop.
  * Called after command line has been parsed.
  *
@@ -135,6 +170,7 @@ static int
 openvpn (const struct options *options,
 	 struct udp_socket_addr *udp_socket_addr,
 	 struct tuntap *tuntap,
+	 struct key_schedule *ks,
 	 bool first_time)
 {
   /*
@@ -211,9 +247,6 @@ openvpn (const struct options *options,
    */
 #ifdef USE_SSL
 
-  /* master SSL_CTX object for generating new SSL/TLS sessions */
-  SSL_CTX *ssl_ctx = NULL;
-
   /* master OpenVPN SSL/TLS object */
   struct tls_multi *tls_multi = NULL;
 
@@ -236,13 +269,6 @@ openvpn (const struct options *options,
 
 #endif
 #endif
-
-  /*
-   * Crypto objects used in both
-   * TLS-mode and static key mode.
-   */
-  struct key_type key_type;
-  struct key_ctx_bi key_ctx_bi;
 
   /* workspace buffers used by crypto routines */
   struct buffer encrypt_buf = clear_buf ();
@@ -335,9 +361,8 @@ openvpn (const struct options *options,
   if (options->shared_secret_file)
     {
       /*
-       * Static Key Mode
+       * Static Key Mode (using a pre-shared key)
        */
-      struct key key;
 
       /* Initialize packet ID tracking */
       if (options->packet_id)
@@ -346,38 +371,50 @@ openvpn (const struct options *options,
 	  crypto_options.packet_id_long_form = true;
 	}
 
-      /* Get cipher & hash algorithms */
-      init_key_type (&key_type, options->ciphername,
-		     options->ciphername_defined, options->authname,
-		     options->authname_defined, options->keysize,
-		     options->test_crypto);
+      if (!key_ctx_bi_defined (&ks->static_key))
+	{
+	  struct key key;
+
+	  /* Get cipher & hash algorithms */
+	  init_key_type (&ks->key_type, options->ciphername,
+			 options->ciphername_defined, options->authname,
+			 options->authname_defined, options->keysize,
+			 options->test_crypto);
+
+	  /* Read cipher and hmac keys from shared secret file */
+	  read_key_file (&key, options->shared_secret_file);
+
+	  /* Fix parity for DES keys and make sure not a weak key */
+	  fixup_key (&key, &ks->key_type);
+	  if (!check_key (&key, &ks->key_type)) /* This should be a very improbable failure */
+	    msg (M_FATAL, "Key in %s is bad.  Try making a new key with --genkey.",
+		 options->shared_secret_file);
+
+	  /* Init cipher & hmac */
+	  init_key_ctx (&ks->static_key.encrypt, &key, &ks->key_type, DO_ENCRYPT, "Static Encrypt");
+	  init_key_ctx (&ks->static_key.decrypt, &key, &ks->key_type, DO_DECRYPT, "Static Decrypt");
+
+	  /* Erase the key */
+	  CLEAR (key);
+	}
+      else
+	{
+	  msg (M_INFO, "Re-using pre-shared static key");
+	}
+
+      /* Get key schedule */
+      crypto_options.key_ctx_bi = &ks->static_key;
 
       /* Compute MTU parameters */
       crypto_adjust_frame_parameters(&frame,
-				     &key_type,
+				     &ks->key_type,
 				     options->ciphername_defined,
 				     options->iv,
 				     options->packet_id,
 				     true);
 
-      check_replay_iv_consistency(&key_type, options->packet_id, options->iv);
-
-      /* Read cipher and hmac keys from shared secret file */
-      read_key_file (&key, options->shared_secret_file);
-
-      /* Fix parity for DES keys and make sure not a weak key */
-      fixup_key (&key, &key_type);
-      if (!check_key (&key, &key_type)) /* This should be a very improbable failure */
-	msg (M_FATAL, "Key in %s is bad.  Try making a new key with --genkey.",
-	     options->shared_secret_file);
-
-      /* Init cipher & hmac */
-      init_key_ctx (&key_ctx_bi.encrypt, &key, &key_type, DO_ENCRYPT, "Static Encrypt");
-      init_key_ctx (&key_ctx_bi.decrypt, &key, &key_type, DO_DECRYPT, "Static Decrypt");
-      crypto_options.key_ctx_bi = &key_ctx_bi;
-
-      /* Erase the key */
-      CLEAR (key);
+      /* Sanity check on IV, sequence number, and cipher mode options */
+      check_replay_iv_consistency(&ks->key_type, options->packet_id, options->iv);
 
       /*
        * Test-crypto is a debugging tool
@@ -392,7 +429,7 @@ openvpn (const struct options *options,
 #endif
 	  frame_finalize (&frame, options);
 	  test_crypto (&crypto_options, &frame);
-	  free_key_ctx_bi (&key_ctx_bi);
+	  key_schedule_free (ks);
 	  signal_received = 0;
 #ifdef USE_PTHREAD
 	  if (first_time)
@@ -405,32 +442,12 @@ openvpn (const struct options *options,
   else if (options->tls_server || options->tls_client)
     {
       /*
-       * TLS-based dynamic key exchange
+       * TLS-based dynamic key exchange mode
        */
       struct tls_options to;
       bool packet_id_long_form;
 
       ASSERT (!options->test_crypto);
-
-      /* Get cipher & hash algorithms */
-      init_key_type (&key_type, options->ciphername,
-		     options->ciphername_defined, options->authname,
-		     options->authname_defined, options->keysize,
-		     true);
-
-      check_replay_iv_consistency(&key_type, options->packet_id, options->iv);
-
-      /* In short form, unique datagram identifier is 32 bits, in long form 64 bits */
-      packet_id_long_form = cfb_ofb_mode (&key_type);
-
-      /* Compute MTU parameters */
-      crypto_adjust_frame_parameters(&frame,
-				     &key_type,
-				     options->ciphername_defined,
-				     options->iv,
-				     options->packet_id,
-				     packet_id_long_form);
-      tls_adjust_frame_parameters(&frame);
 
       /* Make sure we are either a TLS client or server but not both */
       ASSERT (options->tls_server == !options->tls_client);
@@ -438,9 +455,54 @@ openvpn (const struct options *options,
       /* Let user specify a script to verify the incoming certificate */
       tls_set_verify_command (options->tls_verify);
 
+      if (!ks->ssl_ctx)
+	{
+	  /*
+	   * Initialize the OpenSSL library's global
+	   * SSL context.
+	   */
+	  ks->ssl_ctx = init_ssl (options->tls_server,
+				  options->ca_file,
+				  options->dh_file,
+				  options->cert_file,
+				  options->priv_key_file,
+				  options->cipher_list);
+
+	  /* Get cipher & hash algorithms */
+	  init_key_type (&ks->key_type, options->ciphername,
+			 options->ciphername_defined, options->authname,
+			 options->authname_defined, options->keysize,
+			 true);
+
+
+	  /* TLS handshake authentication (--tls-auth) */
+	  if (options->tls_auth_file)
+	    get_tls_handshake_key (&ks->key_type, &ks->tls_auth_key, options->tls_auth_file);
+	}
+      else
+	{
+	  msg (M_INFO, "Re-using SSL/TLS context");
+	}
+
+      /* Sanity check on IV, sequence number, and cipher mode options */
+      check_replay_iv_consistency(&ks->key_type, options->packet_id, options->iv);
+
+      /* In short form, unique datagram identifier is 32 bits, in long form 64 bits */
+      packet_id_long_form = cfb_ofb_mode (&ks->key_type);
+
+      /* Compute MTU parameters */
+      crypto_adjust_frame_parameters(&frame,
+				     &ks->key_type,
+				     options->ciphername_defined,
+				     options->iv,
+				     options->packet_id,
+				     packet_id_long_form);
+      tls_adjust_frame_parameters(&frame);
+
       /* Set all command-line TLS-related options */
       CLEAR (to);
-      to.key_type = key_type;
+      to.ssl_ctx = ks->ssl_ctx;
+      to.key_type = ks->key_type;
       to.server = options->tls_server;
       to.options = data_channel_options = options_string (options);
       to.packet_id = options->packet_id;
@@ -455,27 +517,15 @@ openvpn (const struct options *options,
       /* TLS handshake authentication (--tls-auth) */
       if (options->tls_auth_file)
 	{
-	  get_tls_handshake_key (&key_type, &to.tls_auth_key,
-				 options->tls_auth_file);
+	  to.tls_auth_key = ks->tls_auth_key;
 	  to.tls_auth.packet_id_long_form = true;
 	  crypto_adjust_frame_parameters(&to.frame,
-					 &key_type,
+					 &ks->key_type,
 					 false,
 					 false,
 					 true,
 					 true);
 	}
-
-      /*
-       * Initialize the OpenSSL library's global
-       * SSL context.
-       */
-      to.ssl_ctx = ssl_ctx = init_ssl (options->tls_server,
-				       options->ca_file,
-				       options->dh_file,
-				       options->cert_file,
-				       options->priv_key_file,
-				       options->cipher_list);
 
       /*
        * Initialize OpenVPN's master TLS-mode object.
@@ -489,8 +539,8 @@ openvpn (const struct options *options,
        * No encryption or authentication.
        */
       ASSERT (!options->test_crypto);
-      CLEAR (key_ctx_bi);
-      crypto_options.key_ctx_bi = &key_ctx_bi;
+      free_key_ctx_bi (&ks->static_key);
+      crypto_options.key_ctx_bi = &ks->static_key;
       msg (M_WARN,
 	   "******* WARNING *******: all encryption and authentication features disabled -- all data will be tunnelled as cleartext");
     }
@@ -1175,7 +1225,6 @@ openvpn (const struct options *options,
 			     BLEN (&to_tun),
 			     size);
 		    }
-
 		}
 	      else
 		{
@@ -1302,8 +1351,6 @@ openvpn (const struct options *options,
 #endif
 
 #ifdef USE_CRYPTO
-  if (options->shared_secret_file)
-    free_key_ctx_bi (&key_ctx_bi);
 
   free_buf (&encrypt_buf);
   free_buf (&decrypt_buf);
@@ -1315,10 +1362,14 @@ openvpn (const struct options *options,
   if (data_channel_options)
     free (data_channel_options);
 
-  if (ssl_ctx)
-    SSL_CTX_free (ssl_ctx);
 #endif
 #endif /* USE_CRYPTO */
+
+  /*
+   * Free key schedules
+   */
+  if ( !(signal_received == SIGUSR1 && options->persist_key) )
+    key_schedule_free (ks);
 
   /*
    * Close UDP connection
@@ -1537,11 +1588,13 @@ main (int argc, char *argv[])
       /* Do Work */
       {
 	struct udp_socket_addr usa;
+	struct key_schedule ks;
 	struct tuntap tuntap;
 	CLEAR (usa);
+	CLEAR (ks);
 	clear_tuntap (&tuntap);
 	do {
-	  sig = openvpn (&options, &usa, &tuntap, first_time);
+	  sig = openvpn (&options, &usa, &tuntap, &ks, first_time);
 	  first_time = false;
 	} while (sig == SIGUSR1);
       }
@@ -1570,12 +1623,14 @@ test_crypto_thread (void *arg)
 {
   struct udp_socket_addr usa;
   struct tuntap tuntap;
+  struct key_schedule ks;
   const struct options *opt = (struct options*) arg;
 
   set_nice (opt->nice_work);
   CLEAR (usa);
+  CLEAR (ks);
   clear_tuntap (&tuntap);
-  openvpn (opt, &usa, &tuntap, false);
+  openvpn (opt, &usa, &tuntap, &ks, false);
   return NULL;
 }
 #endif

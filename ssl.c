@@ -923,8 +923,6 @@ tls_multi_free (struct tls_multi *multi, bool clear)
   for (i = 0; i < TM_SIZE; ++i)
     tls_session_free (&multi->session[i], false);
 
-  free_key_ctx_bi (&multi->opt.tls_auth_key);
-
   if (clear)
     CLEAR (*multi);
 

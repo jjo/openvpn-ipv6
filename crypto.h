@@ -256,5 +256,15 @@ void free_ssl_lib ();
 
 #endif /* USE_SSL */
 
+/*
+ * Inline functions
+ */
+
+static inline bool
+key_ctx_bi_defined(const struct key_ctx_bi* key)
+{
+  return key->encrypt.cipher || key->encrypt.hmac || key->decrypt.cipher || key->decrypt.hmac;
+}
+
 #endif /* USE_CRYPTO */
 #endif /* CRYPTO_H */

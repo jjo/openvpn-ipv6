@@ -72,6 +72,7 @@ struct options
   bool persist_tun;             /* Don't close/reopen tun/tap dev on SIGUSR1 or PING_RESTART */
   bool persist_local_ip;        /* Don't re-resolve local address on SIGUSR1 or PING_RESTART */
   bool persist_remote_ip;       /* Don't re-resolve remote address on SIGUSR1 or PING_RESTART */
+  bool persist_key;             /* Don't re-read key files on SIGUSR1 or PING_RESTART */
 
   int resolve_retry_seconds;    /* If hostname resolve fails, retry for n seconds */
 
@@ -141,6 +142,7 @@ struct options
 };
 
 #define streq(x, y) (!strcmp((x), (y)))
+
 void notnull (char *arg, char *description);
 
 void usage_small ();

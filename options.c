@@ -77,6 +77,7 @@ static const char usage_message[] =
   "--persist-tun   : Keep tun/tap device open across SIGUSR1 or --ping-restart.\n"
   "--persist-remote-ip : Keep remote IP address across SIGUSR1 or --ping-restart.\n"
   "--persist-local-ip  : Keep local IP address across SIGUSR1 or --ping-restart.\n"
+  "--persist-key   : Don't re-read key files across SIGUSR1 or --ping-restart.\n"
   "--tun-mtu n     : Take the tun/tap device MTU to be n and derive the\n"
   "                  UDP MTU from it (default=%d).\n"
   "--udp-mtu n     : Take the UDP device MTU to be n and derive the tun MTU\n"
@@ -288,6 +289,7 @@ show_settings (const struct options *o)
   SHOW_BOOL (persist_tun);
   SHOW_BOOL (persist_local_ip);
   SHOW_BOOL (persist_remote_ip);
+  SHOW_BOOL (persist_key);
 
   SHOW_INT (resolve_retry_seconds);
 
@@ -354,6 +356,8 @@ show_settings (const struct options *o)
  * Build an options string to represent data channel encryption options.
  * This string must match exactly between peers.  The keysize is checked
  * separately by read_key().
+ *
+ * TODO: add --dev-type tun|tap|null
  */
 char *
 options_string (const struct options *o)
@@ -795,6 +799,10 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
   else if (streq (p1, "persist-tun"))
     {
       options->persist_tun = true;
+    }
+  else if (streq (p1, "persist-key"))
+    {
+      options->persist_key = true;
     }
   else if (streq (p1, "persist-local-ip"))
     {
