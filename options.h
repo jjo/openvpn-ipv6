@@ -53,7 +53,6 @@ struct options
   const char *dev;
   const char *dev_type;
   const char *dev_node;
-  const char *dev_name;
   const char *ifconfig_local;
   const char *ifconfig_remote;
   int shaper;

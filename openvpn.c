@@ -724,7 +724,7 @@ openvpn (const struct options *options,
 		     TUN_MTU_SIZE (&frame));
 
       /* open the tun device */
-      open_tun (options->dev, options->dev_type, options->dev_node, options->dev_name, options->tun_ipv6, tuntap);
+      open_tun (options->dev, options->dev_type, options->dev_node, options->tun_ipv6, tuntap);
 
       /* do ifconfig */  
       if (ifconfig_order() == IFCONFIG_AFTER_TUN_OPEN)
@@ -1825,7 +1825,7 @@ main (int argc, char *argv[])
 #endif
 	    )
 	  msg (M_FATAL, "Options error: options --mktun or --rmtun should only be used together with --dev");
-	tuncfg (options.dev, options.dev_type, options.dev_node, options.dev_name,
+	tuncfg (options.dev, options.dev_type, options.dev_node,
 		options.tun_ipv6, options.persist_mode);
 	goto exit;
       }

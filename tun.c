@@ -258,7 +258,7 @@ open_null (struct tuntap *tt)
 }
 
 static void
-open_tun_generic (const char *dev, const char *dev_node, const char *dev_name,
+open_tun_generic (const char *dev, const char *dev_node,
 		  bool ipv6, bool ipv6_explicitly_supported, bool dynamic,
 		  struct tuntap *tt)
 {
@@ -329,9 +329,6 @@ open_tun_generic (const char *dev, const char *dev_node, const char *dev_name,
 
       /* tt->actual is passed to up and down scripts and used as the ifconfig dev name */
       strncpynt (tt->actual, (dynamic_opened ? dynamic_name : dev), sizeof (tt->actual));
-
-      if (dev_name)
-	msg (M_WARN, "Cannot rename dev %s to %s", dev, dev_name);
     }
 }
 
@@ -360,21 +357,31 @@ close_tun_generic (struct tuntap *tt)
 #endif
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node,
-	  const char *dev_name, bool ipv6, struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, struct tuntap *tt)
 {
   struct ifreq ifr;
 
   clear_tuntap (tt);
 
+  /*
+   * Set tt->ipv6 to true if
+   * (a) we have the capability of supporting --tun-ipv6, and
+   * (b) --tun-ipv6 was specified.
+   */
   ipv6_support (ipv6, LINUX_IPV6, tt);
 
+  /*
+   * We handle --dev null specially, we do not open /dev/null for this.
+   */
   if (!strcmp(dev, "null"))
     {
       open_null (tt);
     }
   else
     {
+      /*
+       * Process --dev-node
+       */
       const char *node = dev_node;
       if (!node)
 	node = "/dev/net/tun";
@@ -384,10 +391,16 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node,
 	  goto linux_2_2_fallback;
 	}
 
+      /*
+       * Process --tun-ipv6
+       */
       CLEAR (ifr);
       if (!tt->ipv6)
 	ifr.ifr_flags = IFF_NO_PI;
 
+      /*
+       * Figure out if tun or tap device
+       */
       if (is_dev_type (dev, dev_type, "tun"))
 	{
 	  ifr.ifr_flags |= IFF_TUN;
@@ -401,9 +414,17 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node,
 	  msg (M_FATAL, "I don't recognize device %s as a tun or tap device",
 	       dev);
 	}
-      if (has_digit(dev))		/* unit number specified? */
+
+      /*
+       * Set an explicit name, if --dev is not tun or tap
+       */
+      if (strcmp(dev, "tun") && strcmp(dev, "tap"))
 	strncpynt (ifr.ifr_name, dev, IFNAMSIZ);
 
+      /*
+       * Use special ioctl that configures tun/tap device with the parms
+       * we set in ifr
+       */
       if (ioctl (tt->fd, TUNSETIFF, (void *) &ifr) < 0)
 	{
 	  msg (M_WARN | M_ERRNO, "Note: Cannot ioctl TUNSETIFF %s", dev);
@@ -414,47 +435,21 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node,
       set_cloexec (tt->fd);
       msg (M_INFO, "TUN/TAP device %s opened", ifr.ifr_name);
       strncpynt (tt->actual, ifr.ifr_name, sizeof (tt->actual));
-
- 
-      /*
-       * rename device node, per --dev-name option
-       */
-      if (dev_name)
-	{
-	  struct ifreq	r;
-	  int		fd;
- 
-	  if ((fd = socket(PF_INET, SOCK_DGRAM, 0)) < 0)
-	    msg (M_WARN, "Cannot open control_fd");
-	  else
-	    {
-	      strncpynt (r.ifr_name, tt->actual, IFNAMSIZ);
-	      strncpynt (r.ifr_newname, dev_name, IFNAMSIZ);
- 
-	      if (ioctl(fd, SIOCSIFNAME, &r) < 0)
-		msg (M_WARN, "Cannot ioctl SIOCSIFNAME %s", dev);
-	      else
-		strncpynt (tt->actual, dev_name, sizeof (tt->actual));
- 
-	      close(fd);
-	    }
-	}
     }
   return;
 
  linux_2_2_fallback:
   msg (M_INFO, "Note: Attempting fallback to kernel 2.2 TUN/TAP interface");
   close_tun_generic (tt);
-  open_tun_generic (dev, dev_node, dev_name, ipv6, false, true, tt);
+  open_tun_generic (dev, dev_node, ipv6, false, true, tt);
 }
 
 #else
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, const char *dev_name, bool ipv6,
-	  struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, dev_name, ipv6, false, true, tt);
+  open_tun_generic (dev, dev_node, ipv6, false, true, tt);
 }
 
 #endif /* HAVE_LINUX_IF_TUN_H */
@@ -462,11 +457,11 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, const cha
 #ifdef TUNSETPERSIST
 
 void
-tuncfg (const char *dev, const char *dev_type, const char *dev_node, const char *dev_name, bool ipv6, int persist_mode)
+tuncfg (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, int persist_mode)
 {
   struct tuntap tt;
 
-  open_tun (dev, dev_type, dev_node, dev_name, ipv6, &tt);
+  open_tun (dev, dev_type, dev_node, ipv6, &tt);
   if (ioctl (tt.fd, TUNSETPERSIST, persist_mode) < 0)
     msg (M_ERR, "Cannot ioctl TUNSETPERSIST(%d) %s", persist_mode, dev);
   close_tun (&tt);
@@ -544,8 +539,7 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #endif
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node,
-	  const char *dev_name, bool ipv6, struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, struct tuntap *tt)
 {
   int if_fd, muxid, ppa = -1;
   struct ifreq ifr;
@@ -640,9 +634,6 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node,
   set_cloexec (tt->ip_fd);
 
   msg (M_INFO, "TUN/TAP device %s opened", tt->actual);
- 
-  if (dev_name)
-    msg (M_WARN, "Cannot rename dev %s to %s", dev, dev_name);
 }
 
 /*
@@ -700,10 +691,9 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #endif
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_name,
-	  const char *dev_node, bool ipv6, struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, dev_name, ipv6, false, true, tt);
+  open_tun_generic (dev, dev_node, ipv6, false, true, tt);
 }
 
 void
@@ -752,10 +742,9 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #elif defined(TARGET_FREEBSD)
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node,
-	  const char *dev_name, bool ipv6, struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, dev_name, ipv6, false, true, tt);
+  open_tun_generic (dev, dev_node, ipv6, false, true, tt);
 
   if (tt->fd >= 0)
     {
@@ -788,10 +777,9 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #else /* generic */
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node,
-	  const char *dev_name, bool ipv6, struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, dev_name, ipv6, false, true, tt);
+  open_tun_generic (dev, dev_node, ipv6, false, true, tt);
 }
 
 void
