@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -2024,6 +2024,14 @@ management_callback_kill_by_addr (void *arg, const in_addr_t addr, const int por
   return count;
 }
 
+static void
+management_delete_event (void *arg, event_t event)
+{
+  struct multi_context *m = (struct multi_context *) arg;
+  if (m->mtcp)
+    multi_tcp_delete_event (m->mtcp, event);
+}
+
 #endif
 
 void
@@ -2039,6 +2047,7 @@ init_management_callback_multi (struct multi_context *m)
       cb.show_net = management_show_net_callback;
       cb.kill_by_cn = management_callback_kill_by_cn;
       cb.kill_by_addr = management_callback_kill_by_addr;
+      cb.delete_event = management_delete_event;
       management_set_callback (management, &cb);
     }
 #endif

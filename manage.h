@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -150,6 +150,7 @@ struct management_callback
   void (*show_net) (void *arg, const int msglevel);
   int (*kill_by_cn) (void *arg, const char *common_name);
   int (*kill_by_addr) (void *arg, const in_addr_t addr, const int port);
+  void (*delete_event) (void *arg, event_t event);
 };
 
 /*

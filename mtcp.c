@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -191,6 +191,13 @@ multi_tcp_init (int maxevents, int *maxclients)
   *maxclients = max_int (min_int (mtcp->maxevents - extra_events, *maxclients), 1);
   msg (D_MULTI_LOW, "MULTI: TCP INIT maxclients=%d maxevents=%d", *maxclients, mtcp->maxevents);
   return mtcp;
+}
+
+void
+multi_tcp_delete_event (struct multi_tcp *mtcp, event_t event)
+{
+  if (mtcp && mtcp->es)
+    event_del (mtcp->es, event);
 }
 
 void

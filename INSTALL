@@ -1,6 +1,6 @@
 Installation instructions for OpenVPN, a Secure Tunneling Daemon
 
-Copyright (C) 2002-2004 by James Yonan. This program is free software;
+Copyright (C) 2002-2005 OpenVPN Solutions LLC. This program is free software;
 you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or
@@ -14,16 +14,16 @@ For the latest stable version of OpenVPN, go to:
 
 For the latest development version of OpenVPN, go to:
 
-	http://openvpn.sourceforge.net/beta/
+	http://openvpn.net/beta/
 
 For step-by-step installation instructions with real-world
 examples see:
 
-	http://openvpn.sourceforge.net/howto.html
+	http://openvpn.net/howto.html
 
 For basic examples see:
 
-	http://openvpn.sourceforge.net/man.html#lbAN
+	http://openvpn.net/man.html#lbAN
 
 *************************************************************************
 
@@ -202,7 +202,7 @@ TUN/TAP Driver Configuration:
   tunX I know you are not responsible for the tun coding but if you think the
   modification can be useful for you feel free to use it.
 
-  http://openvpn.sourceforge.net/solaris/tun.c
+  http://openvpn.net/solaris/tun.c
 
 * FreeBSD 4.1.1+:
 

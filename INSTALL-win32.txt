@@ -1,4 +1,4 @@
-OpenVPN on Windows notes, Copyright (C) James Yonan, 2003-2004
+OpenVPN on Windows notes, Copyright (C) 2002-2005 OpenVPN Solutions LLC
 --------------------------------------------------------------
 
 THIS IS A BETA RELEASE.
@@ -9,7 +9,7 @@ list.
 Before you post, check out the troubleshooting
 guide for more info:
 
-http://openvpn.sourceforge.net/trouble.html
+http://openvpn.net/trouble.html
 
 Currently, OpenVPN runs on Win 2000/XP, Linux, Mac OS X,
 Solaris, FreeBSD, NetBSD, and OpenBSD, making it one of the
@@ -17,7 +17,7 @@ most portable VPN packages today.
 
 Older versions of this document are also available in HTML:
 
-http://openvpn.sourceforge.net/INSTALL-win32.html
+http://openvpn.net/INSTALL-win32.html
 
 What's new in the 2.0 Beta Series
 ---------------------------------
@@ -118,7 +118,7 @@ communicate with 1.x.
 
 Sample Configuration Files:
 
-http://openvpn.sourceforge.net/examples.html
+http://openvpn.net/examples.html
 
 What's new in 1.6.0
 -------------------
@@ -128,7 +128,7 @@ feature improvements over 1.5.
 
 See Change Log for more details:
 
-http://openvpn.sourceforge.net/changelog.html
+http://openvpn.net/changelog.html
 
 What's new in 1.5.0
 -------------------
@@ -327,7 +327,7 @@ to allow several VPN tunnels to run concurrently
 
 See Change Log for more details:
 
-http://openvpn.sourceforge.net/changelog.html
+http://openvpn.net/changelog.html
 
 How to Install
 --------------
@@ -673,7 +673,7 @@ Troubleshooting
 For solutions to common troubleshooting problems,
 consult the OpenVPN Troubleshooting guide
 
-http://openvpn.sourceforge.net/trouble.html
+http://openvpn.net/trouble.html
 
 Setting up routing
 ------------------

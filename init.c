@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -1523,7 +1523,7 @@ do_option_warnings (struct context *c)
       && !o->tls_verify
       && !o->tls_remote
       && !(o->ns_cert_type & NS_SSL_SERVER))
-    msg (M_WARN, "WARNING: No server certificate verification method has been enabled.  See http://openvpn.sourceforge.net/howto.html#mitm for more info.");
+    msg (M_WARN, "WARNING: No server certificate verification method has been enabled.  See http://openvpn.net/howto.html#mitm for more info.");
 #endif
 
 #endif

@@ -4,7 +4,7 @@
 .\"             packet encryption, packet authentication, and
 .\"             packet compression.
 .\"
-.\"  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
+.\"  Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 .\"
 .\"  This program is free software; you can redistribute it and/or modify
 .\"  it under the terms of the GNU General Public License as published by
@@ -286,7 +286,7 @@ VPNs on the command line without even needing a configuration file.
 
 Also note that there's more documentation and examples on
 the OpenVPN web site:
-.I http://openvpn.sourceforge.net/
+.I http://openvpn.net/
 
 And if you would like to see a shorter version of this manual,
 see the openvpn usage message which can be obtained by
@@ -389,7 +389,7 @@ secret "c:\\\\OpenVPN\\\\secret.key"
 
 For examples of configuration files,
 see
-.I http://openvpn.sourceforge.net/examples.html
+.I http://openvpn.net/examples.html
 
 Here is an example configuration file:
 .RS
@@ -925,7 +925,7 @@ is specified).
 
 .B net_gateway
 -- The pre-existing IP default gateway, read from the routing
-table (Linux and Windows only).
+table (not supported on all OSes).
 
 .B remote_host
 -- The
@@ -1792,7 +1792,7 @@ mode can be used to instantiate the OpenVPN daemon as a classic TCP server,
 where client connection requests are serviced on a single
 port number.  For additional information on this kind of configuration,
 see the OpenVPN FAQ:
-.I http://openvpn.sourceforge.net/faq.html#oneport
+.I http://openvpn.net/faq.html#oneport
 
 This option precludes the use of
 .B --daemon, --local,
@@ -1811,7 +1811,7 @@ Also note that in
 mode, each OpenVPN tunnel requires a separate TCP/UDP port and
 a separate inetd or xinetd entry.  See the OpenVPN HOWTO for an example
 on using OpenVPN with xinetd:
-.I http://openvpn.sourceforge.net/howto.html
+.I http://openvpn.net/howto.html
 .\"*********************************************************
 .TP
 .B --log file
@@ -3148,7 +3148,7 @@ located in the
 subdirectory.
 
 The easy-rsa package is also rendered in web form here:
-.I http://openvpn.sourceforge.net/easyrsa.html
+.I http://openvpn.net/easyrsa.html
 .\"*********************************************************
 .TP
 .B --tls-server
@@ -4106,10 +4106,10 @@ true.
 Alphanumeric, underbar ('_'), dash ('-'), dot ('.'), and at                
 ('@').
 
-.B --auth-user-pass username
+.B --auth-user-pass username:
 Same as Common Name.
 
-.B --auth-user-pass password
+.B --auth-user-pass password:
 Any "printable" character except CR or LF.  
 Printable is defined to be a character which will cause the C library 
 isprint() function to return true.
@@ -4609,7 +4609,7 @@ TUN/TAP driver from
 and follow the installation instructions.
 
 For other platforms, consult the INSTALL file at
-.I http://openvpn.sourceforge.net/install.html
+.I http://openvpn.net/install.html
 for more information.
 .\"*********************************************************
 .SS Firewall Setup:
@@ -4896,12 +4896,12 @@ virtual device
 unless they first pass an HMAC authentication test.
 .\"*********************************************************
 .SH FAQ
-.I http://openvpn.sourceforge.net/faq.html
+.I http://openvpn.net/faq.html
 .\"*********************************************************
 .SH HOWTO
 For a more comprehensive guide to setting up OpenVPN
 in a production setting, see the OpenVPN HOWTO at
-.I http://openvpn.sourceforge.net/howto.html
+.I http://openvpn.net/howto.html
 .\"*********************************************************
 .SH PROTOCOL
 For a description of OpenVPN's underlying protocol,
@@ -4911,7 +4911,7 @@ browse the file in the CVS repository at
 .\"*********************************************************
 .SH WEB
 OpenVPN's web site is at
-.I http://openvpn.sourceforge.net/
+.I http://openvpn.net/
 
 Go here to download the latest version of OpenVPN, subscribe
 to the mailing lists, read the mailing list
@@ -4944,7 +4944,7 @@ For more information on the LZO real-time compression library see
 .I http://www.oberhumer.com/opensource/lzo/
 .\"*********************************************************
 .SH COPYRIGHT
-Copyright (C) 2002-2004 by James Yonan. This program is free software;
+Copyright (C) 2002-2005 OpenVPN Solutions LLC. This program is free software;
 you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or

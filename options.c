@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -1634,6 +1634,9 @@ options_postprocess (struct options *options, bool first_time)
       MUST_BE_UNDEF (crl_file);
       MUST_BE_UNDEF (key_method);
       MUST_BE_UNDEF (ns_cert_type);
+
+      if (pull)
+	msg (M_USAGE, err, "--pull");
     }
 #undef MUST_BE_UNDEF
 #endif /* USE_CRYPTO */
@@ -1652,6 +1655,10 @@ options_postprocess (struct options *options, bool first_time)
     {
       options->ping_rec_timeout = PRE_PULL_INITIAL_PING_RESTART;
       options->ping_rec_timeout_action = PING_RESTART;
+    }
+  else if (options->auth_user_pass_file)
+    {
+      msg (M_USAGE, "--auth-user-pass requires --pull");
     }
 
   /*
@@ -2063,7 +2070,8 @@ static void
 usage_version (void)
 {
   msg (M_INFO|M_NOPREFIX, "%s", title_string);
-  msg (M_INFO|M_NOPREFIX, "Copyright (C) 2002-2004 James Yonan <jim@yonan.net>");
+  msg (M_INFO|M_NOPREFIX, "Developed by James Yonan");
+  msg (M_INFO|M_NOPREFIX, "Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>");
   openvpn_exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
 

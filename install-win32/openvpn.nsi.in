@@ -1,5 +1,5 @@
 ; ****************************************************************************
-; * COPYRIGHT (C) 2003-2004 James Yonan                                      *
+; * Copyright (C) 2002-2005 OpenVPN Solutions LLC                                      *
 ; *  This program is free software; you can redistribute it and/or modify    *
 ; *  it under the terms of the GNU General Public License as published by    *
 ; *  the Free Software Foundation; either version 2 of the License, or       *
@@ -286,8 +286,8 @@ Section "Add Shortcuts to Start Menu" SecAddShortcuts
   SetOverwrite on
   CreateDirectory "$SMPROGRAMS\OpenVPN"
   CreateShortCut "$SMPROGRAMS\OpenVPN\OpenVPN Win32 README.lnk" "$INSTDIR\INSTALL-win32.txt" ""
-  WriteINIStr "$SMPROGRAMS\OpenVPN\OpenVPN Manual Page.url" "InternetShortcut" "URL" "http://openvpn.sourceforge.net/man.html"
-  WriteINIStr "$SMPROGRAMS\OpenVPN\OpenVPN Web Site.url" "InternetShortcut" "URL" "http://openvpn.sourceforge.net/"
+  WriteINIStr "$SMPROGRAMS\OpenVPN\OpenVPN Manual Page.url" "InternetShortcut" "URL" "http://openvpn.net/man.html"
+  WriteINIStr "$SMPROGRAMS\OpenVPN\OpenVPN Web Site.url" "InternetShortcut" "URL" "http://openvpn.net/"
   CreateShortCut "$SMPROGRAMS\OpenVPN\Uninstall OpenVPN.lnk" "$INSTDIR\Uninstall.exe"
 
 SectionEnd
