@@ -375,10 +375,14 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node,
     }
   else
     {
-      if (!dev_node)
-	dev_node = "/dev/net/tun";
-      if ((tt->fd = open (dev_node, O_RDWR)) < 0)
-	msg (M_ERR, "Cannot open TUN/TAP dev %s", dev_node);
+      const char *node = dev_node;
+      if (!node)
+	node = "/dev/net/tun";
+      if ((tt->fd = open (node, O_RDWR)) < 0)
+	{
+	  msg (M_WARN | M_ERRNO, "Note: Cannot open TUN/TAP dev %s", node);
+	  goto linux_2_2_fallback;
+	}
 
       CLEAR (ifr);
       if (!tt->ipv6)
@@ -401,7 +405,10 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node,
 	strncpynt (ifr.ifr_name, dev, IFNAMSIZ);
 
       if (ioctl (tt->fd, TUNSETIFF, (void *) &ifr) < 0)
-	msg (M_WARN, "Cannot ioctl TUNSETIFF %s", dev);
+	{
+	  msg (M_WARN | M_ERRNO, "Note: Cannot ioctl TUNSETIFF %s", dev);
+	  goto linux_2_2_fallback;
+	}
 
       set_nonblock (tt->fd);
       set_cloexec (tt->fd);
@@ -433,6 +440,12 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node,
 	    }
 	}
     }
+  return;
+
+ linux_2_2_fallback:
+  msg (M_INFO, "Note: Attempting fallback to kernel 2.2 TUN/TAP interface");
+  close_tun_generic (tt);
+  open_tun_generic (dev, dev_node, dev_name, ipv6, false, true, tt);
 }
 
 #else

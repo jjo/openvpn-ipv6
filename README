@@ -35,13 +35,13 @@ For a description of OpenVPN's underlying protocol,
 
 Other Files & Directories:
 
-* autogen.sh -- script to rebuild our configure
+* configure.ac -- script to rebuild our configure
   script and makefile.
 
 * openvpn.spec -- RPM Spec file
   To build an OpenVPN binary RPM, use the command:
 
-	rpm -tb [tarball]
+	rpmbuild -tb [tarball]
 
   When you install the binary RPM, it will automatically
   install sample-scripts/openvpn.init (see below)
