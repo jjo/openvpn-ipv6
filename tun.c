@@ -44,8 +44,9 @@
 bool
 is_dev_type (const char *dev, const char *dev_type, const char *match_type)
 {
-  ASSERT (dev);
   ASSERT (match_type);
+  if (!dev)
+    return false;
   if (dev_type)
     return !strcmp (dev_type, match_type);
   else
