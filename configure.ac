@@ -25,8 +25,9 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.2.9], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.2.9b], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
+AC_CONFIG_SRCDIR(syshead.h)
 
 AC_ARG_ENABLE(lzo,
    [  --disable-lzo           Do not compile LZO compression support],
@@ -66,7 +67,7 @@ AC_ARG_WITH(ssl-headers,
 
 AC_ARG_WITH(ssl-lib,
    [  --with-ssl-lib=DIR      Crypto/SSL Library location],
-   [LIBS="$LIBS -L$withval"] 
+   [LDFLAGS="$LDFLAGS -L$withval"] 
 )
 
 AC_ARG_WITH(lzo-headers,
@@ -77,7 +78,7 @@ AC_ARG_WITH(lzo-headers,
 
 AC_ARG_WITH(lzo-lib,
    [  --with-lzo-lib=DIR      LZO Library location],
-   [LIBS="$LIBS -L$withval"] 
+   [LDFLAGS="$LDFLAGS -L$withval"] 
 )
 
 AC_ARG_WITH(ifconfig-path,
@@ -96,6 +97,9 @@ dnl Guess host type.
 AC_CANONICAL_HOST
 AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE(openvpn, [$PACKAGE_VERSION])
+
+dnl fix search path, to allow compilers to find syshead.h
+CPPFLAGS="$CPPFLAGS -I${srcdir}"
 
 dnl check target OS
 openvpn_target=$target
@@ -137,9 +141,14 @@ AC_HEADER_STDC
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 AC_C_INLINE
+AC_C_VOLATILE
+AC_TYPE_OFF_T
 AC_TYPE_PID_T
 AC_TYPE_SIZE_T
+AC_TYPE_UID_T
 AC_HEADER_TIME
+VARARG_MACRO_SUPPORT_GCC
+VARARG_MACRO_SUPPORT_ISO
 
 dnl Check for more header files.
 AC_HEADER_SYS_WAIT

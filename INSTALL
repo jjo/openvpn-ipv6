@@ -108,7 +108,7 @@ BUILDING ON LINUX 2.4+ FROM RPM
 
 You can build a binary RPM directly from the OpenVPN tarball file:
 
-	rpm -tb [tarball]
+	rpmbuild -tb [tarball]
 
 This command will build a binary RPM file and place it in the system
 RPM directory.  You can then install the RPM with the standard RPM

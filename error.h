@@ -76,11 +76,30 @@ extern int msg_line_num;
  */
 #define LOGLEV(log_level, mute_level, other) (((log_level)-1) | ENCODE_MUTE_LEVEL(mute_level) | other)
 
-#define msg(flags, args...) \
-    do { if (((flags) & M_DEBUG_LEVEL) < _debug_level || ((flags) & M_FATAL)) \
-    _msg((flags), args); } while (false)
+/*
+ * If compiler supports variable arguments in macros, define
+ * msg() as a macro for optimization win.
+ */
 
+#define MSG_TEST(flags) (((flags) & M_DEBUG_LEVEL) < _debug_level || ((flags) & M_FATAL))
+
+#if defined(HAVE_VARARG_MACROS_ISO)
+#define HAVE_VARARG_MACROS
+#define msg(flags, ...) do { if (MSG_TEST(flags)) _msg((flags), __VA_ARGS__); } while (false)
+#elif defined(HAVE_VARARG_MACROS_GCC)
+#define HAVE_VARARG_MACROS
+#define msg(flags, args...) do { if (MSG_TEST(flags)) _msg((flags), args); } while (false)
+#endif
+
+#ifdef HAVE_VARARG_MACROS
 void _msg (unsigned int flags, const char *format, ...); /* should be called via msg above */
+#else
+void msg (unsigned int flags, const char *format, ...);
+#endif
+
+/*
+ * Function prototypes
+ */
 
 void error_reset ();
 void set_check_status (int info_level, int verbose_level);

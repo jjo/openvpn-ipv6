@@ -62,12 +62,14 @@ h_errno_msg(int h_errno_err)
 static in_addr_t
 getaddr (const char *hostname, int resolve_retry_seconds)
 {
-  const int fail_wait_interval = 5; /* seconds */
-  int resolve_retries = resolve_retry_seconds / fail_wait_interval;
-  in_addr_t ip = inet_addr (hostname);
+  struct in_addr ia;
+  const int status = inet_aton (hostname, &ia);
 
-  if (ip == -1)
+  if (!status)
     {
+      const int fail_wait_interval = 5; /* seconds */
+      int resolve_retries = resolve_retry_seconds / fail_wait_interval;
+
       /*
        * Resolve hostname
        */
@@ -82,15 +84,15 @@ getaddr (const char *hostname, int resolve_retry_seconds)
 	}
 
       /* potentially more than one address returned, but we take first */
-      ip = *(in_addr_t *) (h->h_addr_list[0]);
+      ia.s_addr = *(in_addr_t *) (h->h_addr_list[0]);
 
-      if (ip)
+      if (ia.s_addr)
 	{
 	  if (h->h_addr_list[1])
 	    msg (M_WARN, "Warning: %s has multiple addresses", hostname);
 	}
     }
-  return ip;
+  return ia.s_addr;
 }
 
 /* Create a UDP socket */

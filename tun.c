@@ -439,6 +439,10 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 
 #elif defined(TARGET_SOLARIS)
 
+#ifndef TUNNEWPPA
+#error I need the symbol TUNNEWPPA from net/if_tun.h
+#endif
+
 void
 open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
 	  struct tuntap *tt)

@@ -160,6 +160,15 @@ key_schedule_free(struct key_schedule* ks)
 }
 
 /*
+ * struct packet_id_persist should be empty if we are not
+ * building with crypto.
+ */
+#ifndef PACKET_ID_H
+struct packet_id_persist {};
+static inline void packet_id_persist_init (struct packet_id_persist *p) {}
+#endif
+
+/*
  * Do the work.  Initialize and enter main event loop.
  * Called after command line has been parsed.
  *
@@ -342,11 +351,11 @@ openvpn (const struct options *options,
       do_chroot (options->chroot_dir);
     }
 
+#ifdef USE_CRYPTO
   /* load a persisted packet-id for cross-session replay-protection */
   if (options->packet_id_file)
     packet_id_persist_load (pid_persist, options->packet_id_file);
 
-#ifdef USE_CRYPTO
   if (!options->test_crypto)
 #endif
     /* open the UDP socket */
@@ -742,9 +751,11 @@ openvpn (const struct options *options,
       timeval.tv_sec = 0;
       timeval.tv_usec = 0;
 
+#ifdef USE_CRYPTO
       /* flush current packet-id to file once per 60
 	 seconds if --replay-persist was specified */
       packet_id_persist_flush (pid_persist, current, 60);
+#endif
 
 #if defined(USE_CRYPTO) && defined(USE_SSL) && !defined(USE_PTHREAD)
       /*
@@ -1446,12 +1457,14 @@ openvpn (const struct options *options,
 		  max_rw_size_udp, options->ifconfig_local, options->ifconfig_remote);
     }
 
+#ifdef USE_CRYPTO
   /*
    * Close packet-id persistance file
    */
   packet_id_persist_save (pid_persist);
   if ( !(signal_received == SIGUSR1) )
     packet_id_persist_close (pid_persist);
+#endif
 
  done:
   /* pop our garbage collection level */

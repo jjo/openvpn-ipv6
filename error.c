@@ -113,8 +113,11 @@ msg_fp()
 
 int msg_line_num;
 
-void
-_msg (unsigned int flags, const char *format, ...)
+#ifdef HAVE_VARARG_MACROS
+void _msg (unsigned int flags, const char *format, ...)
+#else
+void msg (unsigned int flags, const char *format, ...)
+#endif
 {
   va_list arglist;
   int level;
@@ -124,6 +127,11 @@ _msg (unsigned int flags, const char *format, ...)
   char *m2;
   char *tmp;
   int e;
+
+#ifndef HAVE_VARARG_MACROS
+  if (!MSG_TEST(flags))
+    return;
+#endif
 
   e = errno;
 

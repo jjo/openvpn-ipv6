@@ -77,9 +77,6 @@
 #define CRYPT_ERROR(format) \
   do { msg (D_CRYPT_ERRORS, "%s: " format, error_prefix); goto error_exit; } while (false)
 
-#define CRYPT_ERROR_ARGS(format, args...) \
-  do { msg (D_CRYPT_ERRORS, "%s: " format, error_prefix, args); goto error_exit; } while (false)
-
 void
 openvpn_encrypt (struct buffer *buf, struct buffer work,
 		 const struct crypto_options *opt,
@@ -339,9 +336,10 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
 	      packet_id_add (&opt->packet_id->rec, &pin);
 	      if (opt->pid_persist && opt->packet_id_long_form)
 		packet_id_persist_save_obj (opt->pid_persist, opt->packet_id);
-	    }
-	  else
-	    CRYPT_ERROR_ARGS ("bad packet ID (may be a replay): %s", packet_id_net_print (&pin));
+	    } else {
+	      msg (D_CRYPT_ERRORS, "%s: bad packet ID (may be a replay): %s", error_prefix, packet_id_net_print (&pin));
+	      goto error_exit;
+	  }
 	}
       *buf = work;
     }

@@ -160,7 +160,7 @@ gc_malloc (size_t size)
   e->back = thread->gc_stack;
   thread->gc_stack = e;
   /*printf("GC MALLOC " ptr_format " size=%d lev=%d\n", e, s, e->level); */
-  return (void *) e + sizeof (struct gc_entry);
+  return (char *) e + sizeof (struct gc_entry);
 }
 
 void

@@ -39,7 +39,7 @@ struct name { \
 do { \
   if (--obj._head < 0) \
     obj._head = SIZE(obj._list) - 1; \
-  if (++obj._size >= SIZE(obj._list)) \
+  if (++obj._size >= (int)SIZE(obj._list)) \
     obj._size = SIZE(obj._list); \
   obj._list[obj._head] = (item); \
 } while (0)
