@@ -27,33 +27,53 @@
 #define CIRC_LIST_H
 
 #include "basic.h"
+#include "integer.h"
+#include "error.h"
 
-#define CIRC_LIST(name, type, size) \
+#define CIRC_LIST(name, type) \
 struct name { \
   int x_head; \
   int x_size; \
-  type x_list[size]; \
+  int x_cap; \
+  int x_sizeof; \
+  type x_list[0]; \
 }
 
 #define CIRC_LIST_PUSH(obj, item) \
-do { \
-  if (--obj.x_head < 0) \
-    obj.x_head = SIZE(obj.x_list) - 1; \
-  if (++obj.x_size >= (int)SIZE(obj.x_list)) \
-    obj.x_size = SIZE(obj.x_list); \
-  obj.x_list[obj.x_head] = (item); \
-} while (0)
+{ \
+  (obj)->x_head = modulo_add ((obj)->x_head, -1, (obj)->x_cap); \
+  (obj)->x_list[(obj)->x_head] = (item); \
+  (obj)->x_size = min_int ((obj)->x_size + 1, (obj)->x_cap); \
+}
 
 #define CIRC_LIST_SIZE(obj) \
-  (obj.x_size)
+  ((obj)->x_size)
 
 #define CIRC_LIST_INDEX(obj, index) \
-  ((obj.x_head + (index)) % SIZE(obj.x_list))
+  modulo_add ((obj)->x_head, \
+              index_verify ((index), (obj)->x_size, __FILE__, __LINE__), \
+              (obj)->x_cap)
 
 #define CIRC_LIST_ITEM(obj, index) \
-  (obj.x_list[CIRC_LIST_INDEX(obj, index)])
+  ((obj)->x_list[CIRC_LIST_INDEX((obj), (index))])
 
 #define CIRC_LIST_RESET(obj) \
-  CLEAR(obj)
+{ \
+  (obj)->x_head = 0; \
+  (obj)->x_size = 0; \
+}
+
+#define CIRC_LIST_ALLOC(dest, list_type, size) \
+{ \
+  const int so = sizeof (list_type) + sizeof ((dest)->x_list[0]) * (size); \
+  (dest) = (list_type *) malloc (so); \
+  ASSERT (dest); \
+  memset ((dest), 0, so); \
+  (dest)->x_cap = size; \
+  (dest)->x_sizeof = so; \
+}
+
+#define CIRC_LIST_FREE(dest) \
+  free (dest)
 
 #endif

@@ -26,9 +26,12 @@
 #ifndef SHAPER_H
 #define SHAPER_H
 
+#define SHAPER_DEBUG 0
+
 #ifdef HAVE_GETTIMEOFDAY
 
 #include "basic.h"
+#include "integer.h"
 #include "misc.h"
 #include "error.h"
 
@@ -93,7 +96,9 @@ shaper_delay (struct shaper* s)
     {
       ASSERT (!gettimeofday (&tv, NULL));
       delay = tv_subtract (&s->wakeup, &tv, SHAPER_MAX_TIMEOUT);
+#if SHAPER_DEBUG
       msg (D_SHAPER_DEBUG, "SHAPER shaper_delay delay=%d", delay);
+#endif
     }
 
   return delay > 0 ? delay : 0;
@@ -129,8 +134,10 @@ shaper_soonest_event (struct timeval *tv, int delay)
 	    }
 	}
     }
+#if SHAPER_DEBUG
   msg (D_SHAPER_DEBUG, "SHAPER shaper_soonest_event sec=%d usec=%d",
        (int)tv->tv_sec, (int)tv->tv_usec);
+#endif
 }
 
 /*
@@ -156,8 +163,10 @@ shaper_wrote_bytes (struct shaper* s, int nbytes)
 	  ++s->wakeup.tv_sec;
 	  s->wakeup.tv_usec -= 1000000;
 	}
+#if SHAPER_DEBUG
       msg (D_SHAPER_DEBUG, "SHAPER shaper_wrote_bytes bytes=%d delay=%d sec=%d usec=%d",
 	   nbytes, delay, (int)s->wakeup.tv_sec, (int)s->wakeup.tv_usec);
+#endif
     }
 }
 

@@ -31,9 +31,11 @@ SUPPORTED PLATFORMS:
   (1) Linux 2.2+
   (2) Solaris
   (3) OpenBSD 3.0+ (Comes with OpenSSL and TUN devices by default)
-  (4) Mac OS X Darwin (Experimental)
+  (4) Mac OS X Darwin
   (5) FreeBSD
-  (6) NetBSD (Experimental)
+  (6) NetBSD
+  (7) Windows (Win 2K + XP only so far
+      -- see INSTALL-win32.txt for more info)
 
 SUPPORTED PROCESSOR ARCHITECTURES:
    In general, OpenVPN is word size and endian independent, so
@@ -129,8 +131,6 @@ OPTIONS for ./configure:
 
   --enable-strict-options   Enable strict options check between peers
 
-  --enable-mtu-dynamic      Enable dynamic MTU support (experimental)
-
 *************************************************************************
 
 BUILDING ON LINUX 2.4+ FROM RPM
@@ -216,12 +216,25 @@ TUN/TAP Driver Configuration:
   needs to be manually copied to /kernel/drv/sparcv9/ and then a 
   reconfiguration reboot. (boot -r).
 
+* Windows 2000 and XP
+
+  See INSTALL-win32.txt for more info
+
  See the man page for more information, usage examples, and
  information on firewall configuration.
 
 *************************************************************************
 
 CAVEATS & BUGS:
+
+* The Windows TAP-Win32 driver should not be used on SMP systems prior
+  to beta8, and beta8 should be considered experimental when run on
+  SMP systems.
+
+* I have noticed cases where TCP sessions tunneled over the Linux
+  TAP driver (kernel 2.4.21 and 2.4.22) stall when lower --mssfix
+  values are used.  The TCP sessions appear to unstall and resume
+  normally when the remote VPN endpoint is pinged.
 
 * OpenVPN works fine with the 1.1 TUN/TAP driver in the Linux 2.2 kernels,
   and with the integrated 1.4 TUN/TAP driver in the Linux 2.4 kernels, but

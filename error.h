@@ -1,6 +1,6 @@
 /*
  *  OpenVPN -- An application to securely tunnel IP networks
- *             over a single UDP port, with support for SSL/TLS-based
+ *             over a single TCP/UDP port, with support for SSL/TLS-based
  *             session authentication and key exchange,
  *             packet encryption, packet authentication, and
  *             packet compression.
@@ -30,6 +30,17 @@
 
 #include "basic.h"
 
+#ifdef WIN32
+# define openvpn_errno()         GetLastError()
+# define openvpn_errno_socket()  WSAGetLastError()
+# define openvpn_strerror(e)     strerror_win32(e)
+  const char *strerror_win32 (DWORD errnum);
+#else
+# define openvpn_errno()         errno
+# define openvpn_errno_socket()  errno
+# define openvpn_strerror(x)     strerror(x)
+#endif
+
 /*
  * These globals should not be accessed directly,
  * but rather through macros or inline functions defined below.
@@ -51,11 +62,14 @@ extern int msg_line_num;
 #define M_SSL             (1<<10)	 /* show SSL error */
 #define M_NOLOCK          (1<<11)        /* don't lock/unlock mutex */      
 #define M_NOMUTE          (1<<12)        /* don't do mute processing */
+#define M_NOPREFIX        (1<<13)        /* don't show date/time prefix */
+#define M_USAGE_SMALL     (1<<14)        /* fatal options error, call usage_small */
 
 /* flag combinations which are frequently used */
 #define M_ERR     (M_FATAL | M_ERRNO)
 #define M_SOCKERR (M_FATAL | M_ERRNO_SOCK)
 #define M_SSLERR  (M_FATAL | M_SSL)
+#define M_USAGE   (M_USAGE_SMALL | M_NOPREFIX)
 
 /*
  * Mute levels are designed to avoid large numbers of
@@ -130,6 +144,37 @@ check_debug_level (unsigned int level)
 
 void open_syslog (const char *pgmname);
 void close_syslog ();
+
+/* log file output */
+void redirect_stdout_stderr (const char *file, bool append);
+
+/* exit program */
+void openvpn_exit (int status);
+
+/*
+ * Check the return status of read/write routines.
+ */
+
+struct link_socket;
+struct tuntap;
+
+extern unsigned int x_cs_info_level;
+extern unsigned int x_cs_verbose_level;
+
+void reset_check_status (void);
+void set_check_status (unsigned int info_level, unsigned int verbose_level);
+
+void x_check_status (int status,
+		     const char *description,
+		     struct link_socket *sock,
+		     struct tuntap *tt);
+
+static inline void
+check_status (int status, const char *description, struct link_socket *sock, struct tuntap *tt)
+{
+  if (status < 0 || check_debug_level (x_cs_verbose_level))
+    x_check_status (status, description, sock, tt);
+}
 
 #include "errlevel.h"
 

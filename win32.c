@@ -28,26 +28,48 @@
  * development environment.
  */
 
-#include <windows.h>
-#include <winsock.h>
+#ifdef WIN32
 
-#define sleep(x) Sleep((x)*1000)
+#include "config-win32.h"
 
-#define SIGHUP 1
-#define SIGUSR1 10
+#include "syshead.h"
+#include "buffer.h"
+#include "error.h"
+#include "io.h"
+#include "win32.h"
 
-#define random rand
-#define srandom srand
+#include "memdbg.h"
 
-typedef unsigned int in_addr_t;
-typedef unsigned int ssize_t;
+static struct WSAData wsa_state;
+static bool pause_exit_enabled = false;
 
-void init_win32 (void);
-void uninit_win32 (void);
-int inet_aton (const char *name, struct in_addr *addr);
-const char *strerror_win32 (int errnum);
+void
+init_win32 (void)
+{
+  if (WSAStartup(0x0101, &wsa_state))
+    {
+      msg (M_ERR, "WSAStartup failed");
+    }
+  win32_signal_init ();
+  save_window_title ();
+  netcmd_semaphore_init ();
+}
 
-#define openvpn_close_socket(s) closesocket(s)
-#define openvpn_errno()         GetLastError()
-#define openvpn_errno_socket()  WSAGetLastError()
-#define openvpn_strerror(e)     strerror_win32(e)
+void
+uninit_win32 (void)
+{
+  netcmd_semaphore_close ();
+  if (pause_exit_enabled)
+    win32_pause ();
+  restore_window_title ();
+  win32_signal_close ();
+  WSACleanup ();
+}
+
+void
+set_pause_exit_win32 (void)
+{
+  pause_exit_enabled = true;
+}
+
+#endif

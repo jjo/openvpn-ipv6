@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.4.3], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.5_rc1], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -59,10 +59,16 @@ AC_ARG_ENABLE(strict,
    [STRICT="no"]
 )
 
+AC_ARG_ENABLE(profiling,
+   [  --enable-profiling      Enable profiling],
+   [PROFILE="$enableval"],
+   [PROFILE="no"]
+)
+
 AC_ARG_ENABLE(mtu-dynamic,
-   [  --enable-mtu-dynamic    Enable dynamic MTU support],
+   [  --disable-mtu-dynamic   Disable dynamic MTU support],
    [DYNAMIC_MTU="$enableval"],
-   [DYNAMIC_MTU="no"]
+   [DYNAMIC_MTU="yes"]
 )
 
 AC_ARG_ENABLE(strict-options,
@@ -99,6 +105,13 @@ AC_ARG_WITH(ifconfig-path,
    [AC_PATH_PROG([IFCONFIG], [ifconfig], [ifconfig], [$PATH:/usr/local/sbin:/usr/sbin:/sbin])]
 )
 AC_DEFINE_UNQUOTED(IFCONFIG_PATH, "$IFCONFIG", [Path to ifconfig tool])
+
+AC_ARG_WITH(route-path,
+   [  --with-route-path=PATH  Path to route tool],
+   [ROUTE="$withval"],
+   [AC_PATH_PROG([ROUTE], [route], [route], [$PATH:/usr/local/sbin:/usr/sbin:/sbin])]
+)
+AC_DEFINE_UNQUOTED(ROUTE_PATH, "$ROUTE", [Path to route tool])
 
 AC_ARG_WITH(leak-check,
    [  --with-leak-check=TYPE  Build with memory leak checking, TYPE = dmalloc or ssl],
@@ -201,6 +214,11 @@ AC_CHECK_TYPE(
 	[AC_DEFINE(uint8_t, unsigned char, [8-bit unsigned type])],
 	[#include "syshead.h"])
 AC_CHECK_TYPE(
+	[uint16_t],
+	[],
+	[AC_DEFINE(uint16_t, unsigned char, [16-bit unsigned type])],
+	[#include "syshead.h"])
+AC_CHECK_TYPE(
 	[uint32_t],
 	[],
 	[AC_DEFINE(uint32_t, unsigned long, [32-bit unsigned type])],
@@ -263,16 +281,17 @@ AC_FUNC_FORK
 AC_CHECK_FUNCS(daemon chroot getpwnam setuid nice system getpid dup dup2 dnl
 	       getpass strerror syslog openlog mlockall getgrnam setgid dnl
 	       setgroups stat flock readv writev setsockopt getsockopt dnl
-	       setsid chdir gettimeofday)
+	       setsid chdir gettimeofday putenv)
 AC_REPLACE_FUNCS(inet_aton)
 AC_CACHE_SAVE
 
 dnl Required library functions
 AC_FUNC_MEMCMP
-AC_FUNC_MALLOC
 
-AC_CHECK_FUNCS(time select socket gethostbyname inet_ntoa memset vsnprintf ctime, [],
-	[AC_MSG_ERROR([Required library function not found])])
+AC_CHECK_FUNCS(socket recv recvfrom send sendto listen dnl
+	       accept connect bind select gethostbyname dnl
+               inet_ntoa time ctime memset vsnprintf, [],
+	       [AC_MSG_ERROR([Required library function not found])])
 
 dnl
 dnl check libraries
@@ -411,6 +430,11 @@ if test "$STRICT" = "yes"; then
    CFLAGS="$CFLAGS -Wall -W -Wpointer-arith -Wsign-compare -Winline -Wno-unused-parameter"
 fi
 
+dnl enable profiling
+if test "$PROFILE" = "yes"; then
+   CFLAGS="$CFLAGS -pg -DENABLE_PROFILING"
+fi
+
 dnl enable strict options check between peers
 if test "$STRICT_OPTIONS" = "yes"; then
    AC_DEFINE(STRICT_OPTIONS_CHECK, 1, [Enable strict options check between peers])
@@ -421,4 +445,4 @@ if test "$DYNAMIC_MTU" = "yes"; then
    AC_DEFINE(FRAGMENT_ENABLE, 1, [Enable dynamic MTU capability])
 fi
 
-AC_OUTPUT(Makefile openvpn.spec)
+AC_OUTPUT(Makefile openvpn.spec config-win32.h install-win32/openvpn.nsi)

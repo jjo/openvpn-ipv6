@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # openvpn       This shell script takes care of starting and stopping
-#               openvpn.
+#               openvpn on RedHat or other chkconfig-based system.
 #
 # chkconfig: 345 80 30
 #
@@ -86,7 +86,13 @@ case "$1" in
 	echo -n $"Starting openvpn: "
 
 	/sbin/modprobe tun >/dev/null 2>&1
-	echo 1 > /proc/sys/net/ipv4/ip_forward
+
+	# From a security perspective, I think it makes
+	# sense to remove this, and have users who need
+	# it explictly enable in their --up scripts or
+	# firewall setups.
+
+	#echo 1 > /proc/sys/net/ipv4/ip_forward
 
 	if [ ! -d  $piddir ]; then
 	    mkdir $piddir

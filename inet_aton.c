@@ -24,26 +24,28 @@
 
 #ifdef WIN32
 #include "config-win32.h"
-#include "syshead.h"
 #else
 #include "config.h"
 #endif
 
-#ifndef HAVE_INET_ATON
+#include "syshead.h"
 
-#ifndef WIN32
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#endif
+#ifndef HAVE_INET_ATON
 
 int
 inet_aton (const char *name, struct in_addr *addr)
 {
-	in_addr_t a = inet_addr (name);
-	addr->s_addr = a;
-	return a != (in_addr_t)-1;
+  if (!strcmp (name, "255.255.255.255"))
+    {
+      addr->s_addr = ~0;
+      return 1;
+    }
+  else
+    {
+      in_addr_t a = inet_addr (name);
+      addr->s_addr = a;
+      return a != (in_addr_t)-1;
+    }
 }
 
 #endif

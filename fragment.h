@@ -35,7 +35,7 @@
 #include "shaper.h"
 #include "error.h"
 
-#define N_FRAG_BUF                   10      /* number of packet buffers, should be <= N_FRAG_ID */
+#define N_FRAG_BUF                   25      /* number of packet buffers */
 #define FRAG_TTL_SEC                 10      /* number of seconds time-to-live for a fragment */
 #define FRAG_WAKEUP_INTERVAL         5       /* wakeup code called once per n seconds */
 
@@ -64,17 +64,7 @@ struct fragment_list {
 };
 
 struct fragment_master {
-  /* buffer to return "fragmentation needed but DF set" messages? */
-  struct buffer icmp_buf;
-
   struct event_timeout wakeup;     /* when should main openvpn event loop wake us up */
-
-  /* keep track of largest packet size which was successfully received by peer */
-  int max_packet_size_received;       /* zeroed after send to peer */
-  int max_packet_size_sent;           /* without confirming receipt */
-  int max_packet_size_sent_sync;      /* kept in temporal sync with max_packet_size_sent_confirmed */
-  int max_packet_size_sent_pending;   /* queued but not yet sent */
-  int max_packet_size_sent_confirmed; /* confirmed by peer */
 
   /* true if the OS has explicitly recommended an MTU value */
   bool received_os_mtu_hint;
@@ -117,7 +107,7 @@ typedef uint32_t fragment_header_type;
 #define FRAG_YES_NOTLAST      1    /* packet is a fragment, but is not the last fragment,
 				      FRAG_N_PACKETS_RECEIVED set as above */
 #define FRAG_YES_LAST         2    /* packet is the last fragment, FRAG_SIZE = size of non-last frags */
-#define FRAG_TEST             3    /* control packet for establishing MTU size */
+#define FRAG_TEST             3    /* control packet for establishing MTU size (not implemented yet) */
 
 /* FRAG_SEQ_ID 8 bits */
 #define FRAG_SEQ_ID_MASK      0x000000ff
@@ -147,9 +137,7 @@ typedef uint32_t fragment_header_type;
 /*
  * FRAG_EXTRA 16 bits
  *
- * IF FRAG_WHOLE or FRAG_YES_NOTLAST
- *   Max packet size received recently, or 0 if no packets received.
- *   The sender will reset its stored version to 0 after each send.
+ * IF FRAG_WHOLE or FRAG_YES_NOTLAST, these 16 bits are available (not currently used)
  */
 
 /* FRAG_EXTRA 16 bits */
@@ -162,7 +150,7 @@ typedef uint32_t fragment_header_type;
 
 struct fragment_master *fragment_init (struct frame *frame);
 
-void fragment_frame_init (struct fragment_master *f, const struct frame *frame, bool generate_icmp);
+void fragment_frame_init (struct fragment_master *f, const struct frame *frame);
 
 void fragment_free (struct fragment_master *f);
 
@@ -174,10 +162,6 @@ void fragment_outgoing (struct fragment_master *f, struct buffer *buf,
 
 bool fragment_ready_to_send (struct fragment_master *f, struct buffer *buf,
 			     const struct frame* frame);
-
-void fragment_check_fragmentability (struct fragment_master *f,
-				     struct frame *frame_fragment,
-				     struct buffer *buf);
 
 /*
  * Private functions.
@@ -191,34 +175,14 @@ void fragment_wakeup (struct fragment_master *f, struct frame *frame, time_t cur
 static inline void
 fragment_housekeeping (struct fragment_master *f, struct frame *frame, time_t current, struct timeval *tv)
 {
-  if (event_timeout_trigger (&f->wakeup, current))
+  if (event_timeout_trigger (&f->wakeup, current, tv))
     fragment_wakeup (f, frame, current);
-  event_timeout_wakeup (&f->wakeup, current, tv);
 }
 
 static inline bool
 fragment_outgoing_defined (struct fragment_master *f)
 {
   return f->outgoing.len > 0;
-}
-
-static inline bool
-fragment_icmp (struct fragment_master *f, struct buffer *buf)
-{
-  if (f->icmp_buf.len > 0)
-    {
-      *buf = f->icmp_buf;
-      f->icmp_buf.len = 0;
-      return true;
-    }
-  else
-    return false;
-}
-
-static inline void
-fragment_post_send (struct fragment_master *f, int len)
-{
-  f->max_packet_size_sent = max_int (f->max_packet_size_sent, f->max_packet_size_sent_pending);
 }
 
 #endif /* FRAGMENT_ENABLE */

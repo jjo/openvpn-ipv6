@@ -184,6 +184,16 @@ convert_to_one_line (struct buffer *buf)
     }
 }
 
+/* NOTE: requires that string be null terminated */
+void
+buf_write_string_file (const struct buffer *buf, const char *filename, int fd)
+{
+  const int len = strlen (BPTR (buf));
+  const int size = write (fd, BPTR (buf), len);
+  if (size != len)
+    msg (M_ERR, "Write error on file '%s'", filename);
+}
+
 /*
  * Garbage collection
  */
@@ -241,4 +251,41 @@ format_hex_ex (const uint8_t *data, int size, int maxoutput,
     }
   buf_catrunc (&out, "[more...]");
   return (char *)out.data;
+}
+
+/*
+ * remove specific trailing character
+ */
+
+void
+buf_rmtail (struct buffer *buf, uint8_t remove)
+{
+  uint8_t *cp = BLAST(buf);
+  if (cp && *cp == remove)
+    {
+      *cp = '\0';
+      --buf->len;
+    }
+}
+
+/*
+ * Remove trailing \r and \n chars.
+ */
+void
+chomp (char *str)
+{
+  bool modified;
+  do {
+    const int len = strlen (str);
+    modified = false;
+    if (len > 0)
+      {
+	char *cp = str + (len - 1);
+	if (*cp == '\n' || *cp == '\r')
+	  {
+	    *cp = '\0';
+	    modified = true;
+	  }
+      }
+  } while (modified);
 }

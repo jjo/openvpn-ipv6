@@ -40,9 +40,13 @@
 void
 set_nonblock (int fd)
 {
-#ifndef WIN32
+#ifdef WIN32
+  u_long arg = 1;
+  if (ioctlsocket (fd, FIONBIO, &arg))
+    msg (M_SOCKERR, "Set socket to non-blocking mode failed");
+#else
   if (fcntl (fd, F_SETFL, O_NONBLOCK) < 0)
-    msg (M_ERR, "Set file descriptor to non-blocking failed");
+    msg (M_ERR, "Set file descriptor to non-blocking mode failed");
 #endif
 }
 

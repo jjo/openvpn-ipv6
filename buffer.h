@@ -42,7 +42,8 @@ struct buffer
 #define BLAST(buf) (((buf)->data && (buf)->len) ? (BPTR(buf) + (buf)->len - 1) : NULL)
 #define BLEN(buf)  ((buf)->len)
 #define BDEF(buf)  ((buf)->data != NULL)
-#define BSTR(buf)  (char *)BPTR(buf)
+#define BSTR(buf)  ((char *)BPTR(buf))
+#define BCAP(buf)  (buf_forward_capacity (buf))
 
 struct buffer alloc_buf (size_t size);
 struct buffer clone_buf (const struct buffer* buf);
@@ -134,18 +135,17 @@ int openvpn_snprintf(char *str, size_t size, const char *format, ...)
     ;
 
 /*
- * remove trailing newline
+ * remove trailing characters
  */
-static inline void
-buf_chomp (struct buffer *buf, uint8_t remove)
-{
-  uint8_t *cp = BLAST(buf);
-  if (cp && *cp == remove)
-    {
-      *cp = '\0'; 
-      --buf->len;
-    }
-}
+
+void buf_rmtail (struct buffer *buf, uint8_t remove);
+void chomp (char *str);
+
+/*
+ * Write string in buf to file descriptor fd.
+ * NOTE: requires that string be null terminated.
+ */
+void buf_write_string_file (const struct buffer *buf, const char *filename, int fd);
 
 /*
  * write a string to the end of a buffer that was
@@ -184,7 +184,7 @@ struct buffer buf_sub (struct buffer *buf, int size, bool prepend);
 static inline bool
 buf_safe (struct buffer *buf, int len)
 {
-  return buf->offset + buf->len + len <= buf->capacity;
+  return len >= 0 && buf->offset + buf->len + len <= buf->capacity;
 }
 
 static inline int
@@ -219,7 +219,7 @@ buf_reverse_capacity (struct buffer *buf)
 static inline uint8_t *
 buf_prepend (struct buffer *buf, int size)
 {
-  if (size > buf->offset)
+  if (size < 0 || size > buf->offset)
     return NULL;
   buf->offset -= size;
   buf->len += size;
@@ -229,7 +229,7 @@ buf_prepend (struct buffer *buf, int size)
 static inline bool
 buf_advance (struct buffer *buf, int size)
 {
-  if (buf->len < size)
+  if (size < 0 || buf->len < size)
     return false;
   buf->offset += size;
   buf->len -= size;
@@ -262,7 +262,7 @@ static inline uint8_t *
 buf_read_alloc (struct buffer *buf, int size)
 {
   uint8_t *ret;
-  if (buf->len < size)
+  if (size < 0 || buf->len < size)
     return NULL;
   ret = BPTR (buf);
   buf->offset += size;
@@ -288,6 +288,27 @@ buf_write_prepend (struct buffer *dest, const void *src, int size)
     return false;
   memcpy (cp, src, size);
   return true;
+}
+
+static inline bool
+buf_write_u8 (struct buffer *dest, int data)
+{
+  uint8_t u8 = (uint8_t) data;
+  return buf_write (dest, &u8, sizeof (uint8_t));
+}
+
+static inline bool
+buf_write_u16 (struct buffer *dest, int data)
+{
+  uint16_t u16 = htons ((uint16_t) data);
+  return buf_write (dest, &u16, sizeof (uint16_t));
+}
+
+static inline bool
+buf_write_u32 (struct buffer *dest, int data)
+{
+  uint32_t u32 = htonl ((uint32_t) data);
+  return buf_write (dest, &u32, sizeof (uint32_t));
 }
 
 static inline bool
@@ -324,6 +345,28 @@ buf_copy_range (struct buffer *dest,
   return true;
 }
 
+/* truncate src to len, copy excess data beyond len to dest */
+static inline bool
+buf_copy_excess (struct buffer *dest,
+		 struct buffer *src,
+		 int len)
+{
+  if (len < 0)
+    return false;
+  if (src->len > len)
+    {
+      struct buffer b = *src;
+      src->len = len;
+      if (!buf_advance (&b, len))
+	return false;
+      return buf_copy (dest, &b);
+    }
+  else
+    {
+      return true;
+    }
+}
+
 static inline bool
 buf_read (struct buffer *src, void *dest, int size)
 {
@@ -334,12 +377,68 @@ buf_read (struct buffer *src, void *dest, int size)
   return true;
 }
 
+static inline int
+buf_read_u8 (struct buffer *buf)
+{
+  int ret;
+  if (BLEN (buf) < 1)
+    return -1;
+  ret = *BPTR(buf);
+  buf_advance (buf, 1);
+  return ret;
+}
+
+static inline int
+buf_read_u16 (struct buffer *buf)
+{
+  uint16_t ret;
+  if (!buf_read (buf, &ret, sizeof (uint16_t)))
+    return -1;
+  return ntohs (ret);
+}
+
+static inline uint32_t
+buf_read_u32 (struct buffer *buf, bool *good)
+{
+  uint32_t ret;
+  if (!buf_read (buf, &ret, sizeof (uint32_t)))
+    {
+      if (good)
+	*good = false;
+      return 0;
+    }
+  else
+    {
+      if (good)
+	*good = true;
+      return ntohl (ret);
+    }
+}
+
 static inline bool
 buf_string_match (struct buffer *src, const void *match, int size)
 {
   if (size != src->len)
     return false;
   return memcmp (BPTR (src), match, size) == 0;
+}
+
+static inline bool
+buf_string_match_head (struct buffer *src, const void *match, int size)
+{
+  if (size < 0 || size > src->len)
+    return false;
+  return memcmp (BPTR (src), match, size) == 0;
+}
+
+/*
+ * Bitwise operations
+ */
+static inline void
+xor (uint8_t *dest, const uint8_t *src, int len)
+{
+  while (len-- > 0)
+    *dest++ ^= *src++;
 }
 
 /*

@@ -1,6 +1,6 @@
 /*
  *  OpenVPN -- An application to securely tunnel IP networks
- *             over a single UDP port, with support for SSL/TLS-based
+ *             over a single TCP/UDP port, with support for SSL/TLS-based
  *             session authentication and key exchange,
  *             packet encryption, packet authentication, and
  *             packet compression.
@@ -28,7 +28,7 @@
  * the data channel HMAC and cipher keys through a TLS session.
  *
  * Both the TLS session and the data channel are multiplexed
- * over the same UDP port.
+ * over the same TCP/UDP port.
  */
 
 #ifdef WIN32
@@ -44,6 +44,7 @@
 #include "ssl.h"
 #include "error.h"
 #include "common.h"
+#include "integer.h"
 #include "socket.h"
 #include "thread.h"
 #include "misc.h"
@@ -166,12 +167,16 @@ tls_init_control_channel_frame_parameters(const struct frame *data_channel_frame
    * if --tls-auth is enabled.
    */
 
+  /* inherit link MTU from data channel */
+  frame->link_mtu = data_channel_frame->link_mtu;
+
   /* set extra_frame */
   tls_adjust_frame_parameters (frame);
   reliable_ack_adjust_frame_parameters (frame, CONTROL_SEND_ACK_MAX);
   frame_add_to_extra_frame (frame, SID_SIZE + sizeof (packet_id_type));
-  frame_set_mtu_dynamic (frame, MTU_SET_TO_MIN);
-  frame_finalize_derivative (frame, data_channel_frame);
+
+  /* set dynamic link MTU to minimum value */
+  frame_set_mtu_dynamic (frame, 0, SET_MTU_TUN);
 }
 
 void
@@ -220,6 +225,8 @@ pem_password_callback (char *buf, int size, int rwflag, void *u)
   if (!strlen (passbuf))
     {
       char *gp = getpass ("Enter PEM pass phrase:");
+      if (!gp)
+	msg (M_FATAL, "TLS Error: Error reading PEM pass phrase for private key");
       strncpynt (passbuf, gp, sizeof (passbuf));
       memset (gp, 0, strlen (gp));
     }
@@ -227,7 +234,7 @@ pem_password_callback (char *buf, int size, int rwflag, void *u)
   if (buf)
     {
       if (!strlen (passbuf))
-	msg (M_FATAL, "TLS Error: need PEM password for private key");
+	msg (M_FATAL, "TLS Error: Need PEM pass phrase for private key");
       strncpynt (buf, passbuf, size);
       CLEAR (passbuf);
       return strlen (buf);
@@ -254,29 +261,15 @@ tmp_rsa_cb (SSL * s, int is_export, int keylength)
   return (rsa_tmp);
 }
 
-/* make cp safe to be passed to system() */
-static void
-system_safe_string (char *cp)
-{
-  int c;
-  while ((c = *cp))
-    {
-      if (isalnum (c)
-	  || c == '/'
-	  || c == '.' || c == '@' || c == '_' || c == '-' || c == '=')
-	;
-      else
-	*cp = '.';
-      ++cp;
-    }
-}
-
 /*
  * Our verify callback function -- check
  * that an incoming peer certificate is good.
  */
 
 static const char *verify_command;
+static const char *verify_x509name;
+static const char *crl_file;
+static int verify_maxlevel;
 
 void
 tls_set_verify_command (const char *cmd)
@@ -284,15 +277,35 @@ tls_set_verify_command (const char *cmd)
   verify_command = cmd;
 }
 
+void
+tls_set_verify_x509name (const char *x509name)
+{
+  verify_x509name = x509name;
+}
+
+void
+tls_set_crl_verify (const char *crl)
+{
+  crl_file = crl;
+}
+
+int
+get_max_tls_verify_id ()
+{
+  return verify_maxlevel;
+}
+
 static int
 verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
 {
   char txt[512];
+  char envname[64];
+  const int max_depth = 8;
 
   X509_NAME_oneline (X509_get_subject_name (ctx->current_cert), txt,
 		     sizeof (txt));
   txt[sizeof (txt) - 1] = '\0';
-  system_safe_string (txt);
+  safe_string (txt);
 
   if (!preverify_ok)
     {
@@ -302,35 +315,100 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
       return 0;			/* Reject connection */
     }
 
+  if (ctx->error_depth >= max_depth)
+    msg (M_WARN, "TLS Warning: Convoluted certificate chain detected with depth [%d] greater than %d", ctx->error_depth, max_depth);
+
+  /* export subject name string as environmental variable */
+  verify_maxlevel = max_int (verify_maxlevel, ctx->error_depth);
+  openvpn_snprintf (envname, sizeof(envname), "tls_id_%d", ctx->error_depth);
+  setenv_str (envname, txt);
+  
+  if (verify_x509name)
+    if (ctx->error_depth == 0)
+      {
+        if (strcmp (verify_x509name, txt) == 0)
+          msg (D_HANDSHAKE, "VERIFY X509NAME OK: %s", txt);
+        else
+          {
+            msg (D_HANDSHAKE, "VERIFY X509NAME ERROR: %s, must be %s",
+                 txt, verify_x509name);
+            return 0;		/* Reject connection */
+          }
+      }
+
   if (verify_command)
     {
       char command[512];
       struct buffer out;
       int ret;
+
+      setenv_str ("script_type", "tls-verify");
+
       buf_set_write (&out, (uint8_t*)command, sizeof (command));
       buf_printf (&out, "%s %d %s", verify_command, ctx->error_depth, txt);
       msg (D_TLS_DEBUG, "executing verify command: %s", command);
       ret = openvpn_system (command);
-      if (ret != -1 && WEXITSTATUS (ret) == 0)
+      if (system_ok (ret))
 	{
 	  msg (D_HANDSHAKE, "VERIFY SCRIPT OK: depth=%d, %s",
 	       ctx->error_depth, txt);
-	  return 1;		/* Accept connection */
 	}
       else
 	{
-	  if (ret == -1 || WEXITSTATUS (ret) == 127)
+	  if (!system_executed (ret))
 	    msg (M_ERR, "Verify command failed to execute: %s", command);
 	  msg (D_HANDSHAKE, "VERIFY SCRIPT ERROR: depth=%d, %s",
 	       ctx->error_depth, txt);
 	  return 0;		/* Reject connection */
 	}
     }
-  else
+  
+  if (crl_file)
     {
-      msg (D_HANDSHAKE, "VERIFY OK: depth=%d, %s", ctx->error_depth, txt);
-      return 1;			/* Accept connection */
+      X509_CRL *crl=NULL;
+      X509_REVOKED *revoked;
+      BIO *in=NULL;
+      int n,i,retval = 0;
+
+      in=BIO_new(BIO_s_file());
+
+      if (in == NULL) {
+	msg (M_ERR, "CRL: BIO err");
+	goto end;
+      }
+      if (BIO_read_filename(in,crl_file) <= 0) {
+	msg (M_ERR, "CRL: cannot read: %s",crl_file);
+	goto end;
+      }
+      crl=PEM_read_bio_X509_CRL(in,NULL,NULL,NULL);
+      if (crl == NULL) {
+	msg (M_ERR, "CRL: cannot read CRL from file %s",crl_file);
+	goto end;
+      }
+
+      n = sk_num(X509_CRL_get_REVOKED(crl));
+
+      for (i = 0; i < n; i++) {
+	revoked = (X509_REVOKED *)sk_value(X509_CRL_get_REVOKED(crl), i);
+	if (ASN1_INTEGER_cmp(revoked->serialNumber, X509_get_serialNumber(ctx->current_cert)) == 0) {
+	  msg (D_HANDSHAKE, "CRL CHECK FAILED: %s is REVOKED",txt);
+	  goto end;
+	}
+      }
+
+      retval = 1;
+      msg (D_HANDSHAKE, "CRL CHECK OK: %s",txt);
+
+    end:
+
+      BIO_free(in);
+      if (!retval)
+	return retval;
     }
+
+  msg (D_HANDSHAKE, "VERIFY OK: depth=%d, %s", ctx->error_depth, txt);
+
+  return 1;			/* Accept connection */
 }
 
 /*
@@ -391,7 +469,6 @@ init_ssl (bool server,
       msg (D_TLS_DEBUG_LOW, "Diffie-Hellman initialized with %d bit key",
 	   8 * DH_size (dh));
       DH_free (dh);
-
     }
   else				/* if client */
     {
@@ -600,6 +677,10 @@ packet_opcode_name (int op)
       return "P_CONTROL_HARD_RESET_CLIENT_V1";
     case P_CONTROL_HARD_RESET_SERVER_V1:
       return "P_CONTROL_HARD_RESET_SERVER_V1";
+    case P_CONTROL_HARD_RESET_CLIENT_V2:
+      return "P_CONTROL_HARD_RESET_CLIENT_V2";
+    case P_CONTROL_HARD_RESET_SERVER_V2:
+      return "P_CONTROL_HARD_RESET_SERVER_V2";
     case P_CONTROL_SOFT_RESET_V1:
       return "P_CONTROL_SOFT_RESET_V1";
     case P_CONTROL_V1:
@@ -647,6 +728,27 @@ print_key_id (struct tls_multi *multi)
     }
 
   return BSTR (&out);
+}
+
+/*
+ * Given a key_method, return true if op
+ * represents the required form of hard_reset.
+ *
+ * If key_method = 0, return true if any
+ * form of hard reset is used.
+ */
+static bool
+is_hard_reset (int op, int key_method)
+{
+  if (!key_method || key_method == 1)
+    if (op == P_CONTROL_HARD_RESET_CLIENT_V1 || op == P_CONTROL_HARD_RESET_SERVER_V1)
+      return true;
+
+  if (!key_method || key_method >= 2)
+    if (op == P_CONTROL_HARD_RESET_CLIENT_V2 || op == P_CONTROL_HARD_RESET_SERVER_V2)
+      return true;
+
+  return false;
 }
 
 /*
@@ -869,6 +971,11 @@ key_state_init (struct tls_session *session, struct key_state *ks,
   reliable_init (&ks->rec_reliable, BUF_SIZE (&session->opt->frame),
 		 EXTRA_FRAME (&session->opt->frame), TLS_RELIABLE_N_REC_BUFFERS);
   reliable_set_timeout (&ks->send_reliable, session->opt->packet_timeout);
+
+  /* init packet ID tracker */
+  packet_id_init (&ks->packet_id,
+		  session->opt->replay_window,
+		  session->opt->replay_time);
 }
 
 static void
@@ -892,6 +999,8 @@ key_state_free (struct key_state *ks, bool clear)
   free_buf (&ks->ack_write_buf);
   reliable_free (&ks->send_reliable);
   reliable_free (&ks->rec_reliable);
+
+  packet_id_free (&ks->packet_id);
 
   if (clear)
     CLEAR (*ks);
@@ -923,14 +1032,28 @@ tls_session_init (struct tls_multi *multi, struct tls_session *session)
     session_id_random (&session->session_id);
 
   /* Are we a TLS server or client? */
-  session->initial_opcode = session->opt->server ?
-    P_CONTROL_HARD_RESET_SERVER_V1 : P_CONTROL_HARD_RESET_CLIENT_V1;
+  ASSERT (session->opt->key_method >= 1);
+  if (session->opt->key_method == 1)
+    {
+      session->initial_opcode = session->opt->server ?
+	P_CONTROL_HARD_RESET_SERVER_V1 : P_CONTROL_HARD_RESET_CLIENT_V1;
+    }
+  else /* session->opt->key_method >= 2 */
+    {
+      session->initial_opcode = session->opt->server ?
+	P_CONTROL_HARD_RESET_SERVER_V2 : P_CONTROL_HARD_RESET_CLIENT_V2;
+    }
 
   /* Initialize control channel authentication parameters */
   session->tls_auth = session->opt->tls_auth;
 
   /* Set session internal pointers (also called if session object is moved in memory) */
   tls_session_set_self_referential_pointers (session);
+
+  /* initialize packet ID replay window for --tls-auth */
+  packet_id_init (session->tls_auth.packet_id,
+		  session->opt->replay_window,
+		  session->opt->replay_time);
 
   /* load most recent packet-id to replay protect on --tls-auth */
   packet_id_persist_load_obj (session->tls_auth.pid_persist, session->tls_auth.packet_id);
@@ -945,6 +1068,9 @@ static void
 tls_session_free (struct tls_session *session, bool clear)
 {
   int i;
+
+  if (session->tls_auth.packet_id)
+    packet_id_free (session->tls_auth.packet_id);
 
   for (i = 0; i < KS_SIZE; ++i)
     key_state_free (&session->key[i], false);
@@ -1004,8 +1130,10 @@ initiate_untrusted_session (struct tls_multi *multi, struct sockaddr_in *to)
  */
 static inline void
 compute_earliest_wakeup (interval_t *earliest, interval_t seconds_from_now) {
-  if (seconds_from_now > 0 && (seconds_from_now < *earliest || !*earliest))
+  if (seconds_from_now < *earliest)
     *earliest = seconds_from_now;
+  if (*earliest < 0)
+    *earliest = 0;
 }
 
 /*
@@ -1038,8 +1166,7 @@ lame_duck_must_die (const struct tls_session* session, interval_t *wakeup, time_
  * See ssl.h for more comments.
  */
 struct tls_multi *
-tls_multi_init (struct tls_options *tls_options,
-		struct udp_socket *udp_socket)
+tls_multi_init (struct tls_options *tls_options)
 {
   struct tls_multi *ret;
 
@@ -1073,6 +1200,21 @@ tls_multi_init_finalize(struct tls_multi* multi, const struct frame* frame)
   /* initialize the active and untrusted sessions */
   tls_session_init (multi, &multi->session[TM_ACTIVE]);
   tls_session_init (multi, &multi->session[TM_UNTRUSTED]);
+}
+
+/*
+ * Set local and remote option compatibility strings.
+ * Used to verify compatibility of local and remote option
+ * sets.
+ */
+void
+tls_multi_init_set_options(struct tls_multi* multi,
+			   const char *local,
+			   const char *remote)
+{
+  /* initialize options string */
+  multi->opt.local_options = local;
+  multi->opt.remote_options = remote;
 }
 
 void
@@ -1159,7 +1301,7 @@ static void
 write_control_auth (struct tls_session *session,
 		    struct key_state *ks,
 		    struct buffer *buf,
-		    struct sockaddr_in *to_udp_addr,
+		    struct sockaddr_in *to_link_addr,
 		    int opcode,
 		    int max_ack,
 		    bool prepend_ack,
@@ -1180,7 +1322,7 @@ write_control_auth (struct tls_session *session,
       openvpn_encrypt (buf, null, &session->tls_auth, NULL, current);
       ASSERT (swap_hmac (buf, &session->tls_auth, false));
     }
-  *to_udp_addr = ks->remote_addr;
+  *to_link_addr = ks->remote_addr;
 }
 
 /*
@@ -1226,6 +1368,327 @@ read_control_auth (struct buffer *buf,
 }
 
 /*
+ * For debugging, print contents of key_source2 structure.
+ */
+
+static void
+key_source_print (const struct key_source *k,
+		  const char *prefix)
+{
+  msg (D_SHOW_KEY_SOURCE,
+       "%s pre_master: %s",
+       prefix,
+       format_hex (k->pre_master, sizeof (k->pre_master), 0));
+  msg (D_SHOW_KEY_SOURCE,
+       "%s random1: %s",
+       prefix,
+       format_hex (k->random1, sizeof (k->random1), 0));
+  msg (D_SHOW_KEY_SOURCE,
+       "%s random2: %s",
+       prefix,
+       format_hex (k->random2, sizeof (k->random2), 0));
+}
+
+static void
+key_source2_print (const struct key_source2 *k)
+{
+  key_source_print (&k->client, "Client");
+  key_source_print (&k->server, "Server");
+}
+
+/*
+ * Use the TLS PRF function for generating data channel keys.
+ * This code is taken from the OpenSSL library.
+ *
+ * TLS generates keys as such:
+ *
+ * master_secret[48] = PRF(pre_master_secret[48], "master secret",
+ *                         ClientHello.random[32] + ServerHello.random[32])
+ *
+ * key_block[] = PRF(SecurityParameters.master_secret[48],
+ *                 "key expansion",
+ *                 SecurityParameters.server_random[32] +
+ *                 SecurityParameters.client_random[32]);
+ *
+ * Notes:
+ *
+ * (1) key_block contains a full set of 4 keys.
+ * (2) The pre-master secret is generated by the client.
+ */
+
+static void
+tls1_P_hash(const EVP_MD *md,
+	    const uint8_t *sec,
+	    int sec_len,
+	    const uint8_t *seed,
+	    int seed_len,
+	    uint8_t *out,
+	    int olen)
+{
+  int chunk,n;
+  unsigned int j;
+  HMAC_CTX ctx;
+  HMAC_CTX ctx_tmp;
+  uint8_t A1[EVP_MAX_MD_SIZE];
+  unsigned int A1_len;
+  const int olen_orig = olen;
+  const uint8_t *out_orig = out;
+	
+  msg (D_SHOW_KEY_SOURCE, "tls1_P_hash sec: %s", format_hex (sec, sec_len, 0));
+  msg (D_SHOW_KEY_SOURCE, "tls1_P_hash seed: %s", format_hex (seed, seed_len, 0));
+
+  chunk=EVP_MD_size(md);
+
+  HMAC_CTX_init(&ctx);
+  HMAC_CTX_init(&ctx_tmp);
+  HMAC_Init_ex(&ctx,sec,sec_len,md, NULL);
+  HMAC_Init_ex(&ctx_tmp,sec,sec_len,md, NULL);
+  HMAC_Update(&ctx,seed,seed_len);
+  HMAC_Final(&ctx,A1,&A1_len);
+
+  n=0;
+  for (;;)
+    {
+      HMAC_Init_ex(&ctx,NULL,0,NULL,NULL); /* re-init */
+      HMAC_Init_ex(&ctx_tmp,NULL,0,NULL,NULL); /* re-init */
+      HMAC_Update(&ctx,A1,A1_len);
+      HMAC_Update(&ctx_tmp,A1,A1_len);
+      HMAC_Update(&ctx,seed,seed_len);
+
+      if (olen > chunk)
+	{
+	  HMAC_Final(&ctx,out,&j);
+	  out+=j;
+	  olen-=j;
+	  HMAC_Final(&ctx_tmp,A1,&A1_len); /* calc the next A1 value */
+	}
+      else	/* last one */
+	{
+	  HMAC_Final(&ctx,A1,&A1_len);
+	  memcpy(out,A1,olen);
+	  break;
+	}
+    }
+  HMAC_CTX_cleanup(&ctx);
+  HMAC_CTX_cleanup(&ctx_tmp);
+  CLEAR (A1);
+
+  msg (D_SHOW_KEY_SOURCE, "tls1_P_hash out: %s", format_hex (out_orig, olen_orig, 0));
+}
+
+static void
+tls1_PRF(uint8_t *label,
+	 int label_len,
+	 const uint8_t *sec,
+	 int slen,
+	 uint8_t *out1,
+	 int olen)
+{
+  const EVP_MD *md5 = EVP_md5();
+  const EVP_MD *sha1 = EVP_sha1();
+  int len,i;
+  const uint8_t *S1,*S2;
+  uint8_t *out2;
+
+  out2 = (uint8_t *) malloc (olen);
+  ASSERT (out2);
+
+  len=slen/2;
+  S1=sec;
+  S2= &(sec[len]);
+  len+=(slen&1); /* add for odd, make longer */
+
+	
+  tls1_P_hash(md5 ,S1,len,label,label_len,out1,olen);
+  tls1_P_hash(sha1,S2,len,label,label_len,out2,olen);
+
+  for (i=0; i<olen; i++)
+    out1[i]^=out2[i];
+
+  memset (out2, 0, olen);
+  free (out2);
+
+  msg (D_SHOW_KEY_SOURCE, "tls1_PRF out[%d]: %s", olen, format_hex (out1, olen, 0));
+}
+
+static void
+openvpn_PRF (const uint8_t *secret,
+	     int secret_len,
+	     const char *label,
+	     const uint8_t *client_seed,
+	     int client_seed_len,
+	     const uint8_t *server_seed,
+	     int server_seed_len,
+	     const struct session_id *client_sid,
+	     const struct session_id *server_sid,
+	     uint8_t *output,
+	     int output_len)
+{
+  /* concatenate seed components */
+
+  struct buffer seed = alloc_buf (strlen (label)
+				  + client_seed_len
+				  + server_seed_len
+				  + SID_SIZE * 2);
+
+  ASSERT (buf_write (&seed, label, strlen (label)));
+  ASSERT (buf_write (&seed, client_seed, client_seed_len));
+  ASSERT (buf_write (&seed, server_seed, server_seed_len));
+
+  if (client_sid)
+      ASSERT (buf_write (&seed, client_sid->id, SID_SIZE));
+  if (server_sid)
+      ASSERT (buf_write (&seed, server_sid->id, SID_SIZE));
+
+  /* compute PRF */
+  tls1_PRF (BPTR(&seed), BLEN(&seed), secret, secret_len, output, output_len);
+
+  buf_clear (&seed);
+  free_buf (&seed);
+}
+
+/* 
+ * Using source entropy from local and remote hosts, mix into
+ * master key.
+ */
+static bool
+generate_key_expansion (struct key_ctx_bi *key,
+			const struct key_type *key_type,
+			const struct key_source2 *key_src,
+			const struct session_id *client_sid,
+			const struct session_id *server_sid,
+			bool server)
+{
+  uint8_t master[48];
+  struct key2 key2;
+  bool ret = false;
+  int i;
+
+  CLEAR (master);
+  CLEAR (key2);
+
+  /* debugging print of source key material */
+  key_source2_print (key_src);
+
+  /* compute master secret */
+  openvpn_PRF (key_src->client.pre_master,
+	       sizeof(key_src->client.pre_master),
+	       "OpenVPN master secret",
+	       key_src->client.random1,
+	       sizeof(key_src->client.random1),
+	       key_src->server.random1,
+	       sizeof(key_src->server.random1),
+	       NULL,
+	       NULL,
+	       master,
+	       sizeof(master));
+  
+  /* compute key expansion */
+  openvpn_PRF (master,
+	       sizeof(master),
+	       "OpenVPN key expansion",
+	       key_src->client.random2,
+	       sizeof(key_src->client.random2),
+	       key_src->server.random2,
+	       sizeof(key_src->server.random2),
+	       client_sid,
+	       server_sid,
+	       (uint8_t*)key2.keys,
+	       sizeof(key2.keys));
+
+  key2.n = 2;
+
+  key2_print (&key2, key_type, "Master Encrypt", "Master Decrypt");
+
+  /* check for weak keys */
+  for (i = 0; i < 2; ++i)
+    {
+      if (!check_key (&key2.keys[i], key_type))
+	{
+	  msg (D_TLS_ERRORS, "TLS Error: Bad dynamic key generated");
+	  goto exit;
+	}
+    }
+
+  /* Initialize OpenSSL key contexts */
+
+  ASSERT (server == true || server == false);
+
+  init_key_ctx (&key->encrypt,
+		&key2.keys[(int)server],
+		key_type,
+		DO_ENCRYPT,
+		"Data Channel Encrypt");
+
+  init_key_ctx (&key->decrypt,
+		&key2.keys[1-(int)server],
+		key_type,
+		DO_DECRYPT,
+		"Data Channel Decrypt");
+
+  ret = true;
+
+ exit:
+  CLEAR (master);
+  CLEAR (key2);
+
+  return ret;
+}
+
+static void
+random_bytes_to_buf (struct buffer *buf,
+		     uint8_t *out,
+		     int outlen)
+{
+  ASSERT (RAND_bytes (out, outlen));
+  ASSERT (buf_write (buf, out, outlen));
+}
+
+static void
+key_source2_randomize_write (struct key_source2 *k2,
+			     struct buffer *buf,
+			     bool server)
+{
+  struct key_source *k = &k2->client;
+  if (server)
+    k = &k2->server;
+
+  CLEAR (*k);
+
+  if (!server)
+    random_bytes_to_buf (buf, k->pre_master, sizeof (k->pre_master));
+
+  random_bytes_to_buf (buf, k->random1, sizeof (k->random1));
+  random_bytes_to_buf (buf, k->random2, sizeof (k->random2));
+}
+
+static int
+key_source2_read (struct key_source2 *k2,
+		  struct buffer *buf,
+		  bool server)
+{
+  struct key_source *k = &k2->client;
+
+  if (!server)
+    k = &k2->server;
+
+  CLEAR (*k);
+
+  if (server)
+    {
+      if (!buf_read (buf, k->pre_master, sizeof (k->pre_master)))
+	return 0;
+    }
+
+  if (!buf_read (buf, k->random1, sizeof (k->random1)))
+    return 0;
+  if (!buf_read (buf, k->random2, sizeof (k->random2)))
+    return 0;
+
+  return 1;
+}
+
+/*
  * Macros for key_state_soft_reset & tls_process
  */
 #define ks      (&session->key[KS_PRIMARY])	/* primary key */
@@ -1255,23 +1718,23 @@ key_state_soft_reset (struct tls_session *session, time_t current)
  * This is the primary routine for processing TLS stuff inside the
  * the main event loop (see openvpn.c).  When this routine exits
  * with non-error status, it will set *wakeup to the number of seconds
- * when it wants to be called again, or 0 if it doesn't care.
+ * when it wants to be called again.
  *
- * Return value is true if we have placed a packet in *to_udp which we
+ * Return value is true if we have placed a packet in *to_link which we
  * want to send to our peer.
  */
 static bool
 tls_process (struct tls_multi *multi,
 	     struct tls_session *session,
-	     struct buffer *to_udp,
-	     struct sockaddr_in *to_udp_addr,
-	     struct udp_socket *to_udp_socket,
+	     struct buffer *to_link,
+	     struct sockaddr_in *to_link_addr,
+	     struct link_socket *to_link_socket,
 	     interval_t *wakeup,
 	     time_t current)
 {
   struct buffer *buf;
   bool state_change = false;
-  bool generated_output = false;
+  bool active = false;
 
   /* Make sure we were initialized and that we're not in an error state */
   ASSERT (ks->state != S_UNDEF);
@@ -1307,8 +1770,12 @@ tls_process (struct tls_multi *multi,
     {
       current = time (NULL);
 
-      msg (D_TLS_DEBUG, "tls_process: chg=%d ks=%s lame=%s",
-	   state_change, state_name (ks->state), state_name (ks_lame->state));
+      msg (D_TLS_DEBUG, "tls_process: chg=%d ks=%s lame=%s to_link->len=%d wakeup=%d",
+	   state_change,
+	   state_name (ks->state),
+	   state_name (ks_lame->state),
+	   to_link->len,
+	   *wakeup);
 
       state_change = false;
 
@@ -1325,7 +1792,7 @@ tls_process (struct tls_multi *multi,
 	      if (buf)
 		{
 		  ks->must_negotiate = current + session->opt->handshake_window;
-	      
+
 		  /* null buffer */
 		  reliable_mark_active_outgoing (&ks->send_reliable, buf, ks->initial_opcode);
 		  INCR_GENERATED;
@@ -1377,7 +1844,7 @@ tls_process (struct tls_multi *multi,
 		  INCR_SUCCESS;
 
 		  /* Set outgoing address for data channel packets */
-		  udp_socket_set_outgoing_addr (NULL, to_udp_socket, &ks->remote_addr);
+		  link_socket_set_outgoing_addr (NULL, to_link_socket, &ks->remote_addr);
 
 #ifdef MEASURE_TLS_HANDSHAKE_STATS
 		  show_tls_performance_stats();
@@ -1385,9 +1852,9 @@ tls_process (struct tls_multi *multi,
 		}
 	    }
 
-	  /* Reliable buffer to outgoing UDP (send up to CONTROL_SEND_ACK_MAX ACKs
+	  /* Reliable buffer to outgoing TCP/UDP (send up to CONTROL_SEND_ACK_MAX ACKs
 	     for previously received packets) */
-	  if (!to_udp->len && reliable_can_send (&ks->send_reliable, current))
+	  if (!to_link->len && reliable_can_send (&ks->send_reliable, current))
 	    {
 	      int opcode;
 	      struct buffer b;
@@ -1397,28 +1864,27 @@ tls_process (struct tls_multi *multi,
 	      b = *buf;
 	      INCR_SENT;
 
-
-	      write_control_auth (session, ks, &b, to_udp_addr, opcode,
+	      write_control_auth (session, ks, &b, to_link_addr, opcode,
 				      CONTROL_SEND_ACK_MAX, true, current);
-	      *to_udp = b;
-	      generated_output = true;
+	      *to_link = b;
+	      active = true;
 	      state_change = true;
-	      msg (D_TLS_DEBUG, "Reliable -> UDP");
+	      msg (D_TLS_DEBUG, "Reliable -> TCP/UDP");
 	      break;
 	    }
 
 #ifndef TLS_AGGREGATE_ACK
 	  /* Send 1 or more ACKs (each received control packet gets one ACK) */
-	  if (!to_udp->len && !reliable_ack_empty (&ks->rec_ack))
+	  if (!to_link->len && !reliable_ack_empty (&ks->rec_ack))
 	    {
 	      buf = &ks->ack_write_buf;
 	      ASSERT (buf_init (buf, EXTRA_FRAME (&multi->opt.frame)));
-	      write_control_auth (session, ks, buf, to_udp_addr, P_ACK_V1,
+	      write_control_auth (session, ks, buf, to_link_addr, P_ACK_V1,
 				  RELIABLE_ACK_SIZE, false, current);
-	      *to_udp = *buf;
-	      generated_output = true;
+	      *to_link = *buf;
+	      active = true;
 	      state_change = true;
-	      msg (D_TLS_DEBUG, "Dedicated ACK -> UDP");
+	      msg (D_TLS_DEBUG, "Dedicated ACK -> TCP/UDP");
 	      break;
 	    }
 #endif
@@ -1476,21 +1942,58 @@ tls_process (struct tls_multi *multi,
 	  if (!buf->len && ((ks->state == S_START && !session->opt->server) ||
 			    (ks->state == S_GOT_KEY && session->opt->server)))
 	    {
-	      struct key key;
-	      ASSERT (buf_init (buf, 0));
-	      generate_key_random (&key, &session->opt->key_type);
-	      if (!check_key (&key, &session->opt->key_type))
+	      const int optlen = strlen (session->opt->local_options) + 1;
+	      if (session->opt->key_method == 1)
 		{
-		  msg (D_TLS_ERRORS, "TLS Error: Bad encrypting key generated");
-		  goto error;
+		  struct key key;
+		  ASSERT (buf_init (buf, 0));
+		  generate_key_random (&key, &session->opt->key_type);
+		  if (!check_key (&key, &session->opt->key_type))
+		    {
+		      msg (D_TLS_ERRORS, "TLS Error: Bad encrypting key generated");
+		      goto error;
+		    }
+		  write_key (&key, &session->opt->key_type, buf);
+		  init_key_ctx (&ks->key.encrypt, &key, &session->opt->key_type,
+				DO_ENCRYPT, "Data Channel Encrypt");
+		  CLEAR (key);
+
+		  /* send local options string */
+		  ASSERT (buf_write (buf, session->opt->local_options, optlen));
 		}
-	      write_key (&key, &session->opt->key_type, buf);
-	      init_key_ctx (&ks->key.encrypt, &key, &session->opt->key_type,
-			    DO_ENCRYPT, "Data Channel Encrypt");
-	      CLEAR (key);
-	      ASSERT (buf_write
-		      (buf, session->opt->options,
-		       strlen (session->opt->options) + 1));
+	      else
+		{
+		  ASSERT (session->opt->key_method == 2);
+		  ASSERT (buf_init (buf, 0));
+
+		  /* write a uin32 0 */
+		  ASSERT (buf_write_u32 (buf, 0));
+
+		  /* write key_method */
+		  ASSERT (buf_write_u8 (buf, session->opt->key_method));
+
+		  /* write key source material */
+		  key_source2_randomize_write (&ks->key_src, buf, session->opt->server);
+
+		  /* write options string */
+		  ASSERT (optlen >= 0 && optlen < 65536);
+		  ASSERT (buf_write_u16 (buf, optlen));
+		  ASSERT (buf_write (buf, session->opt->local_options, optlen));
+
+		  if (session->opt->server)
+		    {
+		      if (!generate_key_expansion (&ks->key,
+						   &session->opt->key_type,
+						   &ks->key_src,
+						   &ks->session_id_remote,
+						   &session->session_id,
+						   true))
+			goto error;
+		      
+		      CLEAR (ks->key_src);
+		    }
+		}
+
 	      state_change = true;
 	      msg (D_TLS_DEBUG_MED, "STATE S_SENT_KEY");
 	      ks->state = S_SENT_KEY;
@@ -1502,47 +2005,117 @@ tls_process (struct tls_multi *multi,
 	      && ((ks->state == S_SENT_KEY && !session->opt->server)
 		  || (ks->state == S_START && session->opt->server)))
 	    {
-	      int status;
-	      struct key key;
-
-	      status = read_key (&key, &session->opt->key_type, buf);
-	      if (status == -1)
+	      if (session->opt->key_method == 1)
 		{
-		  msg (D_TLS_ERRORS,
-		       "TLS Error: Error reading data channel key from plaintext buffer");
-		  goto error;
+		  int status;
+		  struct key key;
+
+		  status = read_key (&key, &session->opt->key_type, buf);
+		  if (status == -1)
+		    {
+		      msg (D_TLS_ERRORS,
+			   "TLS Error: Error reading data channel key from plaintext buffer");
+		      goto error;
+		    }
+
+		  if (!check_key (&key, &session->opt->key_type))
+		    {
+		      msg (D_TLS_ERRORS, "TLS Error: Bad decrypting key received from peer");
+		      goto error;
+		    }
+
+		  ASSERT (buf->len > 0);
+
+		  /* compare received remote options string
+		     with our locally computed options string */
+		  if (!session->opt->disable_occ &&
+		      !options_cmp_equal (BPTR (buf),
+					  session->opt->remote_options, buf->len))
+		    {
+		      options_warning (BPTR (buf),
+				       session->opt->remote_options, buf->len);
+		    }
+		  buf_clear (buf);
+
+		  if (status == 1)
+		    {
+		      init_key_ctx (&ks->key.decrypt, &key, &session->opt->key_type,
+				    DO_DECRYPT, "Data Channel Decrypt");
+		    }
+		  CLEAR (key);
+
+		  if (status == 0)
+		    goto error;
 		}
-
-	      if (!check_key (&key, &session->opt->key_type))
+	      else
 		{
-		  msg (D_TLS_ERRORS, "TLS Error: Bad decrypting key received from peer");
-		  goto error;
-		}
+		  int key_method;
+		  int status;
+		  int optlen;
 
-	      ASSERT (buf->len > 0);
-	      if (!session->opt->disable_occ &&
-		  !options_cmp_equal ((const char *)BPTR (buf),
-				      session->opt->options, buf->len))
-		{
-		  msg (D_TLS_ERRORS | M_WARN,
-		       "WARNING: TLS Error: Local ('%s') and Remote ('%s') options are incompatible -- NOTE: use --disable-occ to suppress this error",
-		       session->opt->options, BPTR (buf));
-#if 0
-		  /* enable this line to make options incompatibility
-		     a handshake-fatal error */
+		  ASSERT (session->opt->key_method >= 2);
 		  status = 0;
-#endif
-		}
-	      buf_clear (buf);
+		  
+		  /* discard leading uint32 */
+		  ASSERT (buf_advance (buf, 4));
 
-	      if (status == 1)
-		{
-		  init_key_ctx (&ks->key.decrypt, &key, &session->opt->key_type,
-				DO_DECRYPT, "Data Channel Decrypt");
+		  /* get key method */
+		  key_method = buf_read_u8 (buf);
+		  if (key_method != 2)
+		    {
+		      msg (D_TLS_ERRORS,
+			   "TLS ERROR: Unknown key_method=%d received from remote host",
+			   key_method);
+		      goto error;
+		    }
+		  
+		  /* get key source material (not actual keys yet) */
+		  if (!key_source2_read (&ks->key_src, buf, session->opt->server))
+		    {
+		      msg (D_TLS_ERRORS, "TLS Error: Error reading remote data channel key source entropy from plaintext buffer");
+		      goto error;
+		    }
+
+		  /* get options */
+		  optlen = buf_read_u16 (buf);
+		  if (optlen < 0 || optlen >= 65536)
+		    {
+		      msg (D_TLS_ERRORS, "TLS Error: Bad options string length: %d", optlen);
+		      goto error;
+		    }
+
+		  if (BLEN(buf) < optlen)
+		    {
+		      msg (D_TLS_ERRORS, "TLS Error: Options string truncation");
+		      goto error;
+		    }
+
+		  /* check options consistency */
+
+		  if (!session->opt->disable_occ &&
+		      !options_cmp_equal (BPTR (buf),
+					  session->opt->remote_options, buf->len))
+		    {
+		      options_warning (BPTR (buf),
+				       session->opt->remote_options, buf->len);
+		    }
+
+		  buf_clear (buf);
+
+		  if (!session->opt->server)
+		    {
+		      if (!generate_key_expansion (&ks->key,
+						   &session->opt->key_type,
+						   &ks->key_src,
+						   &session->session_id,
+						   &ks->session_id_remote,
+						   false))
+			goto error;
+		      
+		      CLEAR (ks->key_src);
+		    }
 		}
-	      CLEAR (key);
-	      if (status == 0)
-		goto error;
+
 	      state_change = true;
 	      msg (D_TLS_DEBUG_MED, "STATE S_GOT_KEY");
 	      ks->state = S_GOT_KEY;
@@ -1576,7 +2149,7 @@ tls_process (struct tls_multi *multi,
 		  if (status == -1)
 		    {
 		      msg (D_TLS_ERRORS,
-			   "TLS Error: Ciphertext -> reliable UDP transport read error");
+			   "TLS Error: Ciphertext -> reliable TCP/UDP transport read error");
 		      goto error;
 		    }
 		  if (status == 1)
@@ -1597,16 +2170,16 @@ tls_process (struct tls_multi *multi,
 
 #ifdef TLS_AGGREGATE_ACK
   /* Send 1 or more ACKs (each received control packet gets one ACK) */
-  if (!to_udp->len && !reliable_ack_empty (&ks->rec_ack))
+  if (!to_link->len && !reliable_ack_empty (&ks->rec_ack))
     {
       buf = &ks->ack_write_buf;
       ASSERT (buf_init (buf, EXTRA_FRAME (&multi->opt.frame)));
-      write_control_auth (session, ks, buf, to_udp_addr, P_ACK_V1,
+      write_control_auth (session, ks, buf, to_link_addr, P_ACK_V1,
 			  RELIABLE_ACK_SIZE, false, current);
-      *to_udp = *buf;
-      generated_output = true;
+      *to_link = *buf;
+      active = true;
       state_change = true;
-      msg (D_TLS_DEBUG, "Dedicated ACK -> UDP");
+      msg (D_TLS_DEBUG, "Dedicated ACK -> TCP/UDP");
     }
 #endif
 
@@ -1614,19 +2187,30 @@ tls_process (struct tls_multi *multi,
   {
     if (ks->state >= S_INITIAL && ks->state < S_NORMAL)
       {
-	compute_earliest_wakeup (wakeup, reliable_send_timeout (&ks->send_reliable, current));
+	compute_earliest_wakeup (wakeup,
+	  reliable_send_timeout (&ks->send_reliable, current));
 	
 	if (ks->must_negotiate)
 	  compute_earliest_wakeup (wakeup, ks->must_negotiate - current);
       }
 
     if (ks->established && session->opt->renegotiate_seconds)
-      compute_earliest_wakeup (wakeup, ks->established + session->opt->renegotiate_seconds - current);
+      compute_earliest_wakeup (wakeup,
+        ks->established + session->opt->renegotiate_seconds - current);
 
-    if (*wakeup)
-      msg (D_TLS_DEBUG, "tls_process: timeout set to %d", *wakeup);
+    /* prevent event-loop spinning by setting minimum wakeup of 1 second */
+    if (*wakeup <= 0)
+      {
+	*wakeup = 1;
 
-    return generated_output;
+	/* if we had something to send to remote, but to_link was busy,
+	   let caller know we need to be called again soon */
+	active = true;
+      }
+
+    msg (D_TLS_DEBUG, "tls_process: timeout set to %d", *wakeup);
+
+    return active;
   }
 
 error:
@@ -1648,14 +2232,14 @@ error:
 
 bool
 tls_multi_process (struct tls_multi *multi,
-		   struct buffer *to_udp,
-		   struct sockaddr_in *to_udp_addr,
-		   struct udp_socket *to_udp_socket,
+		   struct buffer *to_link,
+		   struct sockaddr_in *to_link_addr,
+		   struct link_socket *to_link_socket,
 		   interval_t *wakeup,
 		   time_t current)
 {
   int i;
-  bool generated_output = false;
+  bool active = false;
 
   mutex_lock (L_TLS);
 
@@ -1671,8 +2255,9 @@ tls_multi_process (struct tls_multi *multi,
       struct key_state *ks_lame = &session->key[KS_LAME_DUCK];
 
       /* set initial remote address */
-      if (i == TM_ACTIVE && ks->state == S_INITIAL && addr_defined (&to_udp_socket->addr->actual))
-	ks->remote_addr = to_udp_socket->addr->actual;
+      if (i == TM_ACTIVE && ks->state == S_INITIAL &&
+	  addr_defined (&to_link_socket->lsa->actual))
+	ks->remote_addr = to_link_socket->lsa->actual;
 
       msg (D_TLS_DEBUG,
 	   "tls_multi_process: i=%d state=%s, mysid=%s, stored-sid=%s, stored-ip=%s",
@@ -1686,8 +2271,9 @@ tls_multi_process (struct tls_multi *multi,
 	{
 	  current = time (NULL);
 
-	  if (tls_process (multi, session, to_udp, to_udp_addr, to_udp_socket, wakeup, current))
-	    generated_output = true;
+	  if (tls_process (multi, session, to_link, to_link_addr,
+			   to_link_socket, wakeup, current))
+	    active = true;
 
 	  /*
 	   * If tls_process hits an error:
@@ -1696,6 +2282,7 @@ tls_multi_process (struct tls_multi *multi,
 	   */
 	  if (ks->state == S_ERROR)
 	    {
+	      ++multi->n_errors;
 	      if (i == TM_ACTIVE && ks_lame->state >= S_ACTIVE)
 		move_session (multi, TM_LAME_DUCK, TM_ACTIVE, true);
 	      else
@@ -1726,7 +2313,7 @@ tls_multi_process (struct tls_multi *multi,
 
   mutex_unlock (L_TLS);
 
-  return generated_output;
+  return active;
 }
 
 /*
@@ -1754,6 +2341,7 @@ thread_func (void *arg)
 {
   const int gc_level = gc_new_level ();
   const struct thread_parms *parm = (struct thread_parms*) arg;
+  struct buffer buf;
 
 #if 0
   /*
@@ -1769,96 +2357,87 @@ thread_func (void *arg)
   /* change thread priority if requested */
   set_nice (parm->nice);
 
+  /* buffer used to receive data from SSL/TLS */
+  CLEAR (buf);
+
   /* event loop */
   while (true)
     {
-      int stat;
-      interval_t wakeup;
+      int stat, fatal;
       struct tt_ret ret;
-      struct buffer buf;
-      fd_set reads;
+      fd_set reads, writes;
+      struct timeval tv;
+
+      time_t current = time (NULL);
+      interval_t wakeup = TLS_MULTI_REFRESH;
 
       msg (D_TLS_THREAD_DEBUG, "TLS_THREAD: thread event loop");
 
-      /*
-       * Call tls_multi_process repeatedly as long
-       * as it has data to forward to the UDP port.
-       */
-      do {	
-	time_t current = time (NULL);
-	
-	CLEAR (ret);
-	CLEAR (buf);
-	wakeup = TLS_MULTI_REFRESH;   /* maximum timeout */
-
-	/* do one SSL/TLS process pass */
-	if (tls_multi_process (parm->multi, &buf, &ret.to_udp_addr,
-			       parm->udp_socket, &wakeup, current))
-	  {
-	    /* wait for foreground thread to be ready to accept data */
-	    {
-	      fd_set writes;
-	      struct timeval tv;
-	      tv.tv_sec = TLS_MULTI_THREAD_SEND_TIMEOUT;
-	      tv.tv_usec = 0;
-	      FD_ZERO (&writes);
-	      FD_SET (parm->sd[TLS_THREAD_WORKER], &writes);
-	      stat = select (parm->sd[TLS_THREAD_WORKER] + 1, NULL, &writes, NULL, &tv);
-	      if (!stat) /* timeout? */
-		break;
-	    }
-
-	    /* make a fresh copy of buf in ret */
-	    ret.to_udp = clone_buf (&buf);
-
-	    /* send buffer to foreground where it will be forwarded to remote */
-	    {
-	      int fatal;
-
-	      stat = write (parm->sd[TLS_THREAD_WORKER], &ret, sizeof (ret));
-	      fatal = local_sock_fatal (stat);
-	      check_status (stat, "write to foreground", NULL);
-	      if (stat < 0)
-		free_buf (&ret.to_udp);
-	      if (fatal)
-		goto exit;
-	      msg (D_TLS_THREAD_DEBUG, "TLS_THREAD: write to TLS_THREAD_WORKER");
-	    }
-	  }
-      } while (ret.to_udp.len);
-
+      CLEAR (ret);
+  
       /* do a quick garbage collect */
       gc_collect (gc_level);
 
-      /* wait on select */
-      {
-	struct timeval tv;
-	tv.tv_sec = wakeup;
-	tv.tv_usec = 0;
-	FD_ZERO (&reads);
-	FD_SET (parm->sd[TLS_THREAD_WORKER], &reads);
-	stat = select (parm->sd[TLS_THREAD_WORKER] + 1, &reads, NULL, NULL, &tv);
+      /* do one SSL/TLS process pass */
+      tls_multi_process (parm->multi, &buf, &ret.to_link_addr,
+			 parm->link_socket, &wakeup, current);
 
-	/* received a message from foreground */
-	check_status (stat, "select", NULL);
-      }
+      /* determine events to wait for */
+      FD_ZERO (&writes);
+      FD_ZERO (&reads);
 
-      /* timeout? */
-      if (!stat)
+      /* did tls_multi_process give us a buffer to forward
+	 to foreground thread, on this or previous event
+	 loop pass? */
+      if (buf.len)
+	FD_SET (parm->sd[TLS_THREAD_WORKER], &writes);
+
+      /* always wait for incoming commands from foreground thread */
+      FD_SET (parm->sd[TLS_THREAD_WORKER], &reads);
+
+      /* set select timeout */
+      tv.tv_sec = wakeup;
+      tv.tv_usec = 0;
+
+      msg (D_SELECT, "THREAD SELECT %s|%s %d/%d",
+	   FD_ISSET (parm->sd[TLS_THREAD_WORKER], &reads) ?   "FR" : "fr", 
+	   FD_ISSET (parm->sd[TLS_THREAD_WORKER], &writes) ?  "FW" : "fw", 
+	   (int)tv.tv_sec,
+	   (int)tv.tv_usec);
+
+      stat = select (parm->sd[TLS_THREAD_WORKER] + 1, &reads, &writes, NULL, &tv);
+      check_status (stat, "thread select", NULL, NULL);
+      if (!stat) /* timeout? */
 	continue;
 
-      /* process message(s) from foreground */
-      if (stat > 0 && FD_ISSET (parm->sd[TLS_THREAD_WORKER], &reads))
+      /* send buffer to foreground */
+      if (FD_ISSET (parm->sd[TLS_THREAD_WORKER], &writes))
 	{
-	  int err;
+	  ASSERT (buf.len);
+
+	  /* make a fresh copy of buf in ret, and release buf */
+	  ret.to_link = clone_buf (&buf);
+	  CLEAR (buf);
+
+	  /* send buffer to foreground where it will be forwarded to remote */
+	  stat = write (parm->sd[TLS_THREAD_WORKER], &ret, sizeof (ret));
+	  fatal = local_sock_fatal (stat);
+	  check_status (stat, "write to foreground", NULL, NULL);
+	  if (stat < 0)
+	    free_buf (&ret.to_link);
+	  if (fatal)
+	    goto exit;
+	}
+
+      /* get command from foreground */
+      if (FD_ISSET (parm->sd[TLS_THREAD_WORKER], &reads))
+	{
 	  do {
 	    struct tt_cmd tc;
-	    int fatal;
 
 	    stat = read (parm->sd[TLS_THREAD_WORKER], &tc, sizeof (tc));
-	    err = errno;
 	    fatal = local_sock_fatal (stat);
-	    check_status (stat, "read from foreground", NULL);
+	    check_status (stat, "read from foreground", NULL, NULL);
 	    if (stat == sizeof (tc))
 	      {
 		if (tc.cmd == TTCMD_PROCESS)
@@ -1878,7 +2457,9 @@ thread_func (void *arg)
 	  } while (stat > 0);
 	}
     }
+
  exit:
+  msg (D_TLS_THREAD_DEBUG, "TLS_THREAD: exiting");
   close (parm->sd[TLS_THREAD_WORKER]);
   gc_free_level (gc_level);
   return NULL;
@@ -1912,7 +2493,7 @@ tls_thread_send_command (struct thread_parms *state, int cmd, bool wait_if_neces
 	break;
     }
   fatal = local_sock_fatal (stat);
-  check_status (stat, "write command to tls thread", NULL);
+  check_status (stat, "write command to tls thread", NULL, NULL);
   if (stat == sizeof (tc))
     return 1;
   else if (fatal)
@@ -1927,12 +2508,12 @@ tls_thread_send_command (struct thread_parms *state, int cmd, bool wait_if_neces
 void
 tls_thread_create (struct thread_parms *state,
 		   struct tls_multi *multi,
-		   struct udp_socket *udp_socket,
+		   struct link_socket *link_socket,
 		   int nice, bool mlock)
 {
   CLEAR (*state);
   state->multi = multi;
-  state->udp_socket = udp_socket;
+  state->link_socket = link_socket;
   state->nice = nice;
   state->mlock = mlock;
 
@@ -1969,7 +2550,7 @@ tls_thread_flush (struct thread_parms *state)
   struct tt_ret ttr;
   while (tls_thread_rec_buf (state, &ttr, false) == 1)
     {
-      free_buf (&ttr.to_udp);
+      free_buf (&ttr.to_link);
     }
 }
 
@@ -1988,7 +2569,7 @@ tls_thread_close (struct thread_parms *state)
 /*
  * Receive an object from the TLS thread which
  * normally contains a buffer to be sent to
- * the remote peer over the UDP port.
+ * the remote peer over the TCP/UDP port.
  *
  * Return:
  *  1 if ok
@@ -2004,7 +2585,7 @@ tls_thread_rec_buf (struct thread_parms *state, struct tt_ret* ttr, bool do_chec
   stat = read (state->sd[TLS_THREAD_MAIN], ttr, sizeof (*ttr));
   fatal = local_sock_fatal (stat);
   if (do_check_status)
-    check_status (stat, "read buffer from tls thread", NULL);
+    check_status (stat, "read buffer from tls thread", NULL, NULL);
   if (stat == sizeof (*ttr))
     return 1;
   else if (fatal)
@@ -2017,7 +2598,7 @@ tls_thread_rec_buf (struct thread_parms *state, struct tt_ret* ttr, bool do_chec
 
 /*
  * Pre and post-process the encryption & decryption buffers in order
- * to implement a multiplexed TLS channel over the UDP port.
+ * to implement a multiplexed TLS channel over the TCP/UDP port.
  */
 
 /*
@@ -2074,11 +2655,11 @@ tls_pre_decrypt (struct tls_multi *multi,
 	      struct key_state *ks = multi->key_scan[i];
 	      if (DECRYPT_KEY_ENABLED (multi, ks)
 		  && key_id == ks->key_id
-		  && addr_match(from, &ks->remote_addr))
+		  && addr_port_match(from, &ks->remote_addr))
 		{
 		  /* return appropriate data channel decrypt key in opt */
 		  opt->key_ctx_bi = &ks->key;
-		  opt->packet_id = multi->opt.packet_id ? &ks->packet_id : NULL;
+		  opt->packet_id = multi->opt.replay ? &ks->packet_id : NULL;
 		  opt->pid_persist = NULL;
 		  opt->packet_id_long_form = multi->opt.packet_id_long_form;
 		  ASSERT (buf_advance (buf, 1));
@@ -2094,6 +2675,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 	  msg (D_TLS_ERRORS,
 	       "TLS Error: Unknown data channel key ID or IP address received from %s: %d",
 	       print_sockaddr (from), key_id);
+	  goto error;
 	}
       else			  /* control channel packet */
 	{
@@ -2107,20 +2689,20 @@ tls_pre_decrypt (struct tls_multi *multi,
 	      msg (D_TLS_ERRORS,
 		   "TLS Error: unknown opcode received from %s op=%d",
 		   print_sockaddr (from), op);
-	      goto done;
+	      goto error;
 	    }
 
 	  /* hard reset ? */
-	  if (HARD_RESET(op))
+	  if (is_hard_reset (op, 0))
 	    {
 	      /* verify client -> server or server -> client connection */
-	      if ((op == P_CONTROL_HARD_RESET_CLIENT_V1 && !multi->opt.server) ||
-		  (op == P_CONTROL_HARD_RESET_SERVER_V1 && multi->opt.server))
+	      if (((op == P_CONTROL_HARD_RESET_CLIENT_V1 || op == P_CONTROL_HARD_RESET_CLIENT_V2) && !multi->opt.server) ||
+		  ((op == P_CONTROL_HARD_RESET_SERVER_V1 || op == P_CONTROL_HARD_RESET_SERVER_V2) && multi->opt.server))
 		{
 		  msg (D_TLS_ERRORS,
 		       "TLS Error: client->client or server->server connection attempted from %s",
 		       print_sockaddr (from));
-		  goto done;
+		  goto error;
 		}
 	    }
 
@@ -2139,7 +2721,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 		msg (D_TLS_ERRORS,
 		     "TLS Error: session-id not found in packet from %s",
 		     print_sockaddr (from));
-		goto done;
+		goto error;
 	      }
 	  }
 
@@ -2166,7 +2748,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 		    msg (D_TLS_ERRORS,
 			 "TLS ERROR: received control packet with stale session-id=%s",
 			 session_id_print (&sid));
-		    goto done;
+		    goto error;
 		  }
 		  msg (D_TLS_DEBUG,
 		       "tls_pre_decrypt: found match, session[%d], sid=%s",
@@ -2180,23 +2762,33 @@ tls_pre_decrypt (struct tls_multi *multi,
 	   * we sent an initial packet
 	   */
 
-	  if (i == TM_SIZE && HARD_RESET(op))
+	  if (i == TM_SIZE && is_hard_reset (op, 0))
 	    {
 	      struct tls_session *session = &multi->session[TM_ACTIVE];
 	      struct key_state *ks = &session->key[KS_PRIMARY];
 
+	      if (!is_hard_reset (op, multi->opt.key_method))
+		{
+		  msg (D_TLS_ERRORS, "TLS ERROR: first response local/remote key_method mismatch, local key_method=%d, op=%s",
+		       multi->opt.key_method,
+		       packet_opcode_name (op));
+		  goto error;
+		}
+
 	      if (!session_id_defined (&ks->session_id_remote))
 		{
 		  msg (D_TLS_DEBUG_LOW,
-		       "TLS: tls_pre_decrypt: first response to initial packet sid=%s",
+		       "TLS: tls_pre_decrypt: first response to initial packet from %s, sid=%s",
+		       print_sockaddr (from),
 		       session_id_print (&sid));
 		  do_burst = true;
 		  new_link = true;
 		  i = TM_ACTIVE;
+		  setenv_sockaddr ("untrusted", from);
 		}
 	    }
 
-	  if (i == TM_SIZE && HARD_RESET(op))
+	  if (i == TM_SIZE && is_hard_reset (op, 0))
 	    {
 	      /*
 	       * No match with existing sessions,
@@ -2204,11 +2796,19 @@ tls_pre_decrypt (struct tls_multi *multi,
 	       */
 	      struct tls_session *session = &multi->session[TM_UNTRUSTED];
 
+	      if (!is_hard_reset (op, multi->opt.key_method))
+		{
+		  msg (D_TLS_ERRORS, "TLS ERROR: new session local/remote key_method mismatch, local key_method=%d, op=%s",
+		       multi->opt.key_method,
+		       packet_opcode_name (op));
+		  goto error;
+		}
+
 	      if (!read_control_auth (buf, &session->tls_auth, from, current))
-		goto done;
+		goto error;
 
 	      /*
-	       * New session-initiating control packet is authenticated at this point
+	       * New session-initiating control packet is authenticated at this point,
 	       * assuming that the --tls-auth command line option was used.
 	       *
 	       * Without --tls-auth, we leave authentication entirely up to TLS.
@@ -2219,6 +2819,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 
 	      new_link = true;
 	      i = TM_UNTRUSTED;
+	      setenv_sockaddr ("untrusted", from);
 	    }
 	  else
 	    {
@@ -2235,17 +2836,17 @@ tls_pre_decrypt (struct tls_multi *multi,
 		       print_sockaddr (from),
 		       i,
 		       packet_opcode_name (op));
-		  goto done;
+		  goto error;
 		}
 
 	      /*
 	       * Verify remote IP address
 	       */
-	      if (!new_link && !addr_match (&ks->remote_addr, from))
+	      if (!new_link && !addr_port_match (&ks->remote_addr, from))
 		{
 		  msg (D_TLS_ERRORS, "TLS Error: Received control packet from unexpected IP addr: %s",
 		      print_sockaddr (from));
-		  goto done;
+		  goto error;
 		}
 
 	      /*
@@ -2255,7 +2856,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 		  && DECRYPT_KEY_ENABLED (multi, ks))
 		{
 		  if (!read_control_auth (buf, &session->tls_auth, from, current))
-		    goto done;
+		    goto error;
 
 		  key_state_soft_reset (session, current);
 
@@ -2272,7 +2873,8 @@ tls_pre_decrypt (struct tls_multi *multi,
 		    do_burst = true;
 
 		  if (!read_control_auth (buf, &session->tls_auth, from, current))
-		    goto done;
+		    goto error;
+
 		  msg (D_TLS_DEBUG,
 		       "tls_pre_decrypt: received control channel packet s#=%d sid=%s",
 		       i, session_id_print (&sid));
@@ -2287,7 +2889,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 	      msg (D_TLS_ERRORS,
 		   "TLS Error: Cannot accept new session request from %s due to --single-session",
 		   print_sockaddr (from));
-	      goto done;
+	      goto error;
 	    }
 
 	  /*
@@ -2316,12 +2918,12 @@ tls_pre_decrypt (struct tls_multi *multi,
 		ks->remote_addr = *from;
 		++multi->n_sessions;
 	      }
-	    else if (!addr_match (&ks->remote_addr, from))
+	    else if (!addr_port_match (&ks->remote_addr, from))
 	      {
 		msg (D_TLS_ERRORS,
 		     "TLS Error: Existing session control channel packet from unknown IP address: %s",
 		     print_sockaddr (from));
-		goto done;
+		goto error;
 	      }
 
 	    /*
@@ -2341,7 +2943,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 		msg (D_TLS_ERRORS,
 		     "TLS ERROR: local/remote key IDs out of sync (%d/%d) ID: %s",
 		     ks->key_id, key_id, print_key_id (multi));
-		goto done;
+		goto error;
 	      }
 	      
 	    /*
@@ -2357,12 +2959,11 @@ tls_pre_decrypt (struct tls_multi *multi,
 		{
 		  msg (D_TLS_ERRORS,
 		       "TLS Error: reading acknowledgement record from packet");
-		  goto done;
+		  goto error;
 		}
 	      reliable_send_purge (&ks->send_reliable, &send_ack);
 	    }
 
-	    /* Process incoming packet ID and payload */
 	    if (op != P_ACK_V1 && reliable_can_get (&ks->rec_reliable))
 	      {
 		packet_id_type id;
@@ -2390,6 +2991,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 	  }
 	}
     }
+
  done:
   buf->len = 0;
   opt->key_ctx_bi = NULL;
@@ -2397,6 +2999,10 @@ tls_pre_decrypt (struct tls_multi *multi,
   opt->pid_persist = NULL;
   opt->packet_id_long_form = false;
   return ret;
+
+ error:
+  ++multi->n_errors;
+  goto done;
 }
 
 /* Choose the key with which to encrypt a data packet */
@@ -2414,7 +3020,7 @@ tls_pre_encrypt (struct tls_multi *multi,
 	  if (ks->state >= S_ACTIVE)
 	    {
 	      opt->key_ctx_bi = &ks->key;
-	      opt->packet_id = multi->opt.packet_id ? &ks->packet_id : NULL;
+	      opt->packet_id = multi->opt.replay ? &ks->packet_id : NULL;
 	      opt->pid_persist = NULL;
 	      opt->packet_id_long_form = multi->opt.packet_id_long_form;
 	      multi->save_ks = ks;
@@ -2433,7 +3039,7 @@ tls_pre_encrypt (struct tls_multi *multi,
   opt->packet_id_long_form = false;
 }
 
-/* Prepend the appropriate opcode to encrypted buffer prior to UDP send */
+/* Prepend the appropriate opcode to encrypted buffer prior to TCP/UDP send */
 void
 tls_post_encrypt (struct tls_multi *multi, struct buffer *buf)
 {

@@ -37,6 +37,11 @@ typedef unsigned long counter_type;
 typedef int interval_t;
 
 /*
+ * Used as an upper bound for timeouts.
+ */
+#define BIG_TIMEOUT  (60*60*24*365)  /* one year (in seconds) */
+
+/*
  * Printf formats for special types
  */
 #define counter_format          "%10lu"
@@ -47,71 +52,5 @@ typedef int interval_t;
 /* these are used to cast the arguments
  * and MUST match the formats above */
 typedef unsigned long time_type;
-
-/*
- * Functions used for circular buffer index arithmetic.
- */
-
-/*
- * Return x - y on a circle of circumference mod by shortest path.
- *
- * 0 <= x < mod
- * 0 <= y < mod
- */
-static inline int
-modulo_subtract(int x, int y, int mod)
-{
-  const int d1 = x - y;
-  const int d2 = (x > y ? -mod : mod) + d1;
-  return abs(d1) > abs(d2) ? d2 : d1;
-}
-
-/*
- * Return x + y on a circle of circumference mod.
- *
- * 0 <= x < mod
- * -mod <= y <= mod
- */
-static inline int
-modulo_add(int x, int y, int mod)
-{
-  int sum = x + y;
-  if (sum >= mod)
-    sum -= mod;
-  if (sum < 0)
-    sum += mod;
-  return sum;
-}
-
-static inline int
-max_int (int x, int y)
-{
-  if (x > y)
-    return x;
-  else
-    return y;
-}
-
-static inline int
-min_int (int x, int y)
-{
-  if (x < y)
-    return x;
-  else
-    return y;
-}
-
-static inline int
-constrain_int (int x, int min, int max)
-{
-  if (min > max)
-    return min;
-  if (x < min)
-    return min;
-  else if (x > max)
-    return max;
-  else
-    return x;
-}
 
 #endif

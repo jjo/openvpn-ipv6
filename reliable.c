@@ -260,29 +260,6 @@ reliable_empty (const struct reliable *rel)
   return true;
 }
 
-/* in how many seconds should we wake up to check for timeout */
-/* if we return 0, nothing to wait for */
-interval_t
-reliable_send_timeout (const struct reliable *rel, time_t current)
-{
-  interval_t ret = 0;
-  int i;
-
-  for (i = 0; i < rel->size; ++i)
-    {
-      const struct reliable_entry *e = &rel->array[i];
-      if (e->active && e->next_try)
-	{
-	  interval_t wake = e->next_try - current;
-	  if (wake < 1)
-	    wake = 1;
-	  if (!ret || wake < ret)
-	    ret = wake;
-	}
-    }
-  return ret;
-}
-
 /* del acknowledged items from send buf */
 void
 reliable_send_purge (struct reliable *rel, struct reliable_ack *ack)
@@ -302,8 +279,11 @@ reliable_send_purge (struct reliable *rel, struct reliable_ack *ack)
 #if 0
 	      /* DEBUGGING -- how close were we timing out on ACK failure and resending? */
 	      {
-		const int wake = e->next_try - time(NULL);
-		msg (M_INFO, "ACK " packet_id_format ", wake=%d", pid, wake);
+		if (e->next_try)
+		  {
+		    const interval_t wake = e->next_try - time(NULL);
+		    msg (M_INFO, "ACK " packet_id_format ", wake=%d", pid, wake);
+		  }
 	      }
 #endif
 	      e->active = false;
@@ -341,7 +321,7 @@ reliable_can_get (const struct reliable *rel)
       if (!e->active)
 	return true;
     }
-  msg (D_REL_DEBUG, "ACK no free receive buffer available: %s", reliable_print_ids (rel));
+  msg (D_REL_LOW, "ACK no free receive buffer available: %s", reliable_print_ids (rel));
   return false;
 }
 
@@ -375,7 +355,7 @@ reliable_wont_break_sequentiality (const struct reliable *rel, packet_id_type id
     }
   else
     {
-      msg (D_REL_DEBUG, "ACK " packet_id_format " breaks sequentiality: %s",
+      msg (D_REL_LOW, "ACK " packet_id_format " breaks sequentiality: %s",
 	   (packet_id_print_type)id, reliable_print_ids (rel));
       return false;
     }
@@ -426,7 +406,7 @@ reliable_get_buf_output_sequenced (struct reliable *rel)
     }
   else
     {
-      msg (D_REL_DEBUG, "ACK output sequence broken: %s", reliable_print_ids (rel));
+      msg (D_REL_LOW, "ACK output sequence broken: %s", reliable_print_ids (rel));
       return NULL;
     }
 }
@@ -452,13 +432,22 @@ bool
 reliable_can_send (const struct reliable *rel, time_t current)
 {
   int i;
+  int n_active = 0, n_current = 0;
   for (i = 0; i < rel->size; ++i)
     {
       const struct reliable_entry *e = &rel->array[i];
-      if (e->active && current >= e->next_try)
-	return true;
+      if (e->active)
+	{
+	  ++n_active;
+	  if (current >= e->next_try)
+	    ++n_current;
+	}
     }
-  return false;
+  msg (D_REL_DEBUG, "ACK reliable_can_send active=%d current=%d : %s",
+       n_active,
+       n_current,
+       reliable_print_ids (rel));
+  return n_current > 0;
 }
 
 /* return a unique point-in-time to trigger retry */
@@ -508,7 +497,8 @@ reliable_send (struct reliable *rel, int *opcode, time_t current)
 #endif
       *opcode = best->opcode;
       msg (D_REL_DEBUG, "ACK reliable_send ID " packet_id_format " (size=%d to=%d)",
-	   (packet_id_print_type)best->packet_id, best->buf.len, (int)(best->next_try - current));
+	   (packet_id_print_type)best->packet_id, best->buf.len,
+	   (int)(best->next_try - current));
       return &best->buf;
     }
   return NULL;
@@ -529,6 +519,37 @@ reliable_schedule_now (struct reliable *rel, time_t current)
 	  e->timeout = rel->initial_timeout;
 	}
     }
+}
+
+/* in how many seconds should we wake up to check for timeout */
+/* if we return BIG_TIMEOUT, nothing to wait for */
+interval_t
+reliable_send_timeout (const struct reliable *rel, time_t current)
+{
+  interval_t ret = BIG_TIMEOUT;
+  int i;
+
+  for (i = 0; i < rel->size; ++i)
+    {
+      const struct reliable_entry *e = &rel->array[i];
+      if (e->active)
+	{
+	  if (e->next_try <= current)
+	    {
+	      ret = 0;
+	      break;
+	    }
+	  else
+	    {
+	      ret = min_int (ret, e->next_try - current);
+	    }
+	}
+    }
+  msg (D_REL_DEBUG, "ACK reliable_send_timeout %d %s",
+       (int) ret,
+       reliable_print_ids (rel));
+
+  return ret;
 }
 
 /*

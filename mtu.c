@@ -1,6 +1,6 @@
 /*
  *  OpenVPN -- An application to securely tunnel IP networks
- *             over a single UDP port, with support for SSL/TLS-based
+ *             over a single TCP/UDP port, with support for SSL/TLS-based
  *             session authentication and key exchange,
  *             packet encryption, packet authentication, and
  *             packet compression.
@@ -35,29 +35,27 @@
 #include "buffer.h"
 #include "mtu.h"
 #include "error.h"
+#include "integer.h"
 
 #include "memdbg.h"
 
 void
 frame_finalize (struct frame *frame,
-		bool udp_mtu_defined,
-		int udp_mtu,
+		bool link_mtu_defined,
+		int link_mtu,
 		bool tun_mtu_defined,
-		int tun_mtu,
-		bool udp_mtu_min_defined,
-		int udp_mtu_min,
-		bool udp_mtu_max_defined,
-		int udp_mtu_max)
+		int tun_mtu)
 {
-  /* Set udp_mtu based on command line options */
+  /* Set link_mtu based on command line options */
   if (tun_mtu_defined)
     {
-      frame->udp_mtu = tun_mtu + TUN_UDP_DELTA (frame);
+      ASSERT (!link_mtu_defined);
+      frame->link_mtu = tun_mtu + TUN_LINK_DELTA (frame);
     }
   else
     {
-      ASSERT (udp_mtu_defined);
-      frame->udp_mtu = udp_mtu;
+      ASSERT (link_mtu_defined);
+      frame->link_mtu = link_mtu;
     }
 
   if (TUN_MTU_SIZE (frame) < TUN_MTU_MIN)
@@ -66,100 +64,36 @@ frame_finalize (struct frame *frame,
       frame_print (frame, M_FATAL, "MTU is too small");
     }
 
-  /*
-   * Sets a range for the dynamic mtu value.
-   * Requires call to frame_dynamic_finalize to finalize.
-   */
-  if (udp_mtu_min_defined)
-    frame->dynamic.mtu_min_initial = udp_mtu_min;
-  else
-    frame->dynamic.mtu_min_initial = MTU_INITIAL_UNDEF;
-
-  if (udp_mtu_max_defined)
-    frame->dynamic.mtu_max_initial = udp_mtu_max;
-  else
-    frame->dynamic.mtu_max_initial = MTU_INITIAL_UNDEF;
-
-  if (udp_mtu_min_defined && udp_mtu_max_defined && udp_mtu_min > udp_mtu_max)
-    frame_print (frame, M_FATAL, "Dynamic MTU min is larger than dynamic MTU max");
-
-  frame_set_mtu_dynamic (frame, MTU_SET_TO_MAX);
-  frame_dynamic_finalize (frame);
+  frame->link_mtu_dynamic = frame->link_mtu;
 }
 
 /*
- * struct frame_dynamic has two types of parameters: source parameters and derived parameters.
- * This function sets the derived parameters based on the source parameters.
+ * Set the tun MTU dynamically.
  */
 void
-frame_dynamic_finalize (struct frame *frame)
+frame_set_mtu_dynamic (struct frame *frame, int mtu, unsigned int flags)
 {
-  const int lower_bound = TUN_MTU_MIN + TUN_UDP_DELTA (frame);
-  const int upper_bound = max_int (lower_bound, frame->udp_mtu);
+  const int orig_mtu = mtu;
+  const int orig_link_mtu_dynamic = frame->link_mtu_dynamic;
 
-  if (frame->dynamic.mtu_min_initial == MTU_INITIAL_UNDEF)
-    frame->dynamic.mtu_min = lower_bound;
-  else
-    frame->dynamic.mtu_min = constrain_int (frame->dynamic.mtu_min_initial, lower_bound, upper_bound);
-  
-  if (frame->dynamic.mtu_max_initial == MTU_INITIAL_UNDEF)
-    frame->dynamic.mtu_max = upper_bound;
-  else
-    frame->dynamic.mtu_max = max_int (frame->dynamic.mtu_min,
-				      constrain_int (frame->dynamic.mtu_max_initial, lower_bound, upper_bound));
+  ASSERT (mtu >= 0);
 
-  if (frame->dynamic.mtu_initial == MTU_SET_TO_MIN)
-    frame->dynamic.mtu = frame->dynamic.mtu_min;
-  else if (frame->dynamic.mtu_initial == MTU_SET_TO_MAX)
-    frame->dynamic.mtu = frame->dynamic.mtu_max;
-  else
-    frame->dynamic.mtu = constrain_int (frame->dynamic.mtu_initial, frame->dynamic.mtu_min, frame->dynamic.mtu_max);
+  if (flags & SET_MTU_TUN)
+    mtu += TUN_LINK_DELTA (frame);
 
-  msg (D_MTU_DEBUG, "MTU dynamic=%d", frame->dynamic.mtu);
-}
+  if (!(flags & SET_MTU_UPPER_BOUND) || mtu < frame->link_mtu_dynamic)
+    {
+      frame->link_mtu_dynamic = constrain_int (
+	mtu,
+	EXPANDED_SIZE_MIN (frame),
+	EXPANDED_SIZE (frame));
+    }
 
-/*
- * Client initializes a struct frame by zeroing, then calling,
- *   frame_set_mtu_dynamic
- *   frame_add_to_extra_frame
- *   frame_add_to_extra_tun
- *   frame_add_to_extra_buffer
- *
- * frame_finalize_derivative will then finalize the frame based
- * on a previously finalized frame (src).
- */
-void
-frame_finalize_derivative (struct frame *frame, const struct frame *src)
-{
-  frame->udp_mtu = src->udp_mtu;
-  frame->dynamic.mtu_min_initial = src->dynamic.mtu_min_initial;
-  frame->dynamic.mtu_max_initial = src->dynamic.mtu_max_initial;
-  frame_dynamic_finalize (frame);  
-}
-
-/*
- * Sets the dynamic mtu value (requires call to frame_dynamic_finalize to finalize).
- * mtu_dynamic can be a value or MTU_SET_TO_MIN or MTU_SET_TO_MAX.
- */
-void
-frame_set_mtu_dynamic (struct frame *frame, int mtu_dynamic)
-{
-  frame->dynamic.mtu_initial = mtu_dynamic;
-}
-
-/*
- * Increase/Decrease udp_mtu by a percentage.
- *
- * Return true if mtu changed.
- */
-bool
-frame_mtu_change_pct (struct frame *frame, int pct)
-{
-  const int orig_mtu = frame->udp_mtu;
-  const int new_mtu = orig_mtu + (orig_mtu * pct / 100);
-  frame_set_mtu_dynamic (frame, new_mtu);
-  frame_dynamic_finalize (frame);
-  return frame->udp_mtu != orig_mtu;
+  msg (D_MTU_DEBUG, "MTU DYNAMIC mtu=%d, flags=%u, %d -> %d",
+       orig_mtu,
+       flags,
+       orig_link_mtu_dynamic,
+       frame->link_mtu_dynamic);
 }
 
 /*
@@ -181,32 +115,12 @@ frame_print (const struct frame *frame, int level, const char *prefix)
   if (prefix)
     buf_printf (&out, "%s ", prefix);
   buf_printf (&out, "[");
-  buf_printf (&out, " udp_mtu=%d", frame->udp_mtu);
-  buf_printf (&out, " extra_frame=%d", frame->extra_frame);
-  buf_printf (&out, " extra_buffer=%d", frame->extra_buffer);
-  buf_printf (&out, " extra_tun=%d", frame->extra_tun);
-  buf_printf (&out, " dynamic = [");
-  buf_printf (&out, " mtu_min_initial=");
-  if (frame->dynamic.mtu_min_initial == MTU_INITIAL_UNDEF)
-    buf_printf (&out, "MTU_INITIAL_UNDEF");
-  else
-    buf_printf (&out, "%d", frame->dynamic.mtu_min_initial);
-  buf_printf (&out, " mtu_max_initial=");
-  if (frame->dynamic.mtu_max_initial == MTU_INITIAL_UNDEF)
-    buf_printf (&out, "MTU_INITIAL_UNDEF");
-  else
-    buf_printf (&out, "%d", frame->dynamic.mtu_max_initial);
-  buf_printf (&out, " mtu_initial=");
-  if (frame->dynamic.mtu_initial == MTU_SET_TO_MIN)
-    buf_printf (&out, "MTU_SET_TO_MIN");
-  else if (frame->dynamic.mtu_initial == MTU_SET_TO_MAX)
-    buf_printf (&out, "MTU_SET_TO_MAX");
-  else
-    buf_printf (&out, "%d", frame->dynamic.mtu_initial);
-  buf_printf (&out, " mtu_min=%d", frame->dynamic.mtu_min);
-  buf_printf (&out, " mtu_max=%d", frame->dynamic.mtu_max);
-  buf_printf (&out, " mtu=%d", frame->dynamic.mtu);
-  buf_printf (&out, " ]]");
+  buf_printf (&out, " L:%d", frame->link_mtu);
+  buf_printf (&out, " D:%d", frame->link_mtu_dynamic);
+  buf_printf (&out, " EF:%d", frame->extra_frame);
+  buf_printf (&out, " EB:%d", frame->extra_buffer);
+  buf_printf (&out, " ET:%d", frame->extra_tun);
+  buf_printf (&out, " ]");
 
   msg (level, "%s", out.data);
 }
@@ -221,7 +135,7 @@ set_mtu_discover_type (int sd, int mtu_type)
 #if defined(HAVE_SETSOCKOPT) && defined(SOL_IP) && defined(IP_MTU_DISCOVER)
       if (setsockopt
 	  (sd, SOL_IP, IP_MTU_DISCOVER, &mtu_type, sizeof (mtu_type)))
-	msg (M_ERR, "Error setting IP_MTU_DISCOVER type=%d on UDP socket",
+	msg (M_ERR, "Error setting IP_MTU_DISCOVER type=%d on TCP/UDP socket",
 	     mtu_type);
 #else
       msg (M_FATAL, MTUDISC_NOT_SUPPORTED_MSG);
@@ -253,6 +167,7 @@ translate_mtu_discover_type_name (const char *name)
 /*
  *
  * The following code is adapted from tracepath
+ * under the terms of the GPL.
  * Copyright (C) Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>.
  */
 
@@ -347,7 +262,7 @@ format_extended_socket_error (int fd, int* mtu)
     }
 
  exit:
-  buf_chomp (&out, '|');
+  buf_rmtail (&out, '|');
   return BSTR (&out);
 }
 
@@ -357,7 +272,7 @@ set_sock_extended_error_passing (int sd)
   int on = 1;
   if (setsockopt (sd, SOL_IP, IP_RECVERR, &on, sizeof (on)))
     msg (M_WARN | M_ERRNO,
-	 "Note: enable extended error passing on UDP socket failed (IP_RECVERR)");
+	 "Note: enable extended error passing on TCP/UDP socket failed (IP_RECVERR)");
 }
 
 #endif

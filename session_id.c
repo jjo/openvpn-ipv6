@@ -42,10 +42,9 @@
 
 #include "syshead.h"
 
-#include <openssl/rand.h>
-
 #include "error.h"
 #include "common.h"
+#include "crypto.h"
 #include "session_id.h"
 
 #include "memdbg.h"
@@ -55,7 +54,7 @@ const struct session_id x_session_id_zero;
 void
 session_id_random (struct session_id *sid)
 {
-  ASSERT (RAND_bytes (sid->id, SID_SIZE));
+  prng_bytes (sid->id, SID_SIZE);
 }
 
 const char *

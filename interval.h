@@ -1,6 +1,6 @@
 /*
  *  OpenVPN -- An application to securely tunnel IP networks
- *             over a single UDP port, with support for SSL/TLS-based
+ *             over a single TCP/UDP port, with support for SSL/TLS-based
  *             session authentication and key exchange,
  *             packet encryption, packet authentication, and
  *             packet compression.
@@ -27,12 +27,6 @@
  * These routines are designed to optimize the calling of a routine
  * (normally used for tls_multi_process())
  * which can be called less frequently between triggers.
- *
- * We won't optimize if we are within I_HORIZON seconds
- * of a trigger.
- *
- * If we are optimizing, we will call routine at least once
- * per I_REFRESH seconds.
  */
 
 #ifndef INTERVAL_H
@@ -40,6 +34,8 @@
 
 #include "error.h"
 #include "misc.h"
+
+#define INTERVAL_DEBUG 0
 
 /*
  * Used to determine in how many seconds we should be
@@ -50,8 +46,10 @@ interval_earliest_wakeup (interval_t *wakeup, time_t at, time_t current) {
   if (at > current)
     {
       const interval_t delta = (interval_t) (at - current);
-      if (!*wakeup || delta < *wakeup)
+      if (delta < *wakeup)
 	*wakeup = delta;
+      if (*wakeup < 0)
+	*wakeup = 0;
     }
 }
 
@@ -94,7 +92,6 @@ interval_test (struct interval* top, time_t current)
 {
   bool trigger = false;
 
-
   if (top->future_trigger && current >= top->future_trigger)
     {
       trigger = true;
@@ -106,7 +103,9 @@ interval_test (struct interval* top, time_t current)
       trigger)
     {
       top->last_test_true = current;
+#if INTERVAL_DEBUG
       msg (D_INTERVAL, "INTERVAL interval_test true");
+#endif
       return true;
     }
   else
@@ -120,7 +119,9 @@ interval_schedule_wakeup (struct interval* top, time_t current, interval_t *wake
 {
   interval_earliest_wakeup (wakeup, top->last_test_true + top->refresh, current);
   interval_earliest_wakeup (wakeup, top->future_trigger, current);
+#if INTERVAL_DEBUG
   msg (D_INTERVAL, "INTERVAL interval_schedule wakeup=%d", (int)*wakeup);
+#endif
 }
 
 /*
@@ -130,7 +131,9 @@ static inline void
 interval_future_trigger (struct interval* top, interval_t wakeup, time_t current) {
   if (wakeup)
     {
+#if INTERVAL_DEBUG
       msg (D_INTERVAL, "INTERVAL interval_future_trigger %d", (int)wakeup);
+#endif
       top->future_trigger = current + wakeup;
     }
 }
@@ -142,7 +145,9 @@ interval_future_trigger (struct interval* top, interval_t wakeup, time_t current
 static inline void
 interval_action (struct interval* top, time_t current)
 {
+#if INTERVAL_DEBUG
   msg (D_INTERVAL, "INTERVAL action");
+#endif
   top->last_action = current;
 }
 
@@ -152,48 +157,75 @@ interval_action (struct interval* top, time_t current)
 
 struct event_timeout
 {
+  bool defined;
   interval_t n;
   time_t last; /* time of last event */
 };
 
+static inline bool
+event_timeout_defined (const struct event_timeout* et)
+{
+  return et->defined;
+}
+
+static inline void
+event_timeout_clear (struct event_timeout* et)
+{
+  et->defined = false;
+  et->n = 0;
+  et->last = 0;
+}
+
+static inline struct event_timeout
+event_timeout_clear_ret ()
+{
+  struct event_timeout ret;
+  event_timeout_clear (&ret);
+  return ret;
+}
+
 static inline void
 event_timeout_init (struct event_timeout* et, time_t current, interval_t n)
 {
-  et->n = n;
+  et->defined = true;
+  et->n = (n >= 0) ? n : 0;
   et->last = current;
 }
 
 static inline void
 event_timeout_reset (struct event_timeout* et, time_t current)
 {
-  et->last = current;
+  if (et->defined)
+    et->last = current;
 }
 
 static inline bool
-event_timeout_trigger (struct event_timeout* et, time_t current)
+event_timeout_trigger (struct event_timeout* et, time_t current, struct timeval* tv)
 {
-  if (et->n && et->last + et->n <= current)
+  bool ret = false;
+  if (et->defined)
     {
-      msg (D_INTERVAL, "EVENT event_timeout_trigger (%d)", et->n);
-      et->last = current;
-      return true;
-    }
-  return false;
-}
-
-static inline void
-event_timeout_wakeup (struct event_timeout* et, time_t current, struct timeval* tv)
-{
-  if (et->n)
-    {
-      const int wakeup = (int) (et->last + et->n - current);
-      if (wakeup > 0 && (!tv->tv_sec || wakeup < tv->tv_sec))
+      int wakeup = (int) et->last + et->n - current;
+      if (wakeup <= 0)
 	{
+#if INTERVAL_DEBUG
+	  msg (D_INTERVAL, "EVENT event_timeout_trigger (%d)", et->n);
+#endif
+	  et->last = current;
+	  wakeup = et->n;
+	  ret = true;
+	}
+
+      if (wakeup < tv->tv_sec)
+	{
+#if INTERVAL_DEBUG
 	  msg (D_INTERVAL, "EVENT event_timeout_wakeup (%d/%d)", wakeup, et->n);
+#endif
 	  tv->tv_sec = wakeup;
 	  tv->tv_usec = 0;
 	}
     }
+  return ret;
 }
 
 /*

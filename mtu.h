@@ -1,6 +1,6 @@
 /*
  *  OpenVPN -- An application to securely tunnel IP networks
- *             over a single UDP port, with support for SSL/TLS-based
+ *             over a single TCP/UDP port, with support for SSL/TLS-based
  *             session authentication and key exchange,
  *             packet encryption, packet authentication, and
  *             packet compression.
@@ -52,51 +52,37 @@
  * It is a fatal error if mtu is less than
  * this value for tun device.
  */
-#define TUN_MTU_MIN       100
+#define TUN_MTU_MIN        100
 
 /*
- * Default MTU of network over which tunnel data will pass by UDP.
- * TODO: DEFAULT_UDP_MTU = 1500 is probably too big...
+ * Default MTU of network over which tunnel data will pass by TCP/UDP.
+ * TODO: DEFAULT_LINK_MTU = 1500 is probably too big...
  */
-#define UDP_MTU_DEFAULT   1300
+#define LINK_MTU_DEFAULT   1300
 
 /*
  * Default MTU of tunnel device.
  */
-#define TUN_MTU_DEFAULT   1300
+#define TUN_MTU_DEFAULT    1300
 
 /*
- * Dynamic MTU parameters (based on frame.udp_mtu).
- *
- * MIN_TUN_MTU + TUN_UDP_DELTA <= udp_mtu_min <= udp_mtu_dynamic <= udp_mtu_max <= mtu
+ * MTU Defaults for TAP devices
  */
-struct frame_dynamic {
-  /* control parameters */
-# define MTU_INITIAL_UNDEF -1
-  int mtu_min_initial;
-  int mtu_max_initial;
-
-# define MTU_SET_TO_MIN -1
-# define MTU_SET_TO_MAX -2
-  int mtu_initial;
-
-  /* derived from control parameters, set by frame_dynamic_finalize */
-  int mtu_min;
-  int mtu_max;
-  int mtu;
-};
+#define TAP_MTU_DEFAULT        1500
+#define TAP_MTU_EXTRA_DEFAULT  32
 
 struct frame {
   /*
-   * Maximum datagram size to be sent over the tunnel UDP channel.
+   * Maximum datagram size to be sent over the tunnel TCP/UDP channel.
    */
-  int udp_mtu;
+  int link_mtu;
+  int link_mtu_dynamic;
 
   /*
    * extra_frame: How many extra bytes might each subsystem (crypto, TLS, or, compression)
    * add to frame in worst case?
    *
-   * mtu + extra_frame = MTU of UDP transport
+   * mtu + extra_frame = MTU of TCP/UDP transport
    */
   int extra_frame;
 
@@ -112,12 +98,6 @@ struct frame {
    * or write from TUN/TAP device.
    */
   int extra_tun;
-
-  /*
-   * An MTU value that can dynamically change during the life of the session
-   * in order to reduce packet fragmentation.
-   */
-  struct frame_dynamic dynamic;
 };
 
 /* Routines which read struct frame should use the macros below */
@@ -130,14 +110,15 @@ struct frame {
 #define EXTRA_FRAME(f)           ((f)->extra_frame)
 
 /*
- * Delta between tun payload size and final UDP datagram size
+ * Delta between tun payload size and final TCP/UDP datagram size
  */
-#define TUN_UDP_DELTA(f)         (EXTRA_FRAME(f) + (f)->extra_tun)
+#define TUN_LINK_DELTA(f)         (EXTRA_FRAME(f) + (f)->extra_tun)
 
 /*
  * This is the size to "ifconfig" the tun or tap device.
  */
-#define TUN_MTU_SIZE(f)          ((f)->udp_mtu - TUN_UDP_DELTA(f))
+#define TUN_MTU_SIZE(f)          ((f)->link_mtu - TUN_LINK_DELTA(f))
+#define TUN_MTU_SIZE_DYNAMIC(f)  ((f)->link_mtu_dynamic - TUN_LINK_DELTA(f))
 
 /*
  * This is the maximum packet size that we need to be able to
@@ -145,47 +126,39 @@ struct frame {
  * a tap device ifconfiged to an MTU of 1200 might actually want
  * to return a packet size of 1214 on a read().
  */
-#define PAYLOAD_SIZE(f)          ((f)->udp_mtu - EXTRA_FRAME(f))
-#define PAYLOAD_SIZE_DYNAMIC(f)  ((f)->dynamic.mtu - EXTRA_FRAME(f))
+#define PAYLOAD_SIZE(f)          ((f)->link_mtu - EXTRA_FRAME(f))
+#define PAYLOAD_SIZE_DYNAMIC(f)  ((f)->link_mtu_dynamic - EXTRA_FRAME(f))
 
 /*
  * Max size of a payload packet after encryption, compression, etc.
  * overhead is added.
  */
-#define EXPANDED_SIZE(f)         ((f)->udp_mtu)
-#define EXPANDED_SIZE_DYNAMIC(f) ((f)->dynamic.mtu)
-
+#define EXPANDED_SIZE(f)         ((f)->link_mtu)
+#define EXPANDED_SIZE_DYNAMIC(f) ((f)->link_mtu_dynamic)
+#define EXPANDED_SIZE_MIN(f)     (TUN_MTU_MIN + TUN_LINK_DELTA(f))
 /*
  * Max size of a buffer used to build a packet for output to
- * the UDP port.
+ * the TCP/UDP port.
  */
-#define BUF_SIZE(f)              (EXPANDED_SIZE(f) + TUN_UDP_DELTA(f) + (f)->extra_buffer)
+#define BUF_SIZE(f)              (EXPANDED_SIZE(f) + TUN_LINK_DELTA(f) + (f)->extra_buffer)
 
 /*
  * These values are used as maximum size constraints
- * on read() or write() from TUN/TAP device or UDP port.
+ * on read() or write() from TUN/TAP device or TCP/UDP port.
  */
 #define MAX_RW_SIZE_TUN(f)       (PAYLOAD_SIZE(f))
-#define MAX_RW_SIZE_UDP(f)       (EXPANDED_SIZE(f))
+#define MAX_RW_SIZE_LINK(f)      (EXPANDED_SIZE(f))
 
 /*
  * Function prototypes.
  */
 
 void frame_finalize (struct frame *frame,
-		     bool udp_mtu_defined,
-		     int udp_mtu,
+		     bool link_mtu_defined,
+		     int link_mtu,
 		     bool tun_mtu_defined,
-		     int tun_mtu,
-		     bool udp_mtu_min_defined,
-		     int udp_mtu_min,
-		     bool udp_mtu_max_defined,
-		     int udp_mtu_max);
+		     int tun_mtu);
 
-void frame_finalize_derivative (struct frame *frame, const struct frame *src);
-void frame_dynamic_finalize (struct frame *frame);
-void frame_set_mtu_dynamic (struct frame *frame, int mtu_dynamic);
-bool frame_mtu_change_pct (struct frame *frame, int pct);
 void frame_subtract_extra (struct frame *frame, const struct frame *src);
 void frame_print (const struct frame *frame, int level, const char *prefix);
 
@@ -193,9 +166,18 @@ void set_mtu_discover_type (int sd, int mtu_type);
 int translate_mtu_discover_type_name (const char *name);
 
 /*
+ * frame_set_mtu_dynamic and flags
+ */
+
+#define SET_MTU_TUN         (1<<0) /* use tun/tap rather than link sizing */
+#define SET_MTU_UPPER_BOUND (1<<1) /* only decrease dynamic MTU */
+
+void frame_set_mtu_dynamic (struct frame *frame, int mtu, unsigned int flags);
+
+/*
  * EXTENDED_SOCKET_ERROR_CAPABILITY functions -- print extra error info
  * on socket errors, such as PMTU size.  As of 2003.05.11, only works
- * on Linux 2.4.
+ * on Linux 2.4+.
  */
 
 #if EXTENDED_SOCKET_ERROR_CAPABILITY
@@ -227,36 +209,10 @@ frame_add_to_extra_buffer (struct frame *frame, int increment)
   frame->extra_buffer += increment;
 }
 
-/*
- * Delta between UDP datagram size and total IP packet size.
- */
-#define IPv4_UDP_HEADER_SIZE              28
-#define IPv6_UDP_HEADER_SIZE              40
-
-static inline int
-datagram_overhead (bool ipv6)
-{
-  if (ipv6)
-    return IPv6_UDP_HEADER_SIZE;
-  else
-    return IPv4_UDP_HEADER_SIZE;
-}
-
-/*
- * Adjust frame structure based on a Path MTU value given
- * to us by the OS.
- */
-static inline void
-frame_adjust_path_mtu (struct frame *frame, int pmtu, bool ipv6)
-{
-  frame_set_mtu_dynamic (frame, pmtu - datagram_overhead (ipv6));
-  frame_dynamic_finalize (frame);
-}
-
 static inline bool
 frame_defined (const struct frame *frame)
 {
-  return frame->udp_mtu > 0;
+  return frame->link_mtu > 0;
 }
 
 #endif

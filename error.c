@@ -1,6 +1,6 @@
 /*
  *  OpenVPN -- An application to securely tunnel IP networks
- *             over a single UDP port, with support for SSL/TLS-based
+ *             over a single TCP/UDP port, with support for SSL/TLS-based
  *             session authentication and key exchange,
  *             packet encryption, packet authentication, and
  *             packet compression.
@@ -36,6 +36,9 @@
 #include "thread.h"
 #include "misc.h"
 #include "openvpn.h"
+#include "win32.h"
+#include "socket.h"
+#include "tun.h"
 
 #ifdef USE_CRYPTO
 #include <openssl/err.h>
@@ -51,10 +54,24 @@ static int mute_cutoff;
 static int mute_count;
 static int mute_category;
 
+/*
+ * Output mode priorities are as follows:
+ *
+ *  (1) --log-x overrides everything
+ *  (2) syslog is used if --daemon or --inetd is defined and not --log-x
+ *  (3) if OPENVPN_DEBUG_COMMAND_LINE is defined, output
+ *      to constant logfile name defined in openvpn.h (for debugging only).
+ *  (4) Output to stdout.
+ */
+
+/* If true, indicates that stdin/stdout/stderr
+   have been redirected due to --log */
+static bool std_redir;
+
 /* Should messages be written to the syslog? */
 static bool use_syslog;
 
-/* If non-null, messages should be written here */
+/* If non-null, messages should be written here (used for debugging only) */
 static FILE *msgfp;
 
 void
@@ -72,7 +89,7 @@ set_mute_cutoff (int cutoff)
 void
 error_reset ()
 {
-  use_syslog = false;
+  use_syslog = std_redir = false;
   x_debug_level = 1;
   mute_cutoff = 0;
   mute_count = 0;
@@ -81,7 +98,7 @@ error_reset ()
 #ifdef OPENVPN_DEBUG_COMMAND_LINE
   msgfp = fopen (OPENVPN_DEBUG_FILE, "w");
   if (!msgfp)
-    exit (OPENVPN_EXIT_STATUS_CANNOT_OPEN_DEBUG_FILE); /* exit point */
+    openvpn_exit (OPENVPN_EXIT_STATUS_CANNOT_OPEN_DEBUG_FILE); /* exit point */
 #else
   msgfp = NULL;
 #endif
@@ -97,7 +114,7 @@ msg_fp()
   if (!fp)
     fp = OPENVPN_MSG_FP;
   if (!fp)
-    exit (OPENVPN_EXIT_STATUS_CANNOT_OPEN_DEBUG_FILE); /* exit point */
+    openvpn_exit (OPENVPN_EXIT_STATUS_CANNOT_OPEN_DEBUG_FILE); /* exit point */
   return fp;
 }
 
@@ -118,6 +135,8 @@ void x_msg (unsigned int flags, const char *format, ...)
   char *m2;
   char *tmp;
   int e;
+
+  void usage_small (void);
 
 #ifndef HAVE_VARARG_MACROS
   /* the macro has checked this otherwise */
@@ -197,7 +216,7 @@ void x_msg (unsigned int flags, const char *format, ...)
 #endif
 
 #if SYSLOG_CAPABILITY
-  if (flags & (M_FATAL|M_NONFATAL))
+  if (flags & (M_FATAL|M_NONFATAL|M_USAGE_SMALL))
     level = LOG_ERR;
   else if (flags & M_WARN)
     level = LOG_WARNING;
@@ -205,7 +224,7 @@ void x_msg (unsigned int flags, const char *format, ...)
     level = LOG_NOTICE;
 #endif
 
-  if (use_syslog)
+  if (use_syslog && !std_redir)
     {
 #if SYSLOG_CAPABILITY
       syslog (level, "%s", m1);
@@ -214,11 +233,26 @@ void x_msg (unsigned int flags, const char *format, ...)
   else
     {
       FILE *fp = msg_fp();
+      const bool show_usec = check_debug_level (DEBUG_LEVEL_USEC_TIME);
+      if (flags & M_NOPREFIX)
+	{
+	  fprintf (fp, "%s\n", m1);
+	}
+      else
+	{
 #ifdef USE_PTHREAD
-      fprintf (fp, "%s %d[%d]: %s\n", time_string (0), msg_line_num, thread_number (), m1);
+	  fprintf (fp, "%s %d[%d]: %s\n",
+		   time_string (0, show_usec),
+		   msg_line_num,
+		   thread_number (),
+		   m1);
 #else
-      fprintf (fp, "%s %d: %s\n", time_string (0), msg_line_num, m1);
+	  fprintf (fp, "%s %d: %s\n",
+		   time_string (0, show_usec),
+		   msg_line_num,
+		   m1);
 #endif
+	}
       fflush(fp);
       ++msg_line_num;
     }
@@ -230,7 +264,10 @@ void x_msg (unsigned int flags, const char *format, ...)
     mutex_unlock (L_MSG);
   
   if (flags & M_FATAL)
-    exit (OPENVPN_EXIT_STATUS_ERROR); /* exit point */
+    openvpn_exit (OPENVPN_EXIT_STATUS_ERROR); /* exit point */
+
+  if (flags & M_USAGE_SMALL)
+    usage_small ();
 }
 
 void
@@ -243,7 +280,7 @@ void
 open_syslog (const char *pgmname)
 {
 #if SYSLOG_CAPABILITY
-  if (!msgfp)
+  if (!msgfp && !std_redir)
     {
       if (!use_syslog)
 	{
@@ -251,7 +288,7 @@ open_syslog (const char *pgmname)
 	  use_syslog = true;
 
 	  /* Better idea: somehow pipe stdout/stderr output to msg() */
-	  set_std_files_to_null ();
+	  set_std_files_to_null (false);
 	}
     }
 #else
@@ -270,3 +307,278 @@ close_syslog ()
     }
 #endif
 }
+
+void
+redirect_stdout_stderr (const char *file, bool append)
+{
+#if defined(WIN32)
+  msg (M_WARN, "WARNING: The --log option is not directly supported on Windows, however you can use the OpenVPN service wrapper (openvpnserv.exe) to accomplish the same function -- see the Windows README.");
+#elif defined(HAVE_DUP2)
+  if (!std_redir)
+    {
+      int out  = open (file,
+		   O_CREAT | O_WRONLY | (append ? O_APPEND : O_TRUNC),
+		   S_IRUSR | S_IWUSR);
+
+      if (out < 0)
+	msg (M_ERR, "Error redirecting stdout/stderr to --log file: %s", file);
+      if (dup2 (out, 1) == -1)
+	msg (M_ERR, "--log file redirection error on stdout");
+      if (dup2 (out, 2) == -1)
+	msg (M_ERR, "--log file redirection error on stderr");
+
+      if (out > 2)
+	close (out);
+
+      std_redir = true;
+    }
+
+#else
+  msg (M_WARN, "WARNING: The --log option is not supported on this OS because it lacks the dup2 function");
+#endif
+}
+
+/*
+ * Functions used to check return status
+ * of I/O operations.
+ */
+
+unsigned int x_cs_info_level;
+unsigned int x_cs_verbose_level;
+
+void
+reset_check_status ()
+{
+  x_cs_info_level = 0;
+  x_cs_verbose_level = 0;
+}
+
+void
+set_check_status (unsigned int info_level, unsigned int verbose_level)
+{
+  x_cs_info_level = info_level;
+  x_cs_verbose_level = verbose_level;
+}
+
+/*
+ * Called after most socket or tun/tap operations, via the inline
+ * function check_status().
+ *
+ * Decide if we should print an error message, and see if we can
+ * extract any useful info from the error, such as a Path MTU hint
+ * from the OS.
+ */
+void
+x_check_status (int status,
+		const char *description,
+		struct link_socket *sock,
+		struct tuntap *tt)
+{
+  const int my_errno = (sock ? openvpn_errno_socket () : openvpn_errno ());
+  const char *extended_msg = NULL;
+
+  msg (x_cs_verbose_level, "%s %s returned %d",
+       sock ? proto2ascii (sock->proto, true) : "",
+       description,
+       status);
+
+  if (status < 0)
+    {
+#if EXTENDED_SOCKET_ERROR_CAPABILITY
+      /* get extended socket error message and possible PMTU hint from OS */
+      if (sock)
+	{
+	  int mtu;
+	  extended_msg = format_extended_socket_error (sock->sd, &mtu);
+	  if (mtu > 0 && sock->mtu != mtu)
+	    {
+	      sock->mtu = mtu;
+	      sock->mtu_changed = true;
+	    }
+	}
+#elif defined(WIN32)
+      /* get possible driver error from TAP-Win32 driver */
+      extended_msg = tap_win32_getinfo (tt);
+#endif
+      if (my_errno != EAGAIN)
+	{
+	  if (extended_msg)
+	    msg (x_cs_info_level, "%s %s [%s]: %s (code=%d)",
+		 description,
+		 sock ? proto2ascii (sock->proto, true) : "",
+		 extended_msg,
+		 strerror_ts (my_errno),
+		 my_errno);
+	  else
+	    msg (x_cs_info_level, "%s %s: %s (code=%d)",
+		 description,
+		 sock ? proto2ascii (sock->proto, true) : "",
+		 strerror_ts (my_errno),
+		 my_errno);
+
+#ifdef WIN32
+	  Sleep (100); /* 100 milliseconds */
+#else
+	  sleep (0);   /* not enough granularity, so just relinquish time slice */
+#endif
+	}
+    }
+}
+
+void
+openvpn_exit (int status)
+{
+#ifdef WIN32
+  uninit_win32 ();
+#endif
+  exit (status);
+}
+
+#ifdef WIN32
+
+const char *
+strerror_win32 (DWORD errnum)
+{
+  /*
+   * This code can be omitted, though often the Windows
+   * WSA error messages are less informative than the
+   * Posix equivalents.
+   */
+#if 1
+  switch (errnum) {
+    /*
+     * When the TAP-Win32 driver returns STATUS_UNSUCCESSFUL, this code
+     * gets returned to user space.
+     */
+  case ERROR_GEN_FAILURE:
+    return "General failure (ERROR_GEN_FAILURE)";
+  case ERROR_IO_PENDING:
+    return "I/O Operation in progress (ERROR_IO_PENDING)";
+  case WSA_IO_INCOMPLETE:
+    return "I/O Operation in progress (WSA_IO_INCOMPLETE)";
+  case WSAEINTR:
+    return "Interrupted system call (WSAEINTR)";
+  case WSAEBADF:
+    return "Bad file number (WSAEBADF)";
+  case WSAEACCES:
+    return "Permission denied (WSAEACCES)";
+  case WSAEFAULT:
+    return "Bad address (WSAEFAULT)";
+  case WSAEINVAL:
+    return "Invalid argument (WSAEINVAL)";
+  case WSAEMFILE:
+    return "Too many open files (WSAEMFILE)";
+  case WSAEWOULDBLOCK:
+    return "Operation would block (WSAEWOULDBLOCK)";
+  case WSAEINPROGRESS:
+    return "Operation now in progress (WSAEINPROGRESS)";
+  case WSAEALREADY:
+    return "Operation already in progress (WSAEALREADY)";
+  case WSAEDESTADDRREQ:
+    return "Destination address required (WSAEDESTADDRREQ)";
+  case WSAEMSGSIZE:
+    return "Message too long (WSAEMSGSIZE)";
+  case WSAEPROTOTYPE:
+    return "Protocol wrong type for socket (WSAEPROTOTYPE)";
+  case WSAENOPROTOOPT:
+    return "Bad protocol option (WSAENOPROTOOPT)";
+  case WSAEPROTONOSUPPORT:
+    return "Protocol not supported (WSAEPROTONOSUPPORT)";
+  case WSAESOCKTNOSUPPORT:
+    return "Socket type not supported (WSAESOCKTNOSUPPORT)";
+  case WSAEOPNOTSUPP:
+    return "Operation not supported on socket (WSAEOPNOTSUPP)";
+  case WSAEPFNOSUPPORT:
+    return "Protocol family not supported (WSAEPFNOSUPPORT)";
+  case WSAEAFNOSUPPORT:
+    return "Address family not supported by protocol family (WSAEAFNOSUPPORT)";
+  case WSAEADDRINUSE:
+    return "Address already in use (WSAEADDRINUSE)";
+  case WSAENETDOWN:
+    return "Network is down (WSAENETDOWN)";
+  case WSAENETUNREACH:
+    return "Network is unreachable (WSAENETUNREACH)";
+  case WSAENETRESET:
+    return "Net dropped connection or reset (WSAENETRESET)";
+  case WSAECONNABORTED:
+    return "Software caused connection abort (WSAECONNABORTED)";
+  case WSAECONNRESET:
+    return "Connection reset by peer (WSAECONNRESET)";
+  case WSAENOBUFS:
+    return "No buffer space available (WSAENOBUFS)";
+  case WSAEISCONN:
+    return "Socket is already connected (WSAEISCONN)";
+  case WSAENOTCONN:
+    return "Socket is not connected (WSAENOTCONN)";
+  case WSAETIMEDOUT:
+    return "Connection timed out (WSAETIMEDOUT)";
+  case WSAECONNREFUSED:
+    return "Connection refused (WSAECONNREFUSED)";
+  case WSAELOOP:
+    return "Too many levels of symbolic links (WSAELOOP)";
+  case WSAENAMETOOLONG:
+    return "File name too long (WSAENAMETOOLONG)";
+  case WSAEHOSTDOWN:
+    return "Host is down (WSAEHOSTDOWN)";
+  case WSAEHOSTUNREACH:
+    return "No Route to Host (WSAEHOSTUNREACH)";
+  case WSAENOTEMPTY:
+    return "Directory not empty (WSAENOTEMPTY)";
+  case WSAEPROCLIM:
+    return "Too many processes (WSAEPROCLIM)";
+  case WSAEUSERS:
+    return "Too many users (WSAEUSERS)";
+  case WSAEDQUOT:
+    return "Disc Quota Exceeded (WSAEDQUOT)";
+  case WSAESTALE:
+    return "Stale NFS file handle (WSAESTALE)";
+  case WSASYSNOTREADY:
+    return "Network SubSystem is unavailable (WSASYSNOTREADY)";
+  case WSAVERNOTSUPPORTED:
+    return "WINSOCK DLL Version out of range (WSAVERNOTSUPPORTED)";
+  case WSANOTINITIALISED:
+    return "Successful WSASTARTUP not yet performed (WSANOTINITIALISED)";
+  case WSAEREMOTE:
+    return "Too many levels of remote in path (WSAEREMOTE)";
+  case WSAHOST_NOT_FOUND:
+    return "Host not found (WSAHOST_NOT_FOUND)";
+  default:
+    break;
+  }
+#endif
+
+  /* format a windows error message */
+  {
+    char message[256];
+    struct buffer out = alloc_buf_gc (256);
+    const int status =  FormatMessage (
+				       FORMAT_MESSAGE_IGNORE_INSERTS
+				       | FORMAT_MESSAGE_FROM_SYSTEM
+				       | FORMAT_MESSAGE_ARGUMENT_ARRAY,
+				       NULL,
+				       errnum,
+				       0,
+				       message,
+				       sizeof (message),
+				       NULL);
+    if (!status)
+      {
+	buf_printf (&out, "[Unknown Win32 Error]");
+      }
+    else
+      {
+	char *cp;
+	for (cp = message; *cp != '\0'; ++cp)
+	  {
+	    if (*cp == '\n' || *cp == '\r')
+	      *cp = ' ';
+	  }
+	
+	buf_printf(&out, "%s", message);
+      }
+    
+    return BSTR (&out);
+  }
+}
+
+#endif

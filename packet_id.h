@@ -1,6 +1,6 @@
 /*
  *  OpenVPN -- An application to securely tunnel IP networks
- *             over a single UDP port, with support for SSL/TLS-based
+ *             over a single TCP/UDP port, with support for SSL/TLS-based
  *             session authentication and key exchange,
  *             packet encryption, packet authentication, and
  *             packet compression.
@@ -34,14 +34,14 @@
 #ifndef PACKET_ID_H
 #define PACKET_ID_H
 
+#include "circ_list.h"
+#include "buffer.h"
+#include "error.h"
+
 /*
  * Enables OpenVPN to be compiled in special packet_id test mode.
  */
 /*#define PID_TEST*/
-
-#include "circ_list.h"
-#include "buffer.h"
-#include "error.h"
 
 #if 1
 /*
@@ -75,7 +75,8 @@ typedef uint32_t net_time_t;
 
 /*
  * DEBUGGING ONLY.
- * Make packet_id_type and net_time_t small.
+ * Make packet_id_type and net_time_t small
+ * to test wraparound logic and corner cases.
  */
 
 typedef uint8_t packet_id_type;
@@ -108,20 +109,44 @@ typedef unsigned int packet_id_print_type;
  * sequence number due to packets arriving
  * out of order.
  */
-#define PACKET_BACKTRACK_MAX   1024
+#define MIN_SEQ_BACKTRACK 0
+#define MAX_SEQ_BACKTRACK 65536
+#define DEFAULT_SEQ_BACKTRACK 64
 
-CIRC_LIST (pkt_id, uint8_t, PACKET_BACKTRACK_MAX);
+/*
+ * Maximum allowed backtrack in
+ * seconds due to packets arriving
+ * out of order.
+ */
+#define MIN_TIME_BACKTRACK 0
+#define MAX_TIME_BACKTRACK 600
+#define DEFAULT_TIME_BACKTRACK 15
+
+/*
+ * Do a reap pass through the sequence number
+ * array once every n seconds in order to
+ * expire sequence numbers which can no longer
+ * be accepted because they would violate
+ * TIME_BACKTRACK.
+ */
+#define SEQ_REAP_INTERVAL 5
+
+CIRC_LIST (seq_list, time_t);
 
 /*
  * This is the data structure we keep on the receiving side,
  * to check that no packet-id (i.e. sequence number + optional timestamp)
- * was received more than once.
+ * is accepted more than once.
  */
 struct packet_id_rec
 {
-  time_t time;             /* time stamp */
-  packet_id_type id;       /* sequence number */
-  struct pkt_id id_list;   /* packet-id "memory" */
+  time_t last_reap;           /* last call of packet_id_reap */
+  time_t time;                /* highest time stamp received */
+  packet_id_type id;          /* highest sequence number received */
+  int seq_backtrack;          /* set from --replay-window */
+  int time_backtrack;         /* set from --replay-window */
+  bool initialized;           /* true if packet_id_init was called */
+  struct seq_list *seq_list;  /* packet-id "memory" */
 };
 
 /*
@@ -190,11 +215,21 @@ struct packet_id
   struct packet_id_rec rec;
 };
 
+void packet_id_init (struct packet_id *p, int seq_backtrack, int time_backtrack);
+void packet_id_free (struct packet_id *p);
+
 /* should we accept an incoming packet id ? */
-bool packet_id_test (const struct packet_id_rec *p, const struct packet_id_net *pin);
+bool packet_id_test (const struct packet_id_rec *p,
+		     const struct packet_id_net *pin);
 
 /* change our current state to reflect an accepted packet id */
-void packet_id_add (struct packet_id_rec *p, const struct packet_id_net *pin);
+void packet_id_add (struct packet_id_rec *p,
+		    const struct packet_id_net *pin,
+		    time_t current);
+
+/* expire TIME_BACKTRACK sequence numbers */ 
+void packet_id_reap (struct packet_id_rec *p,
+		     time_t current);
 
 /*
  * packet ID persistence
@@ -345,6 +380,24 @@ packet_id_write (const struct packet_id_net *pin, struct buffer *buf, bool long_
 	}
     }
   return true;
+}
+
+static inline bool
+check_timestamp_delta (time_t current, time_t remote, unsigned int max_delta)
+{
+  unsigned int abs;
+  if (current >= remote)
+    abs = current - remote;
+  else
+    abs = remote - current;
+  return abs <= max_delta;
+}
+
+static inline void
+packet_id_reap_test (struct packet_id_rec *p, time_t current)
+{
+  if (p->last_reap + SEQ_REAP_INTERVAL <= current)
+    packet_id_reap (p, current);
 }
 
 #endif /* PACKET_ID_H */

@@ -1,6 +1,6 @@
 /*
  *  OpenVPN -- An application to securely tunnel IP networks
- *             over a single UDP port, with support for SSL/TLS-based
+ *             over a single TCP/UDP port, with support for SSL/TLS-based
  *             session authentication and key exchange,
  *             packet encryption, packet authentication, and
  *             packet compression.
@@ -58,12 +58,12 @@
  */
 
 /* #define OPENVPN_DEBUG_COMMAND_LINE */
-#define OPENVPN_DEBUG_FILE "/tmp/openvpn"
+#define OPENVPN_DEBUG_FILE "openvpn.log"
 
 /*
  * At exactly --verb 5 (not less or greater), print 'R' and 'W' chars
- * to stdout for each packet read/write on UDP port.
+ * to stdout for each packet read/write on TCP/UDP port.
  */
-/*#define LOG_RW*/
+#define LOG_RW
 
 #endif

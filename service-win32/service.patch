@@ -1,0 +1,215 @@
+--- service.c.orig	Thu Nov  6 07:13:13 2003
++++ service.c	Thu Nov  6 07:13:31 2003
+@@ -40,8 +40,8 @@
+ // internal function prototypes
+ VOID WINAPI service_ctrl(DWORD dwCtrlCode);
+ VOID WINAPI service_main(DWORD dwArgc, LPTSTR *lpszArgv);
+-VOID CmdInstallService();
+-VOID CmdRemoveService();
++int CmdInstallService();
++int CmdRemoveService();
+ VOID CmdDebugService(int argc, char **argv);
+ BOOL WINAPI ControlHandler ( DWORD dwCtrlType );
+ LPTSTR GetLastErrorText( LPTSTR lpszBuf, DWORD dwSize );
+@@ -64,7 +64,7 @@
+ //    main service thread.  When the this call returns,
+ //    the service has stopped, so exit.
+ //
+-void __cdecl main(int argc, char **argv)
++int __cdecl main(int argc, char **argv)
+ {
+    SERVICE_TABLE_ENTRY dispatchTable[] =
+    {
+@@ -77,11 +77,11 @@
+    {
+       if ( _stricmp( "install", argv[1]+1 ) == 0 )
+       {
+-         CmdInstallService();
++         return CmdInstallService();
+       }
+       else if ( _stricmp( "remove", argv[1]+1 ) == 0 )
+       {
+-         CmdRemoveService();
++         return CmdRemoveService();
+       }
+       else if ( _stricmp( "debug", argv[1]+1 ) == 0 )
+       {
+@@ -92,7 +92,7 @@
+       {
+          goto dispatch;
+       }
+-      exit(0);
++      return 0;
+    }
+ 
+    // if it doesn't match any of the above parameters
+@@ -108,6 +108,8 @@
+ 
+    if (!StartServiceCtrlDispatcher(dispatchTable))
+       AddToMessageLog(TEXT("StartServiceCtrlDispatcher failed."));
++
++   return 0;
+ }
+ 
+ 
+@@ -292,7 +294,7 @@
+ {
+    TCHAR szMsg [(sizeof(SZSERVICENAME) / sizeof(TCHAR)) + 100 ];
+    HANDLE  hEventSource;
+-   LPTSTR  lpszStrings[2];
++   LPCSTR  lpszStrings[2];
+ 
+    if ( !bDebug )
+    {
+@@ -302,7 +304,7 @@
+       //
+       hEventSource = RegisterEventSource(NULL, TEXT(SZSERVICENAME));
+ 
+-      _stprintf(szMsg, TEXT("%s error: %d"), TEXT(SZSERVICENAME), dwErr);
++      _stprintf(szMsg, TEXT("%s error: %d"), TEXT(SZSERVICENAME), (int)dwErr);
+       lpszStrings[0] = szMsg;
+       lpszStrings[1] = lpszMsg;
+ 
+@@ -341,21 +343,23 @@
+ //    none
+ //
+ //  RETURN VALUE:
+-//    none
++//    0 if success
+ //
+ //  COMMENTS:
+ //
+-void CmdInstallService()
++int CmdInstallService()
+ {
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
+ 
+    TCHAR szPath[512];
+ 
++   int ret = 0;
++
+    if ( GetModuleFileName( NULL, szPath, 512 ) == 0 )
+    {
+       _tprintf(TEXT("Unable to install %s - %s\n"), TEXT(SZSERVICEDISPLAYNAME), GetLastErrorText(szErr, 256));
+-      return;
++      return 1;
+    }
+ 
+    schSCManager = OpenSCManager(
+@@ -388,16 +392,19 @@
+       else
+       {
+          _tprintf(TEXT("CreateService failed - %s\n"), GetLastErrorText(szErr, 256));
++	 ret = 1;
+       }
+ 
+       CloseServiceHandle(schSCManager);
+    }
+    else
+-      _tprintf(TEXT("OpenSCManager failed - %s\n"), GetLastErrorText(szErr,256));
++     {
++       _tprintf(TEXT("OpenSCManager failed - %s\n"), GetLastErrorText(szErr,256));
++       ret = 1;
++     }
++   return ret;
+ }
+ 
+-
+-
+ //
+ //  FUNCTION: CmdRemoveService()
+ //
+@@ -407,15 +414,17 @@
+ //    none
+ //
+ //  RETURN VALUE:
+-//    none
++//    0 if success
+ //
+ //  COMMENTS:
+ //
+-void CmdRemoveService()
++int CmdRemoveService()
+ {
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
+ 
++   int ret = 0;
++
+    schSCManager = OpenSCManager(
+                                NULL,                   // machine (NULL == local)
+                                NULL,                   // database (NULL == default)
+@@ -447,7 +456,10 @@
+             if ( ssStatus.dwCurrentState == SERVICE_STOPPED )
+                _tprintf(TEXT("\n%s stopped.\n"), TEXT(SZSERVICEDISPLAYNAME) );
+             else
+-               _tprintf(TEXT("\n%s failed to stop.\n"), TEXT(SZSERVICEDISPLAYNAME) );
++	      {
++		_tprintf(TEXT("\n%s failed to stop.\n"), TEXT(SZSERVICEDISPLAYNAME) );
++		ret = 1;
++	      }
+ 
+          }
+ 
+@@ -455,18 +467,28 @@
+          if ( DeleteService(schService) )
+             _tprintf(TEXT("%s removed.\n"), TEXT(SZSERVICEDISPLAYNAME) );
+          else
+-            _tprintf(TEXT("DeleteService failed - %s\n"), GetLastErrorText(szErr,256));
++	   {
++	     _tprintf(TEXT("DeleteService failed - %s\n"), GetLastErrorText(szErr,256));
++	     ret = 1;
++	   }
+ 
+ 
+          CloseServiceHandle(schService);
+       }
+       else
+-         _tprintf(TEXT("OpenService failed - %s\n"), GetLastErrorText(szErr,256));
++	{
++	  _tprintf(TEXT("OpenService failed - %s\n"), GetLastErrorText(szErr,256));
++	  ret = 1;
++	}
+ 
+       CloseServiceHandle(schSCManager);
+    }
+    else
+-      _tprintf(TEXT("OpenSCManager failed - %s\n"), GetLastErrorText(szErr,256));
++     {
++       _tprintf(TEXT("OpenSCManager failed - %s\n"), GetLastErrorText(szErr,256));
++       ret = 1;
++     }
++   return ret;
+ }
+ 
+ 
+@@ -587,7 +609,7 @@
+    else
+    {
+       lpszTemp[lstrlen(lpszTemp)-2] = TEXT('\0');  //remove cr and newline character
+-      _stprintf( lpszBuf, TEXT("%s (0x%x)"), lpszTemp, GetLastError() );
++      _stprintf( lpszBuf, TEXT("%s (0x%x)"), lpszTemp, (int)GetLastError() );
+    }
+ 
+    if ( lpszTemp )
+--- service.h.orig	Thu Nov  6 07:13:13 2003
++++ service.h	Thu Nov  6 07:13:31 2003
+@@ -62,13 +62,13 @@
+ //// todo: change to desired strings
+ ////
+ // name of the executable
+-#define SZAPPNAME            "Simple"
++#define SZAPPNAME            "openvpnserv"
+ // internal name of the service
+-#define SZSERVICENAME        "SimpleService"
++#define SZSERVICENAME        "OpenVPNService"
+ // displayed name of the service
+-#define SZSERVICEDISPLAYNAME "Simple Service"
++#define SZSERVICEDISPLAYNAME "OpenVPN Service"
+ // list of service dependencies - "dep1\0dep2\0\0"
+-#define SZDEPENDENCIES       ""
++#define SZDEPENDENCIES       "TAP\0\0"
+ //////////////////////////////////////////////////////////////////////////////
+ 
+ 

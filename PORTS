@@ -14,12 +14,10 @@ PLATFORM STATUS:
   * Linux 2.2+ (supported)
   * Solaris (supported)
   * OpenBSD 3.0 (supported but pthreads are broken)
-  * Max OS X Darwin (experimental)
+  * Max OS X Darwin
   * FreeBSD
-  * NetBSD (experimental)
-  * Windows (under development -- OpenVPN daemon has been
-    ported to Cygwin and MinGW, but we still need a tun
-    or tap driver to be written for windows).
+  * NetBSD
+  * Windows
   * 64 bit platforms -- I have heard reports that
     OpenVPN runs on Alpha Linux and FreeBSD.
   * ARM -- I have heard of at least one case
@@ -52,6 +50,10 @@ PORTING NOTES:
     functions.  If your tun/tap virtual device is
     sufficiently generic, you may be able to use the
     default case.
+  * Add appropriate code to route.c to handle
+    the route command on your platform.  This
+    is necessary for the --route option to
+    work correctly.
   * After you successfully build OpenVPN, run
     the loopback tests as described in INSTALL.
   * For the next test, confirm that the UDP socket

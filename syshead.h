@@ -26,10 +26,6 @@
 #ifndef SYSHEAD_H
 #define SYSHEAD_H
 
-#ifdef WIN32
-#include "openvpn-win32.h"
-#endif
-
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
@@ -37,11 +33,14 @@
 #ifdef HAVE_SYS_WAIT_H
 # include <sys/wait.h>
 #endif
+
+#ifndef WIN32
 #ifndef WEXITSTATUS
 # define WEXITSTATUS(stat_val) ((unsigned)(stat_val) >> 8)
 #endif
 #ifndef WIFEXITED
 # define WIFEXITED(stat_val) (((stat_val) & 255) == 0)
+#endif
 #endif
 
 #ifdef TIME_WITH_SYS_TIME
@@ -138,9 +137,7 @@
 #endif
 
 #ifdef HAVE_ARPA_INET_H
-#if !defined(TARGET_OPENBSD) && !defined(__LCLINT__)
 #include <arpa/inet.h>
-#endif
 #endif
 
 #ifdef HAVE_NET_IF_H
@@ -149,7 +146,7 @@
 
 #ifdef TARGET_LINUX
 
-#if defined(HAVE_NETINET_IF_ETHER_H) && !defined(__LCLINT__)
+#if defined(HAVE_NETINET_IF_ETHER_H)
 #include <netinet/if_ether.h>
 #endif
 
@@ -210,6 +207,14 @@
 #include <sys/uio.h>
 #endif
 
+#ifdef HAVE_NETINET_IN_SYSTM_H
+#include <netinet/in_systm.h>
+#endif
+
+#ifdef HAVE_NETINET_IP_H
+#include <netinet/ip.h>
+#endif
+
 #ifdef HAVE_NET_IF_TUN_H
 #include <net/if_tun.h>
 #endif
@@ -230,7 +235,11 @@
 #include <net/if_tun.h>
 #endif
 
-#endif /* TAGET_NETBSD */
+#endif /* TARGET_NETBSD */
+
+#ifdef WIN32
+#include <iphlpapi.h>
+#endif
 
 #ifdef HAVE_SYS_MMAN_H
 #ifdef TARGET_DARWIN
@@ -246,7 +255,7 @@
 /*
  * Do we have the capability to support the --passtos option?
  */
-#if defined(HAVE_IPHDR) && defined(IPPROTO_IP) && defined(IP_TOS) && defined(HAVE_SETSOCKOPT)
+#if defined(IPPROTO_IP) && defined(IP_TOS) && defined(HAVE_SETSOCKOPT)
 #define PASSTOS_CAPABILITY 1
 #else
 #define PASSTOS_CAPABILITY 0
@@ -278,30 +287,31 @@
 #endif
 
 /*
- * Does this OS provide a different function for closing regular files
- * vs. sockets?
+ * Directory separation char
  */
-#ifndef openvpn_close_socket
-#define openvpn_close_socket(s) close(s)
+#ifdef WIN32
+#define OS_SPECIFIC_DIRSEP '\\'
+#else
+#define OS_SPECIFIC_DIRSEP '/'
 #endif
 
 /*
- * Get error code for most recently called
- * system function.
+ * Define a boolean value based
+ * on Win32 status.
  */
-
-#ifndef openvpn_errno
-#define openvpn_errno()         errno
+#ifdef WIN32
+#define WIN32_0_1 1
+#else
+#define WIN32_0_1 0
 #endif
 
-#ifndef openvpn_errno_socket
-#define openvpn_errno_socket()  errno
-#endif
-
-#ifdef HAVE_STRERROR
-#ifndef openvpn_strerror
-#define openvpn_strerror(x)     strerror(x)
-#endif
+/*
+ * Our socket descriptor type.
+ */
+#ifdef WIN32
+typedef SOCKET socket_descriptor_t;
+#else
+typedef int socket_descriptor_t;
 #endif
 
 #endif

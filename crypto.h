@@ -1,6 +1,6 @@
 /*
  *  OpenVPN -- An application to securely tunnel IP networks
- *             over a single UDP port, with support for SSL/TLS-based
+ *             over a single TCP/UDP port, with support for SSL/TLS-based
  *             session authentication and key exchange,
  *             packet encryption, packet authentication, and
  *             packet compression.
@@ -33,6 +33,8 @@
 #include <openssl/hmac.h>
 #include <openssl/des.h>
 #include <openssl/md5.h>
+#include <openssl/sha.h>
+#include <openssl/err.h>
 
 #include "basic.h"
 #include "buffer.h"
@@ -48,15 +50,17 @@
 
 /* Workaround: EVP_CIPHER_mode is defined wrong in OpenSSL 0.9.6 but is fixed in 0.9.7 */
 #undef EVP_CIPHER_mode
-#define EVP_CIPHER_mode(e)  (((e)->flags) & EVP_CIPH_MODE)
+#define EVP_CIPHER_mode(e)                (((e)->flags) & EVP_CIPH_MODE)
 
-#define DES_cblock              des_cblock
-#define DES_is_weak_key         des_is_weak_key
-#define DES_check_key_parity    des_check_key_parity
-#define DES_set_odd_parity      des_set_odd_parity
+#define DES_cblock                        des_cblock
+#define DES_is_weak_key                   des_is_weak_key
+#define DES_check_key_parity              des_check_key_parity
+#define DES_set_odd_parity                des_set_odd_parity
 
-#define HMAC_CTX_cleanup        HMAC_cleanup
-#define EVP_MD_CTX_cleanup(md)  CLEAR (*md)
+#define HMAC_CTX_init(ctx)                CLEAR (*ctx)
+#define HMAC_Init_ex(ctx,sec,len,md,impl) HMAC_Init(ctx, sec, len, md) 
+#define HMAC_CTX_cleanup(ctx)             HMAC_cleanup(ctx)
+#define EVP_MD_CTX_cleanup(md)            CLEAR (*md)
 
 #define INFO_CALLBACK_SSL_CONST
 
@@ -132,6 +136,14 @@ cipher_ok (const char* name)
 #define DES_check_key_parity(x) 1
 #endif
 
+#ifndef EVP_CIPHER_name
+#define EVP_CIPHER_name(e)		OBJ_nid2sn(EVP_CIPHER_nid(e))
+#endif
+
+#ifndef EVP_MD_name
+#define EVP_MD_name(e)			OBJ_nid2sn(EVP_MD_type(e))
+#endif
+
 /*
  * Max size in bytes of any cipher key that might conceivably be used.
  *
@@ -144,7 +156,7 @@ cipher_ok (const char* name)
  * we don't want our key files to be suddenly rendered
  * unusable.
  */
-#define MAX_CIPHER_KEY_LENGTH 64 
+#define MAX_CIPHER_KEY_LENGTH 64
 
 /*
  * Max size in bytes of any HMAC key that might conceivably be used.
@@ -175,6 +187,30 @@ struct key
   uint8_t hmac[MAX_HMAC_KEY_LENGTH];
 };
 
+#define KEY_DIRECTION_BIDIRECTIONAL 0 /* same keys for both directions */
+#define KEY_DIRECTION_NORMAL        1 /* encrypt with keys[0], decrypt with keys[1] */
+#define KEY_DIRECTION_INVERSE       2 /* encrypt with keys[1], decrypt with keys[0] */
+
+/*
+ * Dual random keys (for encrypt/decrypt)
+ */
+struct key2
+{
+  int n;
+  struct key keys[2];
+};
+
+/*
+ * Used for controlling bidirectional keys
+ * vs. a separate key for each direction.
+ */
+struct key_direction_state
+{
+  int out_key;
+  int in_key;
+  int need_keys;
+};
+
 /*
  * A key context for cipher and/or HMAC.
  */
@@ -203,23 +239,26 @@ struct crypto_options
   struct packet_id *packet_id;
   struct packet_id_persist *pid_persist;
   bool packet_id_long_form;
-  uint8_t *iv;
+  bool use_iv;
 };
 
 void init_key_type (struct key_type *kt, const char *ciphername,
 		    bool ciphername_defined, const char *authname,
 		    bool authname_defined, int keysize,
-		    bool cfb_ofb_allowed);
+		    bool cfb_ofb_allowed, bool warn);
 
-void read_key_file (struct key *key, const char *filename);
+void read_key_file (struct key2 *key2, const char *filename, bool must_succeed);
 
-void write_key_file (const struct key *key, const char *filename);
+int write_key_file (const int nkeys, const char *filename);
+
+int read_passphrase_hash (const char *passphrase_file,
+			  const EVP_MD *digest,
+			  uint8_t *output,
+			  int len);
 
 void generate_key_random (struct key *key, const struct key_type *kt);
 
-void randomize_iv (uint8_t *iv);
-
-void check_replay_iv_consistency(const struct key_type *kt, bool packet_id, bool iv);
+void check_replay_iv_consistency(const struct key_type *kt, bool packet_id, bool use_iv);
 
 bool check_key (struct key *key, const struct key_type *kt);
 
@@ -231,6 +270,10 @@ void write_key (const struct key *key, const struct key_type *kt,
 int read_key (struct key *key, const struct key_type *kt, struct buffer *buf);
 
 bool cfb_ofb_mode (const struct key_type* kt);
+
+const char *kt_cipher_name (const struct key_type *kt);
+const char *kt_digest_name (const struct key_type *kt);
+int kt_key_size (const struct key_type *kt);
 
 /* enc parameter in init_key_ctx */
 #define DO_ENCRYPT 1
@@ -248,7 +291,7 @@ void openvpn_encrypt (struct buffer *buf, struct buffer work,
 		      const struct frame* frame,
 		      const time_t current);
 
-void openvpn_decrypt (struct buffer *buf, struct buffer work,
+bool openvpn_decrypt (struct buffer *buf, struct buffer work,
 		      const struct crypto_options *opt,
 		      const struct frame* frame,
 		      const time_t current);
@@ -257,13 +300,16 @@ void openvpn_decrypt (struct buffer *buf, struct buffer work,
 void crypto_adjust_frame_parameters (struct frame *frame,
 				     const struct key_type* kt,
 				     bool cipher_defined,
-				     bool iv,
+				     bool use_iv,
 				     bool packet_id,
 				     bool packet_id_long_form);
 
+void prng_init (void);
+void prng_bytes (uint8_t *output, int len);
+
 void test_crypto (const struct crypto_options *co, struct frame* f);
 
-const char *md5sum(uint8_t *buf, int len);
+const char *md5sum(uint8_t *buf, int len, int n_print_chars);
 
 void show_available_ciphers (void);
 
@@ -271,11 +317,31 @@ void show_available_digests (void);
 
 void init_crypto_lib (void);
 
+/* key direction functions */
+
+void key_direction_state_init (struct key_direction_state *kds, int key_direction);
+
+void verify_fix_key2 (struct key2 *key2, const struct key_type *kt, const char *shared_secret_file);
+
+void must_have_n_keys (const char *filename, const char *option, const struct key2 *key2, int n);
+
+int ascii2keydirection (const char *str);
+
+const char *keydirection2ascii (int kd, bool remote);
+
+/* print keys */
+void key2_print (const struct key2* k,
+		 const struct key_type *kt,
+		 const char* prefix0,
+		 const char* prefix1);
+
 #ifdef USE_SSL
 
 void get_tls_handshake_key (const struct key_type *key_type,
 			    struct key_ctx_bi *ctx,
-			    const char *passphrase_file);
+			    const char *passphrase_file,
+			    bool key_direction);
+
 #else
 
 void init_ssl_lib (void);

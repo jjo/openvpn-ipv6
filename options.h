@@ -23,13 +23,28 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifndef OPTIONS_H
+#define OPTIONS_H
+
 #include "basic.h"
+#include "mtu.h"
+#include "route.h"
+#include "tun.h"
+
+/*
+ * Maximum number of parameters to an options,
+ * including the option name itself.
+ */
+#define MAX_PARMS 5
 
 extern const char title_string[];
 
 /* Command line options */
 struct options
 {
+  /* first config file */
+  const char *config;
+
   /* mode parms */
   bool persist_config;
   int persist_mode;
@@ -56,37 +71,40 @@ struct options
   const char *dev_type;
   const char *dev_node;
   const char *ifconfig_local;
-  const char *ifconfig_remote;
+  const char *ifconfig_remote_netmask;
+  bool ifconfig_noexec;
+  bool ifconfig_nowarn;
 #ifdef HAVE_GETTIMEOFDAY
   int shaper;
 #endif
-  int tun_mtu;          /* MTU of tun device */
+  int tun_mtu;           /* MTU of tun device */
   int tun_mtu_extra;
-  int udp_mtu;          /* MTU of device over which tunnel packets pass via UDP */
-  bool tun_mtu_defined; /* true if user overriding parm with command line option */
-  bool udp_mtu_defined; /* true if user overriding parm with command line option */
+  bool tun_mtu_extra_defined;
+  int link_mtu;          /* MTU of device over which tunnel packets pass via TCP/UDP */
+  bool tun_mtu_defined;  /* true if user overriding parm with command line option */
+  bool link_mtu_defined; /* true if user overriding parm with command line option */
+
+  /* Protocol type (PROTO_UDP or PROTO_TCP) */
+  int proto;
 
   /* Advanced MTU negotiation and datagram fragmentation options */
   int mtu_discover_type; /* used if OS supports setting Path MTU discovery options on socket */
+  bool mtu_test;
+
 #ifdef FRAGMENT_ENABLE
-  bool mtu_dynamic;             /* should we fragment and reassemble packets? */
-  int mtu_min;
-  bool mtu_min_defined;
-  int mtu_max;
-  bool mtu_max_defined;
-  bool mtu_icmp;         /* if fragment=true, bounce back "fragmentation needed but DF set" ICMPs */
+  int fragment;          /* internal fragmentation size */
 #endif
 
   bool mlock;
   int inactivity_timeout;
-  int ping_send_timeout;        /* Send a UDP ping to remote every n seconds */
-  int ping_rec_timeout;         /* Expect a UDP ping from remote at least once every n seconds */
+  int ping_send_timeout;        /* Send a TCP/UDP ping to remote every n seconds */
+  int ping_rec_timeout;         /* Expect a TCP/UDP ping from remote at least once every n seconds */
   bool ping_timer_remote;       /* Run ping timer only if we have a remote address */
   bool tun_ipv6;                /* Build tun dev that supports IPv6 */
 
-  #define PING_UNDEF   0
-  #define PING_EXIT    1
-  #define PING_RESTART 2
+# define PING_UNDEF   0
+# define PING_EXIT    1
+# define PING_RESTART 2
   int ping_rec_timeout_action;  /* What action to take on ping_rec_timeout (exit or restart)? */
 
   bool persist_tun;             /* Don't close/reopen TUN/TAP dev on SIGUSR1 or PING_RESTART */
@@ -94,11 +112,16 @@ struct options
   bool persist_remote_ip;       /* Don't re-resolve remote address on SIGUSR1 or PING_RESTART */
   bool persist_key;             /* Don't re-read key files on SIGUSR1 or PING_RESTART */
 
+  int mssfix;                   /* Upper bound on TCP MSS */
+  bool mssfix_defined;
+
 #if PASSTOS_CAPABILITY
   bool passtos;                  
 #endif
 
   int resolve_retry_seconds;    /* If hostname resolve fails, retry for n seconds */
+
+  unsigned int tuntap_flags;
 
   /* Misc parms */
   const char *username;
@@ -108,8 +131,11 @@ struct options
   const char *writepid;
   const char *up_script;
   const char *down_script;
+  bool up_delay;
+  bool up_restart;
   bool daemon;
   bool inetd;
+  bool log;
   int nice;
 #ifdef USE_PTHREAD
   int nice_work;
@@ -123,17 +149,38 @@ struct options
   bool comp_lzo_adaptive;
 #endif
 
+  /* route management */
+  const char *route_script;
+  const char *route_default_gateway;
+  bool route_noexec;
+  int route_delay;
+  bool route_delay_defined;
+  struct route_option_list routes;
+
+  /* http proxy */
+  const char *http_proxy_server;
+  int http_proxy_port;
+  const char *http_proxy_auth_method;
+  const char *http_proxy_auth_file;
+  bool http_proxy_retry;
+
+  /* Enable options consistency check between peers */
+  bool occ;
+
 #ifdef USE_CRYPTO
   /* Cipher parms */
   const char *shared_secret_file;
+  int key_direction;
   bool ciphername_defined;
   const char *ciphername;
   bool authname_defined;
   const char *authname;
   int keysize;
-  bool packet_id;
+  bool replay;
+  int replay_window;
+  int replay_time;
   const char *packet_id_file;
-  bool iv;
+  bool use_iv;
   bool test_crypto;
 
 #ifdef USE_SSL
@@ -146,6 +193,11 @@ struct options
   const char *priv_key_file;
   const char *cipher_list;
   const char *tls_verify;
+  const char *tls_remote;
+  const char *crl_file;
+
+  /* data channel key exchange method */
+  int key_method;
 
   /* Per-packet timeout on control channel */
   int tls_timeout;
@@ -168,8 +220,6 @@ struct options
   /* Allow only one session */
   bool single_session;
 
-  /* Disable options check between peers */
-  bool disable_occ;
 #endif /* USE_SSL */
 #endif /* USE_CRYPTO */
 };
@@ -181,11 +231,22 @@ void notnull (const char *arg, const char *description);
 void usage_small (void);
 
 void init_options (struct options *o);
+void setenv_settings (const struct options *o);
 void show_settings (const struct options *o);
-char *options_string (const struct options *o);
 
 void parse_argv (struct options* options, int argc, char *argv[]);
 
 bool string_defined_equal (const char *s1, const char *s2);
 
-int options_cmp_equal (const char *s1, const char *s2, size_t n);
+const char *options_string_version (const char* s);
+
+char *options_string (const struct options *o,
+		      const struct frame *frame,
+		      const struct tuntap *tt,
+		      bool remote);
+
+int options_cmp_equal (char *actual, const char *expected, size_t actual_n);
+
+void options_warning (char *actual, const char *expected, size_t actual_n);
+
+#endif
