@@ -498,7 +498,7 @@ should be swapped on the other peer.
 must be private
 addresses outside of the subnets used by either peer.
 This option implies
-.B --udp-mtu 1500
+.B --udp-mtu 1300
 if neither
 .B --udp-mtu
 or
@@ -525,9 +525,9 @@ the script.
 
 In addition, the
 .B --ifconfig
-option will set the UDP MTU to 1500
+option will set the UDP MTU to 1300
 and derive the tunnel MTU automatically.  You can
-override the UDP MTU value of 1500 by using
+override the UDP MTU value of 1300 by using
 the
 .B --udp-mtu
 option to explicitly specify a different value.
@@ -546,7 +546,7 @@ command for your platform.
 .TP
 .B --udp-mtu n
 Take the UDP device MTU to be n and derive the TUN MTU
-from it (default=1500 when the
+from it (default=1300 when the
 .B --ifconfig
 option is used).
 
@@ -555,9 +555,8 @@ the maximum datagram size in bytes that can be sent unfragmented
 over a particular network path.  OpenVPN requires that packets
 on the control or data channels be sent unfragmented.
 
-Typically, the UDP MTU should be set to 1500 but may
-need to be reduced to 1450 or lower if large packets
-are dropped.  The optimal size for UDP MTU is the largest
+Typically, the UDP MTU should be set to a value between 1300 and 1500.
+The optimal size for UDP MTU is the largest
 MTU that can be handled by every router on the link path.
 The UDP MTU value should be equal on both peers.
 
@@ -582,7 +581,7 @@ to the script.
 Take the TUN device MTU to be
 .B n
 and derive the UDP MTU
-from it (default=1450).
+from it (default=1300).
 
 See
 .B --udp-mtu
