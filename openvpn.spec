@@ -1,6 +1,6 @@
 Summary:	A Secure UDP Tunneling Daemon
 Name:		openvpn
-Version:	1.3.0
+Version:	1.3.1
 Release:	1
 URL:		http://sourceforge.net/projects/openvpn/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
@@ -47,16 +47,19 @@ UDP port.
 %post
 case "`uname -r`" in
 2.4*)
-	mkdir /dev/net >/dev/null 2>&1
-	mknod /dev/net/tun c 10 200 >/dev/null 2>&1
+	/bin/mkdir /dev/net >/dev/null 2>&1
+	/bin/mknod /dev/net/tun c 10 200 >/dev/null 2>&1
 	;;
 esac
 /sbin/chkconfig --add %{name}
 /sbin/service %{name} condrestart
 
 %preun
-service %{name} stop
-/sbin/chkconfig --del %{name}
+if [ "$1" = 0 ]
+then
+	/sbin/service %{name} stop
+	/sbin/chkconfig --del %{name}
+fi
 
 %files
 %defattr(-,root,root)
@@ -67,6 +70,9 @@ service %{name} stop
 /etc
 
 %changelog
+
+* Wed Jul 10 2002 James Yonan <jim@yonan.net> 1.3.1-1
+- Fixed %preun to only remove service on final uninstall
 
 * Mon Jun 17 2002 bishop clark (LC957) <bishop@platypus.bc.ca> 1.2.2-1
 - Added condrestart to openvpn.spec & openvpn.init.

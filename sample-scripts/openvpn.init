@@ -121,10 +121,10 @@ case "$1" in
 	;;
   condrestart)
        if [ -f /var/lock/subsys/openvpn ] ; then
-               stop
+               $0 stop
                # avoid race
                sleep 3
-               start
+               $0 start
        fi
        ;;
   status)
