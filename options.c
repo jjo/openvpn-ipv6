@@ -103,6 +103,10 @@ static const char usage_message[] =
   "                  the proxy requires NTLM authentication.\n"
   "--http-proxy-retry     : Retry indefinitely on HTTP proxy errors.\n"
   "--http-proxy-timeout n : Proxy timeout in seconds, default=5.\n"
+  "--http-proxy-option type [parm] : Set extended HTTP proxy options.\n"
+  "                                  Repeat to set multiple options.\n"
+  "                  VERSION version (default=1.0)\n"
+  "                  AGENT user-agent\n"
 #endif
 #ifdef ENABLE_SOCKS
   "--socks-proxy s [p]: Connect to remote host through a Socks5 proxy at address\n"
@@ -465,6 +469,7 @@ static const char usage_message[] =
   "                    NBT type    : Set NetBIOS over TCP/IP Node type\n"
   "                                  1: B, 2: P, 4: M, 8: H\n"
   "                    NBS id      : Set NetBIOS scope ID\n"
+  "                    DISABLE-NBT : Disable Netbios-over-TCP/IP.\n"
   "--dhcp-renew       : Ask Windows to renew the TAP adapter lease on startup.\n"
   "--dhcp-pre-release : Ask Windows to release the previous TAP adapter lease on\n"
 "                       startup.\n"
@@ -527,9 +532,6 @@ init_options (struct options *o)
   o->mssfix = MSSFIX_DEFAULT;
   o->route_delay_window = 30;
   o->resolve_retry_seconds = RESOLV_RETRY_INFINITE;
-#ifdef ENABLE_HTTP_PROXY
-  o->http_proxy_timeout = 5;
-#endif
 #ifdef ENABLE_OCC
   o->occ = true;
 #endif
@@ -722,6 +724,7 @@ show_tuntap_options (const struct tuntap_options *o)
   SHOW_STR (domain);
   SHOW_STR (netbios_scope);
   SHOW_INT (netbios_node_type);
+  SHOW_BOOL (disable_nbt);
 
   show_dhcp_option_addrs ("DNS", o->dns, o->dns_len);
   show_dhcp_option_addrs ("WINS", o->wins, o->wins_len);
@@ -865,6 +868,23 @@ show_remote_list (const struct remote_list *l)
     {
       msg (D_SHOW_PARMS, "  remote_list = NULL");
     }
+}
+#endif
+
+#if defined(ENABLE_HTTP_PROXY) && defined (ENABLE_DEBUG)
+static void
+show_http_proxy_options (const struct http_proxy_options *o)
+{
+  msg (D_SHOW_PARMS, "BEGIN http_proxy");
+  SHOW_STR (server);
+  SHOW_INT (port);
+  SHOW_STR (auth_method_string);
+  SHOW_STR (auth_file);
+  SHOW_BOOL (retry);
+  SHOW_INT (timeout);
+  SHOW_STR (http_version);
+  SHOW_STR (user_agent);
+  msg (D_SHOW_PARMS, "END http_proxy");
 }
 #endif
 
@@ -1013,12 +1033,8 @@ show_settings (const struct options *o)
   SHOW_INT (sndbuf);
 
 #ifdef ENABLE_HTTP_PROXY
-  SHOW_STR (http_proxy_server);
-  SHOW_INT (http_proxy_port);
-  SHOW_STR (http_proxy_auth_method);
-  SHOW_STR (http_proxy_auth_file);
-  SHOW_BOOL (http_proxy_retry);
-  SHOW_INT (http_proxy_timeout);
+  if (o->http_proxy_options)
+    show_http_proxy_options (o->http_proxy_options);
 #endif
 
 #ifdef ENABLE_SOCKS
@@ -1124,6 +1140,23 @@ show_settings (const struct options *o)
 #undef SHOW_STR
 #undef SHOW_INT
 #undef SHOW_BOOL
+
+#ifdef ENABLE_HTTP_PROXY
+
+struct http_proxy_options *
+init_http_options_if_undefined (struct options *o)
+{
+  if (!o->http_proxy_options)
+    {
+      ALLOC_OBJ_CLEAR_GC (o->http_proxy_options, struct http_proxy_options, &o->gc);
+      /* http proxy defaults */
+      o->http_proxy_options->timeout = 5;
+      o->http_proxy_options->http_version = "1.0";
+    }
+  return o->http_proxy_options;
+}
+
+#endif
 
 /*
  * Sanity check on options.
@@ -1350,12 +1383,12 @@ options_postprocess (struct options *options, bool first_time)
     msg (M_USAGE, "--remote MUST be used in TCP Client mode");
 
 #ifdef ENABLE_HTTP_PROXY
-  if (options->http_proxy_server && options->proto != PROTO_TCPv4_CLIENT)
+  if (options->http_proxy_options && options->proto != PROTO_TCPv4_CLIENT)
     msg (M_USAGE, "--http-proxy MUST be used in TCP Client mode (i.e. --proto tcp-client)");
 #endif
 
 #if defined(ENABLE_HTTP_PROXY) && defined(ENABLE_SOCKS)
-  if (options->http_proxy_server && options->socks_proxy_server)
+  if (options->http_proxy_options && options->socks_proxy_server)
     msg (M_USAGE, "--http-proxy can not be used together with --socks-proxy");
 #endif
 
@@ -1398,7 +1431,7 @@ options_postprocess (struct options *options, bool first_time)
       if (!options->bind_local)
 	msg (M_USAGE, "--nobind cannot be used with --mode server");
 #ifdef ENABLE_HTTP_PROXY
-      if (options->http_proxy_server)
+      if (options->http_proxy_options)
 	msg (M_USAGE, "--http-proxy cannot be used with --mode server");
 #endif
 #ifdef ENABLE_SOCKS
@@ -2234,27 +2267,35 @@ read_config_file (struct options *options,
   char line[256];
 
   ++level;
-  if (level > max_recursive_levels)
-    msg (M_FATAL, "In %s:%d: Maximum recursive include levels exceeded in include attempt of file %s -- probably you have a configuration file that tries to include itself.", top_file, top_line, file);
-
-  fp = fopen (file, "r");
-  if (!fp)
-    msg (M_ERR, "In %s:%d: Error opening configuration file: %s", top_file, top_line, file);
-
-  line_num = 0;
-  while (fgets(line, sizeof (line), fp))
+  if (level <= max_recursive_levels)
     {
-      char *p[MAX_PARMS];
-      CLEAR (p);
-      ++line_num;
-      if (parse_line (line, p, SIZE (p), file, line_num, msglevel, &options->gc))
+      fp = fopen (file, "r");
+      if (fp)
 	{
-	  if (strlen (p[0]) >= 3 && !strncmp (p[0], "--", 2))
-	    p[0] += 2;
-	  add_option (options, 0, p, file, line_num, level, msglevel, permission_mask, option_types_found, es);
+	  line_num = 0;
+	  while (fgets(line, sizeof (line), fp))
+	    {
+	      char *p[MAX_PARMS];
+	      CLEAR (p);
+	      ++line_num;
+	      if (parse_line (line, p, SIZE (p), file, line_num, msglevel, &options->gc))
+		{
+		  if (strlen (p[0]) >= 3 && !strncmp (p[0], "--", 2))
+		    p[0] += 2;
+		  add_option (options, 0, p, file, line_num, level, msglevel, permission_mask, option_types_found, es);
+		}
+	    }
+	  fclose (fp);
+	}
+      else
+	{
+	  msg (msglevel, "In %s:%d: Error opening configuration file: %s", top_file, top_line, file);
 	}
     }
-  fclose (fp);
+  else
+    {
+      msg (msglevel, "In %s:%d: Maximum recursive include levels exceeded in include attempt of file %s -- probably you have a configuration file that tries to include itself.", top_file, top_line, file);
+    }
 }
 
 void
@@ -3113,6 +3154,8 @@ add_option (struct options *options,
   else if (streq (p[0], "http-proxy") && p[1] && p[2])
     {
       int port;
+      struct http_proxy_options *ho;
+
       i += 2;
       VERIFY_PERMISSION (OPT_P_GENERAL);
       port = atoi (p[2]);
@@ -3122,34 +3165,66 @@ add_option (struct options *options,
 	  goto err;
 	}
 
-      options->http_proxy_server = p[1];
-      options->http_proxy_port = port;
+      ho = init_http_options_if_undefined (options);
+
+      ho->server = p[1];
+      ho->port = port;
       if (p[3])
 	{
 	  ++i;
-	  options->http_proxy_auth_method = "basic";
-	  options->http_proxy_auth_file = p[3];
+	  ho->auth_method_string = "basic";
+	  ho->auth_file = p[3];
 
 	  if (p[4])
 	    {
 	      ++i;
-	      options->http_proxy_auth_method = p[4];
+	      ho->auth_method_string = p[4];
 	    }
 	}
       else
 	{
-	  options->http_proxy_auth_method = "none";
+	  ho->auth_method_string = "none";
 	}
     }
   else if (streq (p[0], "http-proxy-retry"))
     {
+      struct http_proxy_options *ho;
       VERIFY_PERMISSION (OPT_P_GENERAL);
-      options->http_proxy_retry = true;
+      ho = init_http_options_if_undefined (options);
+      ho->retry = true;
     }
   else if (streq (p[0], "http-proxy-timeout") && p[1])
     {
+      struct http_proxy_options *ho;
+
+      ++i;
       VERIFY_PERMISSION (OPT_P_GENERAL);
-      options->http_proxy_timeout = positive_atoi (p[1]);
+      ho = init_http_options_if_undefined (options);
+      ho->timeout = positive_atoi (p[1]);
+    }
+  else if (streq (p[0], "http-proxy-option") && p[1])
+    {
+      struct http_proxy_options *ho;
+
+      ++i;
+      if (p[2])
+	++i;
+
+      VERIFY_PERMISSION (OPT_P_GENERAL);
+      ho = init_http_options_if_undefined (options);
+
+      if (streq (p[1], "VERSION") && p[2])
+	{
+	  ho->http_version = p[2];
+	}
+      else if (streq (p[1], "AGENT") && p[2])
+	{
+	  ho->user_agent = p[2];
+	}
+      else
+	{
+	  msg (msglevel, "Bad http-proxy-option or missing parameter: '%s'", p[1]);
+	}
     }
 #endif
 #ifdef ENABLE_SOCKS
@@ -3777,6 +3852,10 @@ add_option (struct options *options,
 	{
 	  ++i;
 	  dhcp_option_address_parse ("NBDD", p[2], o->nbdd, &o->nbdd_len, msglevel);
+	}
+      else if (streq (p[1], "DISABLE-NBT"))
+	{
+	  o->disable_nbt = 1;
 	}
       else
 	{

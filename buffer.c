@@ -31,8 +31,10 @@
 
 #include "syshead.h"
 
+#include "common.h"
 #include "buffer.h"
 #include "error.h"
+#include "mtu.h"
 #include "thread.h"
 
 #include "memdbg.h"
@@ -92,6 +94,35 @@ clone_buf (const struct buffer* buf)
   memcpy (BPTR (&ret), BPTR (buf), BLEN (buf));
   return ret;
 }
+
+#ifdef BUF_INIT_TRACKING
+
+bool
+buf_init_debug (struct buffer *buf, int offset, const char *file, int line)
+{
+  buf->debug_file = file;
+  buf->debug_line = line;
+  return buf_init_dowork (buf, offset);
+}
+
+static inline int
+buf_debug_line (const struct buffer *buf)
+{
+  return buf->debug_line;
+}
+
+static const char *
+buf_debug_file (const struct buffer *buf)
+{
+  return buf->debug_file;
+}
+
+#else
+
+#define buf_debug_line(buf) 0
+#define buf_debug_file(buf) "[UNDEF]"
+
+#endif
 
 void
 buf_clear (struct buffer *buf)
@@ -684,4 +715,30 @@ character_class_debug (void)
     }
 }
 
+#endif
+
+#ifdef VERIFY_ALIGNMENT
+void
+valign4 (const struct buffer *buf, const char *file, const int line)
+{
+  if (buf && buf->len)
+    {
+      int msglevel = D_ALIGN_DEBUG;
+      const unsigned int u = (unsigned int) BPTR (buf);
+
+      if (u & (PAYLOAD_ALIGN-1))
+	msglevel = D_ALIGN_ERRORS;
+
+      msg (msglevel, "%sAlignment at %s/%d ptr=" ptr_format " OLC=%d/%d/%d I=%s/%d",
+	   (msglevel == D_ALIGN_ERRORS) ? "ERROR: " : "",
+	   file,
+	   line,
+	   (ptr_type)buf->data,
+	   buf->offset,
+	   buf->len,
+	   buf->capacity,
+	   buf_debug_file (buf),
+	   buf_debug_line (buf));
+    }
+}
 #endif

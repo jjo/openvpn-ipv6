@@ -90,10 +90,11 @@ mroute_learnable_address (const struct mroute_addr *addr)
 unsigned int
 mroute_extract_addr_from_packet (struct mroute_addr *src,
 				 struct mroute_addr *dest,
-				 const struct buffer *buf,
+				 struct buffer *buf,
 				 int tunnel_type)
 {
   unsigned int ret = 0;
+  verify_align_4 (buf);
   if (tunnel_type == DEV_TYPE_TUN)
     {
       if (BLEN (buf) >= 1)
@@ -119,7 +120,7 @@ mroute_extract_addr_from_packet (struct mroute_addr *src,
 		      memcpy (dest->addr, &ip->daddr, 4);
 
 		      /* mcast address? */
-		      if (((*(in_addr_t*)dest->addr) & htonl(IP_MCAST_SUBNET_MASK)) == htonl(IP_MCAST_NETWORK))
+		      if ((ip->daddr & htonl(IP_MCAST_SUBNET_MASK)) == htonl(IP_MCAST_NETWORK))
 			ret |= MROUTE_EXTRACT_MCAST;
 
 		      /* IGMP message? */

@@ -277,7 +277,7 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
 	  int outlen;
 
 	  /* initialize work buffer with FRAME_HEADROOM bytes of prepend capacity */
-	  ASSERT (buf_init (&work, FRAME_HEADROOM (frame)));
+	  ASSERT (buf_init (&work, FRAME_HEADROOM_ADJ (frame, FRAME_HEADROOM_MARKER_DECRYPT)));
 
 	  /* use IV if user requested it */
 	  CLEAR (iv_buf);
@@ -497,7 +497,9 @@ init_hmac (HMAC_CTX *ctx, const EVP_MD *digest,
   gc_free (&gc);
 }
 
-/* build a key_type */
+/*
+ * Build a struct key_type.
+ */
 void
 init_key_type (struct key_type *kt, const char *ciphername,
 	       bool ciphername_defined, const char *authname,

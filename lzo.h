@@ -53,6 +53,11 @@
 #define COMPRESS_THRESHOLD 100
 
 /*
+ * Length of prepended prefix on LZO packets
+ */ 
+#define LZO_PREFIX_LEN 1
+
+/*
  * Adaptive compress parameters
  */
 #define AC_SAMP_SEC    2      /* number of seconds in sample period */

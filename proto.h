@@ -123,59 +123,6 @@ struct openvpn_tcphdr {
 #define OPENVPN_TCPOLEN_MAXSEG 4
 
 /*
- * Alignment-safe version of ntohs
- * and htons.
- */
-
-static inline uint16_t
-ntohs_as (const uint16_t *src)
-{
-  return (uint16_t) (((uint8_t*)src)[0] << 8) | ((uint8_t*)src)[1];
-}
-
-static inline void
-htons_as (uint16_t *dest, const uint16_t src)
-{
-  ((uint8_t*)dest)[0] = (uint8_t) (src >> 8);
-  ((uint8_t*)dest)[1] = (uint8_t) src;
-}
-
-static inline uint32_t
-ntohl_as (const uint32_t *src)
-{
-  return (uint32_t)
-      (((uint8_t*)src)[3] << 24)
-    | (((uint8_t*)src)[2] << 16)
-    | (((uint8_t*)src)[1] << 8)
-    | (((uint8_t*)src)[0]);
-}
-
-static inline void
-htonl_as (uint32_t *dest, const uint32_t src)
-{
-  ((uint8_t*)dest)[0] = (uint8_t) (src >> 24);
-  ((uint8_t*)dest)[1] = (uint8_t) (src >> 16);
-  ((uint8_t*)dest)[2] = (uint8_t) (src >> 8);
-  ((uint8_t*)dest)[3] = (uint8_t) src;
-}
-
-static inline uint16_t
-get_u16_as (const uint16_t *src)
-{
-  uint16_t ret;
-  ((uint8_t*)&ret)[0] = ((uint8_t*)src)[0];
-  ((uint8_t*)&ret)[1] = ((uint8_t*)src)[1];
-  return ret;
-}
-
-static inline void
-put_u16_as (uint16_t *dest, const uint16_t src)
-{
-  ((uint8_t*)dest)[0] = ((uint8_t*)&src)[0];
-  ((uint8_t*)dest)[1] = ((uint8_t*)&src)[1];
-}
-
-/*
  * The following macro is used to update an
  * internet checksum.  "acc" is a 32-bit
  * accumulation of all the changes to the
@@ -184,16 +131,16 @@ put_u16_as (uint16_t *dest, const uint16_t src)
  * is the checksum value to be updated.
  */
 #define ADJUST_CHECKSUM(acc, cksum) { \
-  acc += get_u16_as (&cksum); \
-  if (acc < 0) { \
-    acc = -acc; \
-    acc = (acc >> 16) + (acc & 0xffff); \
-    acc += acc >> 16; \
-    put_u16_as (&cksum, (uint16_t) ~acc); \
+  (acc) += (cksum); \
+  if ((acc) < 0) { \
+    (acc) = -(acc); \
+    (acc) = ((acc) >> 16) + ((acc) & 0xffff); \
+    (acc) += (acc) >> 16; \
+    (cksum) = (uint16_t) ~(acc); \
   } else { \
-    acc = (acc >> 16) + (acc & 0xffff); \
-    acc += acc >> 16; \
-    put_u16_as (&cksum, (uint16_t) acc); \
+    (acc) = ((acc) >> 16) + ((acc) & 0xffff); \
+    (acc) += (acc) >> 16; \
+    (cksum) = (uint16_t) (acc); \
   } \
 }
 
@@ -212,39 +159,6 @@ put_u16_as (uint16_t *dest, const uint16_t src)
  * If raw tunnel packet is IPv4, return true and increment
  * buffer offset to start of IP header.
  */
-static inline bool
-is_ipv4 (int tunnel_type, struct buffer *buf)
-{
-  int offset;
-  const struct openvpn_iphdr *ih;
-
-  if (tunnel_type == DEV_TYPE_TUN)
-    {
-      if (BLEN (buf) < (int) sizeof (struct openvpn_iphdr))
-	return false;
-      offset = 0;
-    }
-  else if (tunnel_type == DEV_TYPE_TAP)
-    {
-      const struct openvpn_ethhdr *eh;
-      if (BLEN (buf) < (int)(sizeof (struct openvpn_ethhdr)
-	  + sizeof (struct openvpn_iphdr)))
-	return false;
-      eh = (const struct openvpn_ethhdr *) BPTR (buf);
-      if (ntohs_as (&eh->proto) != OPENVPN_ETH_P_IPV4)
-	return false;
-      offset = sizeof (struct openvpn_ethhdr);
-    }
-  else
-    return false;
-
-  ih = (const struct openvpn_iphdr *)
-    (BPTR (buf) + offset);
-
-  if (OPENVPN_IPH_GET_VER (ih->version_len) == 4)
-    return buf_advance (buf, offset);
-  else
-    return false;
-}
+bool is_ipv4 (int tunnel_type, struct buffer *buf);
 
 #endif

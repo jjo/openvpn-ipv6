@@ -194,6 +194,8 @@ bool multi_process_post (struct multi_context *m, struct multi_instance *mi, con
 bool multi_process_incoming_link (struct multi_context *m, struct multi_instance *instance, const unsigned int mpp_flags);
 bool multi_process_incoming_tun (struct multi_context *m, const unsigned int mpp_flags);
 
+void multi_process_drop_outgoing_tun (struct multi_context *m, const unsigned int mpp_flags);
+
 void multi_print_status (struct multi_context *m, struct status_output *so, const int version);
 
 struct multi_instance *multi_get_queue (struct mbuf_set *ms);

@@ -23,45 +23,53 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifdef WIN32
+#include "config-win32.h"
+#else
+#include "config.h"
+#endif
+
+#include "syshead.h"
+
+#include "proto.h"
+
+#include "memdbg.h"
+
 /*
- * TCP specific code for --mode server
+ * If raw tunnel packet is IPv4, return true and increment
+ * buffer offset to start of IP header.
  */
-
-#ifndef MTCP_H
-#define MTCP_H
-
-#if P2MP_SERVER
-
-#include "event.h"
-
-/*
- * Extra state info needed for TCP mode
- */
-struct multi_tcp
+bool
+is_ipv4 (int tunnel_type, struct buffer *buf)
 {
-  struct event_set *es;
-  struct event_set_return *esr;
-  int n_esr;
-  int maxevents;
-  unsigned int tun_rwflags;
-#ifdef ENABLE_MANAGEMENT
-  unsigned int management_persist_flags;
-#endif
-};
+  int offset;
+  const struct openvpn_iphdr *ih;
 
-struct multi_instance;
-struct context;
+  verify_align_4 (buf);
+  if (tunnel_type == DEV_TYPE_TUN)
+    {
+      if (BLEN (buf) < (int) sizeof (struct openvpn_iphdr))
+	return false;
+      offset = 0;
+    }
+  else if (tunnel_type == DEV_TYPE_TAP)
+    {
+      const struct openvpn_ethhdr *eh;
+      if (BLEN (buf) < (int)(sizeof (struct openvpn_ethhdr)
+	  + sizeof (struct openvpn_iphdr)))
+	return false;
+      eh = (const struct openvpn_ethhdr *) BPTR (buf);
+      if (ntohs (eh->proto) != OPENVPN_ETH_P_IPV4)
+	return false;
+      offset = sizeof (struct openvpn_ethhdr);
+    }
+  else
+    return false;
 
-struct multi_tcp *multi_tcp_init (int maxevents, int *maxclients);
-void multi_tcp_free (struct multi_tcp *mtcp);
-void multi_tcp_dereference_instance (struct multi_tcp *mtcp, struct multi_instance *mi);
+  ih = (const struct openvpn_iphdr *) (BPTR (buf) + offset);
 
-bool multi_tcp_instance_specific_init (struct multi_context *m, struct multi_instance *mi);
-void multi_tcp_instance_specific_free (struct multi_instance *mi);
-
-void multi_tcp_link_out_deferred (struct multi_context *m, struct multi_instance *mi);
-
-void tunnel_server_tcp (struct context *top);
-
-#endif
-#endif
+  if (OPENVPN_IPH_GET_VER (ih->version_len) == 4)
+    return buf_advance (buf, offset);
+  else
+    return false;
+}

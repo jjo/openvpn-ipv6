@@ -3,6 +3,38 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.12.20 -- Version 2.0-rc6
+
+* Improved checking for epoll support in ./configure
+  to fix false positive on RH9 (Jan Just Keijser).
+* Made the "MULTI TCP: I/O wait required blocking in
+  multi_tcp_action, action=7" error nonfatal and replaced
+  with "MULTI: Outgoing TUN queue full, dropped packet".
+  So far the issue only seems to occur on Linux 2.2
+  in --mode server --proto tcp mode.  It occurs when
+  the TUN/TAP driver locks up and refuses to except
+  new packet writes for a second or more.
+* Fixed bug where if a --client-config-dir file tried
+  to include another file using "config", and if that
+  include failed, OpenVPN would abort with a fatal
+  error.  Now such inclusion failures will be logged
+  but are no longer fatal.
+* Global changes to the way that packet buffer alignment
+  is handled.  Previously we didn't care about alignment
+  and took care, when handling 16 and 32 bit words
+  in buffers, to always use alignment-safe transfers.
+  This approach appears to be inadequate on some
+  architectures such as alpha.  The new approach is
+  to initialize packet buffers in a way that anticipates
+  how component structures will be allocated within
+  them, to maintain correct alignment.
+* Added --dhcp-option DISABLE-NBT to disable NetBIOS
+  over TCP (Jan Just Keijser).
+* Added --http-proxy-option directive for controlling
+  miscellaneous HTTP proxy options.
+* Management state will no longer transition to "WAIT"
+  during TLS renegotiations.
+
 2004.12.16 -- Version 2.0-rc5
 
 * The --client-config-dir option will now try to open

@@ -682,7 +682,10 @@ socket_frame_init (const struct frame *frame, struct link_socket *sock)
 #ifdef WIN32
       stream_buf_init (&sock->stream_buf, &sock->reads.buf_init);
 #else
-      alloc_buf_sock_tun (&sock->stream_buf_data, frame, false);
+      alloc_buf_sock_tun (&sock->stream_buf_data,
+			  frame,
+			  false,
+			  FRAME_HEADROOM_MARKER_READ_STREAM);
       stream_buf_init (&sock->stream_buf, &sock->stream_buf_data);
 #endif
     }
@@ -935,8 +938,8 @@ link_socket_init_phase1 (struct link_socket *sock,
       ASSERT (!sock->inetd);
 
       /* the proxy server */
-      sock->remote_host = http_proxy->server;
-      sock->remote_port = http_proxy->port;
+      sock->remote_host = http_proxy->options.server;
+      sock->remote_port = http_proxy->options.port;
 
       /* the OpenVPN server we will use the proxy to connect to */
       sock->proxy_dest_host = remote_host;

@@ -37,24 +37,25 @@
 #define HTTP_AUTH_NTLM  2
 #define HTTP_AUTH_N     3
 
-struct http_proxy_info {
-  bool defined;
+struct http_proxy_options {
+  const char *server;
+  int port;
   bool retry;
   int timeout;
+  const char *auth_method_string;
+  const char *auth_file;
+  const char *http_version;
+  const char *user_agent;
+};
 
-  char server[128];
-  int port;
-
+struct http_proxy_info {
+  bool defined;
   int auth_method;
+  struct http_proxy_options options;
   struct user_pass up;
 };
 
-struct http_proxy_info *new_http_proxy (const char *server,
-					const int port,
-					const bool retry,
-					const char *auth_method,
-					const char *auth_file,
-					const int timeout,
+struct http_proxy_info *new_http_proxy (const struct http_proxy_options *o,
 					struct gc_arena *gc);
 
 void establish_http_proxy_passthru (struct http_proxy_info *p,

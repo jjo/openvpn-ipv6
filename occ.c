@@ -345,7 +345,7 @@ process_received_occ_msg (struct context *c)
 
     case OCC_REPLY:
       dmsg (D_PACKET_CONTENT, "RECEIVED OCC_REPLY");
-      if (c->options.occ && !TLS_MODE && c->c2.options_string_remote)
+      if (c->options.occ && !TLS_MODE (c) && c->c2.options_string_remote)
 	{
 	  if (!options_cmp_equal_safe (BPTR (&c->c2.buf),
 				       c->c2.options_string_remote,

@@ -38,6 +38,7 @@
 #include "socket.h"
 #include "plugin.h"
 #include "manage.h"
+#include "proxy.h"
 
 /*
  * Maximum number of parameters associated with an option,
@@ -234,13 +235,7 @@ struct options
   struct route_option_list *routes;
 
 #ifdef ENABLE_HTTP_PROXY
-  /* http proxy */
-  const char *http_proxy_server;
-  int http_proxy_port;
-  const char *http_proxy_auth_method;
-  const char *http_proxy_auth_file;
-  bool http_proxy_retry;
-  int http_proxy_timeout;
+  struct http_proxy_options *http_proxy_options;
 #endif
 
 #ifdef ENABLE_SOCKS

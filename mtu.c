@@ -41,11 +41,14 @@
 
 /* allocate a buffer for socket or tun layer */
 void
-alloc_buf_sock_tun (struct buffer *buf, const struct frame *frame, bool tuntap_buffer)
+alloc_buf_sock_tun (struct buffer *buf,
+		    const struct frame *frame,
+		    const bool tuntap_buffer,
+		    const unsigned int align_mask)
 {
   /* allocate buffer for overlapped I/O */
   *buf = alloc_buf (BUF_SIZE (frame));
-  ASSERT (buf_init (buf, FRAME_HEADROOM (frame)));
+  ASSERT (buf_init (buf, FRAME_HEADROOM_ADJ (frame, align_mask)));
   buf->len = tuntap_buffer ? MAX_RW_SIZE_TUN (frame) : MAX_RW_SIZE_LINK (frame);
   ASSERT (buf_safe (buf, 0));
 }
@@ -76,6 +79,8 @@ frame_finalize (struct frame *frame,
     }
 
   frame->link_mtu_dynamic = frame->link_mtu;
+
+  frame->extra_buffer += PAYLOAD_ALIGN;
 }
 
 /*
@@ -138,6 +143,8 @@ frame_print (const struct frame *frame,
   buf_printf (&out, " EB:%d", frame->extra_buffer);
   buf_printf (&out, " ET:%d", frame->extra_tun);
   buf_printf (&out, " EL:%d", frame->extra_link);
+  if (frame->align_flags && frame->align_adjust)
+    buf_printf (&out, " AF:%u/%d", frame->align_flags, frame->align_adjust);
   buf_printf (&out, " ]");
 
   msg (level, "%s", out.data);

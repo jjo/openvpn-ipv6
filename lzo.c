@@ -94,8 +94,8 @@ lzo_adaptive_compress_data (struct lzo_adaptive_compress *ac, int n_total, int n
 
 void lzo_adjust_frame_parameters (struct frame *frame)
 {
-  /* Leave room for our one-byte compressed/didn't-compress flag. */
-  frame_add_to_extra_frame (frame, 1);
+  /* Leave room for our one-byte compressed/didn't-compress prefix byte. */
+  frame_add_to_extra_frame (frame, LZO_PREFIX_LEN);
 
   /* Leave room for compression buffer to expand in worst case scenario
      where data is totally uncompressible */

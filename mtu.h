@@ -81,6 +81,12 @@
  */
 #define MSSFIX_DEFAULT     1450
 
+/*
+ * Alignment of payload data such as IP packet or
+ * ethernet frame.
+ */
+#define PAYLOAD_ALIGN 4
+
 struct frame {
   /*
    * Maximum datagram size to be sent over the tunnel TCP/UDP channel.
@@ -89,7 +95,7 @@ struct frame {
   int link_mtu_dynamic;
 
   /*
-   * extra_frame: How many extra bytes might each subsystem (crypto, TLS, or, compression)
+   * How many extra bytes might each subsystem (crypto, TLS, or, compression)
    * add to frame in worst case?
    *
    * mtu + extra_frame = MTU of TCP/UDP transport
@@ -97,23 +103,33 @@ struct frame {
   int extra_frame;
 
   /*
-   * extra_buffer: Worst case size added to internal buffer due to functions
+   * Worst case size added to internal buffer due to functions
    * such as compression which can potentially expand the size of uncompressible
    * data.
    */
   int extra_buffer;
 
   /*
-   * extra_tun: max number of bytes in excess of tun mtu size that we might read
+   * Max number of bytes in excess of tun mtu size that we might read
    * or write from TUN/TAP device.
    */
   int extra_tun;
 
   /*
-   * extra_link: max number of bytes in excess on link mtu size that we might read
+   * Max number of bytes in excess of link mtu size that we might read
    * or write from UDP/TCP link.
    */
   int extra_link;
+
+  /*
+   * Alignment control
+   */
+# define FRAME_HEADROOM_MARKER_DECRYPT     (1<<0)
+# define FRAME_HEADROOM_MARKER_FRAGMENT    (1<<1)
+# define FRAME_HEADROOM_MARKER_READ_LINK   (1<<2)
+# define FRAME_HEADROOM_MARKER_READ_STREAM (1<<3)
+  unsigned int align_flags;
+  int align_adjust;
 };
 
 /* Routines which read struct frame should use the macros below */
@@ -160,17 +176,17 @@ struct frame {
 #define MAX_RW_SIZE_LINK(f)      (EXPANDED_SIZE(f) + (f)->extra_link)
 
 /*
- * In general, OpenVPN packet building routines set the initial
- * buffer store point this many bytes into the data buffer to
- * allow for efficient prepending.
+ * Control buffer headroom allocations to allow for efficient prepending.
  */
-#define FRAME_HEADROOM(f)        (TUN_LINK_DELTA(f) + (f)->extra_buffer + (f)->extra_link)
+#define FRAME_HEADROOM_BASE(f)     (TUN_LINK_DELTA(f) + (f)->extra_buffer + (f)->extra_link)
+#define FRAME_HEADROOM(f)          frame_headroom(f, 0)
+#define FRAME_HEADROOM_ADJ(f, fm)  frame_headroom(f, fm)
 
 /*
  * Max size of a buffer used to build a packet for output to
  * the TCP/UDP port.
  */
-#define BUF_SIZE(f)              (TUN_MTU_SIZE(f) + FRAME_HEADROOM(f) * 2)
+#define BUF_SIZE(f)              (TUN_MTU_SIZE(f) + FRAME_HEADROOM_BASE(f) * 2)
 
 /*
  * Function prototypes.
@@ -203,7 +219,10 @@ void frame_set_mtu_dynamic (struct frame *frame, int mtu, unsigned int flags);
 /*
  * allocate a buffer for socket or tun layer
  */
-void alloc_buf_sock_tun (struct buffer *buf, const struct frame *frame, bool tuntap_buffer);
+void alloc_buf_sock_tun (struct buffer *buf,
+			 const struct frame *frame,
+			 const bool tuntap_buffer,
+			 const unsigned int align_mask);
 
 /*
  * EXTENDED_SOCKET_ERROR_CAPABILITY functions -- print extra error info
@@ -219,31 +238,62 @@ const char *format_extended_socket_error (int fd, int *mtu, struct gc_arena *gc)
 #endif
 
 /*
- * Inline functions
+ * Calculate a starting offset into a buffer object, dealing with
+ * headroom and alignment issues.
+ */
+static inline int
+frame_headroom (const struct frame *f, const unsigned int flag_mask)
+{
+  const int offset = FRAME_HEADROOM_BASE (f);
+  const int adjust = (flag_mask & f->align_flags) ? f->align_adjust : 0;
+  const int delta = ((PAYLOAD_ALIGN << 24) - (offset + adjust)) & (PAYLOAD_ALIGN - 1);
+  return offset + delta;
+}
+
+/*
+ * frame member adjustment functions
  */
 
 static inline void
-frame_add_to_extra_frame (struct frame *frame, int increment)
+frame_add_to_extra_frame (struct frame *frame, const int increment)
 {
   frame->extra_frame += increment;
 }
 
 static inline void
-frame_add_to_extra_tun (struct frame *frame, int increment)
+frame_add_to_extra_tun (struct frame *frame, const int increment)
 {
   frame->extra_tun += increment;
 }
 
 static inline void
-frame_add_to_extra_link (struct frame *frame, int increment)
+frame_add_to_extra_link (struct frame *frame, const int increment)
 {
   frame->extra_link += increment;
 }
 
 static inline void
-frame_add_to_extra_buffer (struct frame *frame, int increment)
+frame_add_to_extra_buffer (struct frame *frame, const int increment)
 {
   frame->extra_buffer += increment;
+}
+
+static inline void
+frame_add_to_align_adjust (struct frame *frame, const int increment)
+{
+  frame->align_adjust += increment;
+}
+
+static inline void
+frame_align_to_extra_frame (struct frame *frame)
+{
+  frame->align_adjust = frame->extra_frame + frame->extra_link;
+}
+
+static inline void
+frame_or_align_flags (struct frame *frame, const unsigned int flag_mask)
+{
+  frame->align_flags |= flag_mask;
 }
 
 static inline bool

@@ -281,3 +281,9 @@
    fun:add_env_item
    fun:manage_env
 }
+
+{
+   test47
+   Memcheck:Cond
+   fun:lzo1x_1_15_compress
+}

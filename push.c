@@ -142,7 +142,9 @@ push_option (struct options *o, const char *opt, int msglevel)
   bool first = false;
 
   if (!string_class (opt, CC_ANY, CC_COMMA))
-    msg (msglevel, "PUSH OPTION FAILED (illegal comma (',') in string): '%s'", opt);
+    {
+      msg (msglevel, "PUSH OPTION FAILED (illegal comma (',') in string): '%s'", opt);
+    }
   else
     {
       if (!o->push_list)
@@ -153,10 +155,15 @@ push_option (struct options *o, const char *opt, int msglevel)
 
       len = strlen (o->push_list->options);
       if (len + strlen (opt) + 2 >= MAX_PUSH_LIST_LEN)
-	msg (msglevel, "Maximum length of --push buffer (%d) has been exceeded", MAX_PUSH_LIST_LEN);
-      if (!first)
-	strcat (o->push_list->options, ",");
-      strcat (o->push_list->options, opt);
+	{
+	  msg (msglevel, "Maximum length of --push buffer (%d) has been exceeded", MAX_PUSH_LIST_LEN);
+	}
+      else
+	{
+	  if (!first)
+	    strcat (o->push_list->options, ",");
+	  strcat (o->push_list->options, opt);
+	}
     }
 }
 

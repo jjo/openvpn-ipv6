@@ -606,7 +606,7 @@ read_incoming_link (struct context *c)
   ASSERT (!c->c2.to_tun.len);
 
   c->c2.buf = c->c2.buffers->read_link_buf;
-  ASSERT (buf_init (&c->c2.buf, FRAME_HEADROOM (&c->c2.frame)));
+  ASSERT (buf_init (&c->c2.buf, FRAME_HEADROOM_ADJ (&c->c2.frame, FRAME_HEADROOM_MARKER_READ_LINK)));
   status = link_socket_read (c->c2.link_socket, &c->c2.buf, MAX_RW_SIZE_LINK (&c->c2.frame), &c->c2.from);
 
   if (socket_connection_reset (c->c2.link_socket, status))
@@ -766,7 +766,7 @@ process_incoming_link (struct context *c)
        *
        * Also, update the persisted version of our packet-id.
        */
-      if (!TLS_MODE)
+      if (!TLS_MODE (c))
 	link_socket_set_outgoing_addr (&c->c2.buf, lsi, &c->c2.from, NULL, c->c2.es);
 
       /* reset packet received timer */

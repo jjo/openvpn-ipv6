@@ -29,6 +29,19 @@
 #include "basic.h"
 #include "thread.h"
 
+/*
+ * Define verify_align function, otherwise
+ * it will be a noop.
+ */
+//#define VERIFY_ALIGNMENT
+
+/*
+ * Keep track of source file/line of buf_init calls
+ */
+#ifdef VERIFY_ALIGNMENT
+#define BUF_INIT_TRACKING
+#endif
+
 /* basic buffer class for OpenVPN */
 
 struct buffer
@@ -37,6 +50,11 @@ struct buffer
   int offset;	   /* data starts at data + offset, offset > 0 to allow for efficient prepending */
   int len;	   /* length of data that starts at data + offset */
   uint8_t *data;
+
+#ifdef BUF_INIT_TRACKING
+  const char *debug_file;
+  int debug_line;
+#endif
 };
 
 /* for garbage collection */
@@ -97,6 +115,14 @@ struct buffer string_alloc_buf (const char *str, struct gc_arena *gc);
 
 #endif
 
+#ifdef BUF_INIT_TRACKING
+#define buf_init(buf, offset) buf_init_debug (buf, offset, __FILE__, __LINE__)
+bool buf_init_debug (struct buffer *buf, int offset, const char *file, int line);
+#else
+#define buf_init(buf, offset) buf_init_dowork (buf, offset)
+#endif
+
+
 /* inline functions */
 
 static inline void
@@ -109,7 +135,7 @@ buf_reset (struct buffer *buf)
 }
 
 static inline bool
-buf_init (struct buffer *buf, int offset)
+buf_init_dowork (struct buffer *buf, int offset)
 {
   if (offset < 0 || offset > buf->capacity || buf->data == NULL)
     return false;
@@ -576,6 +602,16 @@ const char *string_mod_const (const char *str,
 
 #ifdef CHARACTER_CLASS_DEBUG
 void character_class_debug (void);
+#endif
+
+/*
+ * Verify that a pointer is correctly aligned
+ */
+#ifdef VERIFY_ALIGNMENT
+  void valign4 (const struct buffer *buf, const char *file, const int line);
+# define verify_align_4(ptr) valign4(buf, __FILE__, __LINE__)
+#else
+# define verify_align_4(ptr)
 #endif
 
 /*

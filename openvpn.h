@@ -473,8 +473,9 @@ struct context
  * Macros for referencing objects which may not
  * have been compiled in.
  */
+
 #if defined(USE_CRYPTO) && defined(USE_SSL)
-#define TLS_MODE (c->c2.tls_multi != NULL)
+#define TLS_MODE(c) ((c)->c2.tls_multi != NULL)
 #define PROTO_DUMP_FLAGS (check_debug_level (D_LINK_RW_VERBOSE) ? (PD_SHOW_DATA|PD_VERBOSE) : 0)
 #define PROTO_DUMP(buf, gc) protocol_dump((buf), \
 				      PROTO_DUMP_FLAGS | \
@@ -482,7 +483,7 @@ struct context
 				      (c->options.tls_auth_file ? c->c1.ks.key_type.hmac_length : 0), \
 				      gc)
 #else
-#define TLS_MODE (false)
+#define TLS_MODE(c) (false)
 #define PROTO_DUMP(buf, gc) format_hex (BPTR (buf), BLEN (buf), 80, gc)
 #endif
 
@@ -490,6 +491,12 @@ struct context
 #define MD5SUM(buf, len, gc) md5sum((buf), (len), 0, (gc))
 #else
 #define MD5SUM(buf, len, gc) "[unavailable]"
+#endif
+
+#ifdef USE_CRYPTO
+#define CIPHER_ENABLED(c) (c->c1.ks.key_type.cipher != NULL)
+#else
+#define CIPHER_ENABLED(c) (false)
 #endif
 
 #endif

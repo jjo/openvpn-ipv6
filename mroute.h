@@ -32,8 +32,8 @@
 #include "list.h"
 #include "route.h"
 
-#define IP_MCAST_SUBNET_MASK  (240<<24)
-#define IP_MCAST_NETWORK      (224<<24)
+#define IP_MCAST_SUBNET_MASK  ((in_addr_t)240<<24)
+#define IP_MCAST_NETWORK      ((in_addr_t)224<<24)
 
 /* Return status values for mroute_extract_addr_from_packet */
 #define MROUTE_EXTRACT_SUCCEEDED (1<<1)
@@ -92,7 +92,7 @@ struct mroute_helper {
 
 unsigned int mroute_extract_addr_from_packet (struct mroute_addr *src,
 					      struct mroute_addr *dest,
-					      const struct buffer *buf,
+					      struct buffer *buf,
 					      int tunnel_type);
 
 bool mroute_extract_sockaddr_in (struct mroute_addr *addr,

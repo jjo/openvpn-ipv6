@@ -47,13 +47,15 @@ mss_fixup (struct buffer *buf, int maxmss)
 
   if (BLEN (buf) < (int) sizeof (struct openvpn_iphdr))
     return;
+  
+  verify_align_4 (buf);
   pip = (struct openvpn_iphdr *) BPTR (buf);
 
   hlen = OPENVPN_IPH_GET_LEN (pip->version_len);
 
   if (pip->protocol == OPENVPN_IPPROTO_TCP
-      && ntohs_as (&pip->tot_len) == BLEN (buf)
-      && (ntohs_as (&pip->frag_off) & OPENVPN_IP_OFFMASK) == 0
+      && ntohs (pip->tot_len) == BLEN (buf)
+      && (ntohs (pip->frag_off) & OPENVPN_IP_OFFMASK) == 0
       && hlen <= BLEN (buf)
       && BLEN (buf) - hlen
          >= (int) sizeof (struct openvpn_tcphdr))
@@ -61,8 +63,7 @@ mss_fixup (struct buffer *buf, int maxmss)
       struct buffer newbuf = *buf;
       if (buf_advance (&newbuf, hlen))
 	{
-	  struct openvpn_tcphdr *tc =
-	    (struct openvpn_tcphdr *) BPTR (&newbuf);
+	  struct openvpn_tcphdr *tc = (struct openvpn_tcphdr *) BPTR (&newbuf);
 	  if (tc->flags & OPENVPN_TCPH_SYN_MASK)
 	    mss_fixup_dowork (&newbuf, (uint16_t) maxmss);
 	}
@@ -80,6 +81,7 @@ mss_fixup_dowork (struct buffer *buf, uint16_t maxmss)
 
   ASSERT (BLEN (buf) >= (int) sizeof (struct openvpn_tcphdr));
 
+  verify_align_4 (buf);
   tc = (struct openvpn_tcphdr *) BPTR (buf);
   hlen = OPENVPN_TCPH_GET_DOFF (tc->doff_res);
 
@@ -104,13 +106,13 @@ mss_fixup_dowork (struct buffer *buf, uint16_t maxmss)
         if (optlen != OPENVPN_TCPOLEN_MAXSEG)
           continue;
         mss = (uint16_t *)(opt + 2);
-        if (ntohs_as (mss) > maxmss) {
+        if (ntohs (*mss) > maxmss) {
           dmsg (D_MSS, "MSS: %d -> %d",
-               (int) ntohs_as (mss),
+               (int) ntohs (*mss),
 	       (int) maxmss);
-          accumulate = get_u16_as (mss);
-          htons_as (mss, maxmss);
-          accumulate -= get_u16_as (mss);
+          accumulate = *mss;
+          *mss = htons (maxmss);
+          accumulate -= *mss;
           ADJUST_CHECKSUM (accumulate, tc->check);
         }
       }

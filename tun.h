@@ -89,6 +89,9 @@ struct tuntap_options {
   in_addr_t nbdd[N_DHCP_ADDR];
   int nbdd_len;
 
+  /* DISABLE_NBT (43, Vendor option 001) */
+  bool disable_nbt;
+
   bool dhcp_renew;
   bool dhcp_pre_release;
   bool dhcp_release;

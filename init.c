@@ -120,15 +120,10 @@ context_init_1 (struct context *c)
 #endif
 
 #ifdef ENABLE_HTTP_PROXY
-  if (c->options.http_proxy_server)
+  if (c->options.http_proxy_options)
     {
       /* Possible HTTP proxy user/pass input */
-      c->c1.http_proxy = new_http_proxy (c->options.http_proxy_server,
-					 c->options.http_proxy_port,
-					 c->options.http_proxy_retry,
-					 c->options.http_proxy_auth_method,
-					 c->options.http_proxy_auth_file,
-					 c->options.http_proxy_timeout,
+      c->c1.http_proxy = new_http_proxy (c->options.http_proxy_options,
 					 &c->gc);
     }
 #endif
@@ -481,7 +476,7 @@ do_init_timers (struct context *c, bool deferred)
       /* initialize occ timers */
 
       if (c->options.occ
-	  && !TLS_MODE
+	  && !TLS_MODE (c)
 	  && c->c2.options_string_local && c->c2.options_string_remote)
 	event_timeout_init (&c->c2.occ_interval, OCC_INTERVAL_SECONDS, now);
 
@@ -1015,7 +1010,7 @@ socket_restart_pause (const struct context *c)
   int sec = 2;
 
 #ifdef ENABLE_HTTP_PROXY
-  if (c->options.http_proxy_server)
+  if (c->options.http_proxy_options)
     proxy = true;
 #endif
 #ifdef ENABLE_SOCKS
@@ -1068,13 +1063,29 @@ do_startup_pause (struct context *c)
  * Finalize MTU parameters based on command line or config file options.
  */
 static void
-frame_finalize_options (struct frame *frame, const struct options *options)
+frame_finalize_options (struct context *c, const struct options *o)
 {
+  if (!o)
+    o = &c->options;
 
-  frame_finalize (frame,
-		  options->link_mtu_defined,
-		  options->link_mtu,
-		  options->tun_mtu_defined, options->tun_mtu);
+  /*
+   * Set adjustment factor for buffer alignment when no
+   * cipher is used.
+   */
+  if (!CIPHER_ENABLED (c))
+    {
+      frame_align_to_extra_frame (&c->c2.frame);
+      frame_or_align_flags (&c->c2.frame,
+			    FRAME_HEADROOM_MARKER_FRAGMENT
+			    |FRAME_HEADROOM_MARKER_READ_LINK
+			    |FRAME_HEADROOM_MARKER_READ_STREAM);
+    }
+  
+  frame_finalize (&c->c2.frame,
+		  o->link_mtu_defined,
+		  o->link_mtu,
+		  o->tun_mtu_defined,
+		  o->tun_mtu);
 }
 
 /*
@@ -1398,6 +1409,18 @@ do_init_frame (struct context *c)
   if (c->options.comp_lzo)
     {
       lzo_adjust_frame_parameters (&c->c2.frame);
+
+      /*
+       * LZO usage affects buffer alignment.
+       */
+      if (CIPHER_ENABLED (c))
+	{
+	  frame_add_to_align_adjust (&c->c2.frame, LZO_PREFIX_LEN);
+	  frame_or_align_flags (&c->c2.frame,
+				FRAME_HEADROOM_MARKER_FRAGMENT
+				|FRAME_HEADROOM_MARKER_DECRYPT);
+	}
+
 #ifdef ENABLE_FRAGMENT
       lzo_adjust_frame_parameters (&c->c2.frame_fragment_omit);	/* omit LZO frame delta from final frame_fragment */
 #endif
@@ -1429,7 +1452,7 @@ do_init_frame (struct context *c)
    * Fill in the blanks in the frame parameters structure,
    * make sure values are rational, etc.
    */
-  frame_finalize_options (&c->c2.frame, &c->options);
+  frame_finalize_options (c, NULL);
 
 #ifdef ENABLE_FRAGMENT
   /*
@@ -2600,7 +2623,7 @@ test_crypto_thread (void *arg)
       }
   }
 #endif
-  frame_finalize_options (&c->c2.frame, options);
+  frame_finalize_options (c, options);
 
 #if defined(USE_PTHREAD)
   if (options->n_threads == 2)

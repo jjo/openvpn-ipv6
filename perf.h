@@ -32,7 +32,7 @@
 #ifndef PERF_H
 #define PERF_H
 
-/* #define ENABLE_PERFORMANCE_METRICS */
+//#define ENABLE_PERFORMANCE_METRICS
 
 /*
  * Metrics
@@ -56,7 +56,8 @@
 #define PERF_PROC_IN_TUN            16
 #define PERF_PROC_OUT_LINK          17
 #define PERF_PROC_OUT_TUN           18
-#define PERF_N                      19
+#define PERF_PROC_OUT_TUN_MTCP      19
+#define PERF_N                      20
 
 #ifdef ENABLE_PERFORMANCE_METRICS
 

@@ -2797,7 +2797,7 @@ tls_process (struct tls_multi *multi,
 		       session_id_print (&session->session_id, &gc));
 
 #ifdef ENABLE_MANAGEMENT
-		  if (management)
+		  if (management && ks->initial_opcode != P_CONTROL_SOFT_RESET_V1)
 		    {
 		      management_set_state (management,
 					    OPENVPN_STATE_WAIT,
@@ -2940,6 +2940,10 @@ tls_process (struct tls_multi *multi,
 		  state_change = true;
 		  dmsg (D_TLS_DEBUG, "TLS -> Incoming Plaintext");
 		}
+#if 0 // show null plaintext reads
+	      if (!status)
+		msg (M_INFO, "TLS plaintext read -> NULL return");
+#endif
 	    }
 
 	  /* Send Key */

@@ -51,6 +51,7 @@
 #define TA_TUN_WRITE             7
 #define TA_INITIAL               8
 #define TA_TIMEOUT               9
+#define TA_TUN_WRITE_TIMEOUT     10
 
 /*
  * Special tags passed to event.[ch] functions
@@ -97,6 +98,8 @@ pract (int action)
       return "TA_INITIAL";
     case TA_TIMEOUT:
       return "TA_TIMEOUT";
+    case TA_TUN_WRITE_TIMEOUT:
+      return "TA_TUN_WRITE_TIMEOUT";
     default:
       return "?";
     }
@@ -341,8 +344,10 @@ multi_tcp_wait_lite (struct multi_context *m, struct multi_instance *mi, const i
       case TA_TUN_WRITE:
 	looking_for = TUN_WRITE;
 	tun_input_pending = NULL;
-	c->c2.timeval.tv_sec = MULTI_TCP_TUN_WRITE_TIMEOUT;
+	c->c2.timeval.tv_sec = 1; /* For some reason, the Linux 2.2 TUN/TAP driver hits this timeout */
+	perf_push (PERF_PROC_OUT_TUN_MTCP);
 	io_wait (c, IOW_TO_TUN);
+	perf_pop ();
 	break;
       case TA_SOCKET_WRITE:
 	looking_for = SOCKET_WRITE;
@@ -354,16 +359,25 @@ multi_tcp_wait_lite (struct multi_context *m, struct multi_instance *mi, const i
 
   if (tun_input_pending && (c->c2.event_set_status & TUN_READ))
     *tun_input_pending = true;
+
   if (c->c2.event_set_status & looking_for)
     {
       return action;
     }
   else
     {
-      if (action == TA_SOCKET_WRITE) /* TCP socket output buffer is full */
-	return TA_SOCKET_WRITE_DEFERRED;
-      else
-	return TA_UNDEF;
+      switch (action)
+	{
+	/* TCP socket output buffer is full */
+	case TA_SOCKET_WRITE:
+	  return TA_SOCKET_WRITE_DEFERRED;
+
+	/* TUN device timed out on accepting write */
+	case TA_TUN_WRITE:
+	  return TA_TUN_WRITE_TIMEOUT;
+	}
+
+      return TA_UNDEF;
     }
 }
 
@@ -404,6 +418,9 @@ multi_tcp_dispatch (struct multi_context *m, struct multi_instance *mi, const in
       break;
     case TA_TUN_WRITE:
       multi_process_outgoing_tun (m, mpp_flags);
+      break;
+    case TA_TUN_WRITE_TIMEOUT:
+      multi_process_drop_outgoing_tun (m, mpp_flags);      
       break;
     case TA_SOCKET_WRITE_READY:
       ASSERT (mi);

@@ -248,45 +248,39 @@ username_password_as_base64 (const struct http_proxy_info *p,
 }
 
 struct http_proxy_info *
-new_http_proxy (const char *server,
-		const int port,
-		const bool retry,
-		const char *auth_method,
-		const char *auth_file,
-		const int timeout,
+new_http_proxy (const struct http_proxy_options *o,
 		struct gc_arena *gc)
 {
   struct http_proxy_info *p;
   ALLOC_OBJ_CLEAR_GC (p, struct http_proxy_info, gc);
 
-  ASSERT (server);
-  ASSERT (legal_ipv4_port (port));
+  if (!o->server)
+    msg (M_FATAL, "HTTP_PROXY: server not specified");
 
-  strncpynt (p->server, server, sizeof (p->server));
-  p->port = port;
-  p->retry = retry;
-  p->timeout = timeout;
-  p->auth_method = HTTP_AUTH_NONE;
+  ASSERT (legal_ipv4_port (o->port));
+
+  p->options = *o;
 
   /* parse authentication method */
-  if (auth_method)
+  p->auth_method = HTTP_AUTH_NONE;
+  if (o->auth_method_string)
     {
-      if (!strcmp (auth_method, "none"))
+      if (!strcmp (o->auth_method_string, "none"))
 	p->auth_method = HTTP_AUTH_NONE;
-      else if (!strcmp (auth_method, "basic"))
+      else if (!strcmp (o->auth_method_string, "basic"))
 	p->auth_method = HTTP_AUTH_BASIC;
-      else if (!strcmp (auth_method, "ntlm"))
+      else if (!strcmp (o->auth_method_string, "ntlm"))
 	p->auth_method = HTTP_AUTH_NTLM;
       else
 	msg (M_FATAL, "ERROR: unknown HTTP authentication method: '%s' -- only the 'none', 'basic', or 'ntlm' methods are currently supported",
-	     auth_method);
+	     o->auth_method_string);
     }
 
   /* only basic and NTLM authentication supported so far */
   if (p->auth_method == HTTP_AUTH_BASIC || p->auth_method == HTTP_AUTH_NTLM)
     {
       get_user_pass (&static_proxy_user_pass,
-		     auth_file,
+		     o->auth_file,
 		     false,
 		     "HTTP Proxy",
 		     0);
@@ -318,12 +312,25 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
   int nparms;
 
   /* format HTTP CONNECT message */
-  openvpn_snprintf (buf, sizeof(buf), "CONNECT %s:%d HTTP/1.0", host, port);
+  openvpn_snprintf (buf, sizeof(buf), "CONNECT %s:%d HTTP/%s",
+		    host,
+		    port,
+		    p->options.http_version);
+
   msg (D_PROXY, "Send to HTTP proxy: '%s'", buf);
 
   /* send HTTP CONNECT message to proxy */
   if (!send_line_crlf (sd, buf))
     goto error;
+
+  /* send User-Agent string if provided */
+  if (p->options.user_agent)
+    {
+      openvpn_snprintf (buf, sizeof(buf), "User-Agent: %s",
+			p->options.user_agent);
+      if (!send_line_crlf (sd, buf))
+	goto error;
+    }
 
   /* auth specified? */
   switch (p->auth_method)
@@ -363,7 +370,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
     goto error;
 
   /* receive reply from proxy */
-  if (!recv_line (sd, buf, sizeof(buf), p->timeout, true, NULL, signal_received))
+  if (!recv_line (sd, buf, sizeof(buf), p->options.timeout, true, NULL, signal_received))
     goto error;
 
   /* remove trailing CR, LF */
@@ -387,7 +394,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
 
           while (true)
             {
-              if (!recv_line (sd, buf, sizeof(buf), p->timeout, true, NULL, signal_received))
+              if (!recv_line (sd, buf, sizeof(buf), p->options.timeout, true, NULL, signal_received))
                 goto error;
               chomp (buf);
               msg (D_PROXY, "HTTP proxy returned: '%s'", buf);
@@ -408,13 +415,17 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
           msg (D_PROXY, "Received NTLM Proxy-Authorization phase 2 response");
 
           /* receive and discard everything else */
-          while (recv_line (sd, NULL, 0, p->timeout, true, NULL, signal_received))
+          while (recv_line (sd, NULL, 0, p->options.timeout, true, NULL, signal_received))
             ;
 
           /* now send the phase 3 reply */
 
           /* format HTTP CONNECT message */
-          openvpn_snprintf (buf, sizeof(buf), "CONNECT %s:%d HTTP/1.0", host, port);
+          openvpn_snprintf (buf, sizeof(buf), "CONNECT %s:%d HTTP/%s",
+			    host,
+			    port,
+			    p->options.http_version);
+
           msg (D_PROXY, "Send to HTTP proxy: '%s'", buf);
 
           /* send HTTP CONNECT message to proxy */
@@ -442,7 +453,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
             goto error;
 
           /* receive reply from proxy */
-          if (!recv_line (sd, buf, sizeof(buf), p->timeout, true, NULL, signal_received))
+          if (!recv_line (sd, buf, sizeof(buf), p->options.timeout, true, NULL, signal_received))
             goto error;
 
           /* remove trailing CR, LF */
@@ -468,7 +479,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
       /* DEBUGGING -- show a multi-line HTTP error response */
       while (true)
 	{
-	  if (!recv_line (sd, buf, sizeof (buf), p->timeout, true, NULL, signal_received))
+	  if (!recv_line (sd, buf, sizeof (buf), p->options.timeout, true, NULL, signal_received))
 	    goto error;
 	  chomp (buf);
 	  msg (D_PROXY, "HTTP proxy returned: '%s'", buf);
@@ -478,7 +489,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
     }
 
   /* receive line from proxy and discard */
-  if (!recv_line (sd, NULL, 0, p->timeout, true, NULL, signal_received))
+  if (!recv_line (sd, NULL, 0, p->options.timeout, true, NULL, signal_received))
     goto error;
 
   /*
@@ -499,7 +510,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
  error:
   /* on error, should we exit or restart? */
   if (!*signal_received)
-    *signal_received = (p->retry ? SIGUSR1 : SIGTERM); /* SOFT-SIGUSR1 -- HTTP proxy error */
+    *signal_received = (p->options.retry ? SIGUSR1 : SIGTERM); /* SOFT-SIGUSR1 -- HTTP proxy error */
   gc_free (&gc);
   return;
 }

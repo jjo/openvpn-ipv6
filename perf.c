@@ -63,7 +63,8 @@ static const char *metric_names[] = {
   "PERF_READ_IN_TUN",
   "PERF_PROC_IN_TUN",
   "PERF_PROC_OUT_LINK",
-  "PERF_PROC_OUT_TUN"
+  "PERF_PROC_OUT_TUN",
+  "PERF_PROC_OUT_TUN_MTCP"
 };
 
 struct perf

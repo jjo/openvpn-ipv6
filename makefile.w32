@@ -155,6 +155,7 @@ OBJS =  base64.o \
 	ping.o \
 	plugin.o \
         pool.o \
+	proto.o \
 	proxy.o \
 	push.o \
 	reliable.o \

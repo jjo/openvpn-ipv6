@@ -2895,6 +2895,18 @@ build_dhcp_options_string (struct buffer *buf, const struct tuntap_options *o)
   write_dhcp_u32_array (buf, 44, (uint32_t*)o->wins, o->wins_len);
   write_dhcp_u32_array (buf, 42, (uint32_t*)o->ntp, o->ntp_len);
   write_dhcp_u32_array (buf, 45, (uint32_t*)o->nbdd, o->nbdd_len);
+
+  /* the MS DHCP server option 'Disable Netbios-over-TCP/IP
+     is implemented as vendor option 001, value 002.
+     A value of 001 means 'leave NBT alone' which is the default */
+  if (o->disable_nbt)
+  {
+    buf_write_u8 (buf, 43);
+    buf_write_u8 (buf,  6);  /* total length field */
+    buf_write_u8 (buf,  0x001);
+    buf_write_u8 (buf,  4);  /* length of the vendor specified field */
+    buf_write_u32 (buf, 0x002);
+  }
 }
 
 void

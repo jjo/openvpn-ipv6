@@ -143,6 +143,7 @@ OBJS =  base64.obj \
 	ping.obj \
 	plugin.obj \
         pool.obj \
+	proto.obj \
 	proxy.obj \
 	push.obj \
 	reliable.obj \
