@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -345,7 +345,10 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
       setenv_str ("script_type", "tls-verify");
 
       buf_set_write (&out, (uint8_t*)command, sizeof (command));
-      buf_printf (&out, "%s %d %s", verify_command, ctx->error_depth, txt);
+      buf_printf (&out, "%s %d %s",
+		  verify_command,
+		  ctx->error_depth,
+		  txt);
       msg (D_TLS_DEBUG, "executing verify command: %s", command);
       ret = openvpn_system (command);
       if (system_ok (ret))
@@ -484,17 +487,9 @@ init_ssl (bool server,
   /* Set callback for getting password from user to decrypt private key */
   SSL_CTX_set_default_passwd_cb (ctx, pem_password_callback);
 
-#if 1
   /* Load Certificate */
   if (!SSL_CTX_use_certificate_file (ctx, cert_file, SSL_FILETYPE_PEM))
     msg (M_SSLERR, "Cannot load certificate file %s", cert_file);
-#else
-  /* Load Certificate -- for some reason, this function sometimes
-     inexplicably fails during restarts with a PEM_R_NO_START_LINE
-     error. */
-  if (!SSL_CTX_use_certificate_chain_file (ctx, cert_file))
-    msg (M_SSLERR, "Cannot load certificate chain file %s", cert_file);
-#endif
 
   /* Load Private Key */
   if (!SSL_CTX_use_PrivateKey_file (ctx, priv_key_file, SSL_FILETYPE_PEM))
@@ -509,7 +504,6 @@ init_ssl (bool server,
   if (!SSL_CTX_load_verify_locations (ctx, ca_file, NULL))
     msg (M_SSLERR, "Cannot load CA certificate file %s (SSL_CTX_load_verify_locations)", ca_file);
 
-#if 1
   /* Load names of CAs from file and use it as a client CA list */
   {
     STACK_OF(X509_NAME) *cert_names;
@@ -518,7 +512,10 @@ init_ssl (bool server,
       msg (M_SSLERR, "Cannot load CA certificate file %s (SSL_load_client_CA_file)", ca_file);
     SSL_CTX_set_client_CA_list (ctx, cert_names);
   }
-#endif
+
+  /* Enable the use of certificate chains */
+  if (!SSL_CTX_use_certificate_chain_file (ctx, cert_file))
+    msg (M_SSLERR, "Cannot load certificate chain file %s (SSL_use_certificate_chain_file)", cert_file);
 
   /* Require peer certificate verification */
   SSL_CTX_set_verify (ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
@@ -1573,7 +1570,7 @@ generate_key_expansion (struct key_ctx_bi *key,
   /* compute master secret */
   openvpn_PRF (key_src->client.pre_master,
 	       sizeof(key_src->client.pre_master),
-	       "OpenVPN master secret",
+	       PACKAGE_NAME " master secret",
 	       key_src->client.random1,
 	       sizeof(key_src->client.random1),
 	       key_src->server.random1,
@@ -1586,7 +1583,7 @@ generate_key_expansion (struct key_ctx_bi *key,
   /* compute key expansion */
   openvpn_PRF (master,
 	       sizeof(master),
-	       "OpenVPN key expansion",
+	       PACKAGE_NAME " key expansion",
 	       key_src->client.random2,
 	       sizeof(key_src->client.random2),
 	       key_src->server.random2,
@@ -2673,7 +2670,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 	    }
 
 	  msg (D_TLS_ERRORS,
-	       "TLS Error: Unknown data channel key ID or IP address received from %s: %d",
+	       "TLS Error: Unknown data channel key ID or IP address received from %s: %d (see FAQ for more info on this error)",
 	       print_sockaddr (from), key_id);
 	  goto error;
 	}

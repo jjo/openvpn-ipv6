@@ -8,7 +8,7 @@
  *  Copyright (C) Damion K. Wilson, 2003, and is released under the
  *  GPL version 2 (see below).
  *
- *  All other source code is Copyright (C) James Yonan, 2003,
+ *  All other source code is Copyright (C) James Yonan, 2003-2004,
  *  and is released under the GPL version 2 (see below).
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -146,21 +146,31 @@ VOID FlushQueues
     TapAdapterPointer p_Adapter
    );
 
-void ResetPointToPointMode
+VOID ResetTapDevState
    (
     TapAdapterPointer p_Adapter
    );
 
-void ProcessARP
+BOOLEAN ProcessARP
    (
     TapAdapterPointer p_Adapter,
-    const PARP_PACKET src
+    const PARP_PACKET src,
+    const IPADDR adapter_ip,
+    const IPADDR ip,
+    const MACADDR mac
    );
 
 VOID SetMediaStatus
    (
     TapAdapterPointer p_Adapter,
     BOOLEAN state
+   );
+
+VOID InjectPacket
+   (
+    TapAdapterPointer p_Adapter,
+    UCHAR *packet,
+    const unsigned int len
    );
 
 VOID HookDispatchFunctions();

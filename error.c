@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -284,7 +284,7 @@ open_syslog (const char *pgmname)
     {
       if (!use_syslog)
 	{
-	  openlog ((pgmname ? pgmname : "openvpn"), LOG_PID, LOG_DAEMON);
+	  openlog ((pgmname ? pgmname : PACKAGE), LOG_PID, LOG_DAEMON);
 	  use_syslog = true;
 
 	  /* Better idea: somehow pipe stdout/stderr output to msg() */
@@ -312,7 +312,7 @@ void
 redirect_stdout_stderr (const char *file, bool append)
 {
 #if defined(WIN32)
-  msg (M_WARN, "WARNING: The --log option is not directly supported on Windows, however you can use the OpenVPN service wrapper (openvpnserv.exe) to accomplish the same function -- see the Windows README.");
+  msg (M_WARN, "WARNING: The --log option is not directly supported on Windows, however you can use the " PACKAGE_NAME " service wrapper (" PACKAGE "serv.exe) to accomplish the same function -- see the Windows README.");
 #elif defined(HAVE_DUP2)
   if (!std_redir)
     {

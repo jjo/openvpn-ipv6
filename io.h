@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -60,7 +60,7 @@ void alloc_buf_sock_tun (struct buffer *buf, const struct frame *frame, bool tun
  * If we are being run as a win32 service,
  * use this event as our exit trigger.
  */
-#define EXIT_EVENT_NAME "openvpn_exit"
+#define EXIT_EVENT_NAME PACKAGE "_exit"
 
 struct win32_signal {
   /*

@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -389,7 +389,7 @@ get_cipher (const char *ciphername)
   if ( !(cipher && cipher_ok (OBJ_nid2sn (EVP_CIPHER_nid (cipher)))))
     msg (M_SSLERR, "Cipher algorithm '%s' not found", ciphername);
   if (EVP_CIPHER_key_length (cipher) > MAX_CIPHER_KEY_LENGTH)
-    msg (M_FATAL, "Cipher algorithm '%s' uses a default key size (%d bytes) which is larger than OpenVPN's current maximum key size (%d bytes)",
+    msg (M_FATAL, "Cipher algorithm '%s' uses a default key size (%d bytes) which is larger than " PACKAGE_NAME "'s current maximum key size (%d bytes)",
 	 ciphername,
 	 EVP_CIPHER_key_length (cipher),
 	 MAX_CIPHER_KEY_LENGTH);
@@ -405,7 +405,7 @@ get_md (const char *digest)
   if (!md)
     msg (M_SSLERR, "Message hash algorithm '%s' not found", digest);
   if (EVP_MD_size (md) > MAX_HMAC_KEY_LENGTH)
-    msg (M_FATAL, "Message hash algorithm '%s' uses a default hash size (%d bytes) which is larger than OpenVPN's current maximum hash size (%d bytes)",
+    msg (M_FATAL, "Message hash algorithm '%s' uses a default hash size (%d bytes) which is larger than " PACKAGE_NAME "'s current maximum hash size (%d bytes)",
 	 digest,
 	 EVP_MD_size (md),
 	 MAX_HMAC_KEY_LENGTH);
@@ -487,7 +487,7 @@ init_key_type (struct key_type *kt, const char *ciphername,
 	      || (cfb_ofb_allowed && (mode == EVP_CIPH_CFB_MODE || mode == EVP_CIPH_OFB_MODE))
 #endif
 	      ))
-	  msg (M_FATAL, "Cipher '%s' uses a mode not supported by OpenVPN in your current configuration.  CBC mode is always supported, while CFB and OFB modes are supported only when using SSL/TLS authentication and key exchange mode, and when OpenVPN has been built with ALLOW_NON_CBC_CIPHERS.", ciphername);
+	  msg (M_FATAL, "Cipher '%s' uses a mode not supported by " PACKAGE_NAME " in your current configuration.  CBC mode is always supported, while CFB and OFB modes are supported only when using SSL/TLS authentication and key exchange mode, and when " PACKAGE_NAME " has been built with ALLOW_NON_CBC_CIPHERS.", ciphername);
       }
     }
   else
@@ -802,7 +802,7 @@ test_crypto (const struct crypto_options *co, struct frame* frame)
   /* init work */
   ASSERT (buf_init (&work, EXTRA_FRAME (frame)));
 
-  msg (M_INFO, "Entering OpenVPN crypto self-test mode.");
+  msg (M_INFO, "Entering " PACKAGE_NAME " crypto self-test mode.");
   for (i = 1; i <= TUN_MTU_SIZE (frame); ++i)
     {
       const time_t current = time (NULL);
@@ -838,7 +838,7 @@ test_crypto (const struct crypto_options *co, struct frame* frame)
 	    msg (M_FATAL, "SELF TEST FAILED, pos=%d in=%d out=%d", j, in, out);
 	}
     }
-  msg (M_INFO, "OpenVPN crypto self-test mode SUCCEEDED.");
+  msg (M_INFO, PACKAGE_NAME " crypto self-test mode SUCCEEDED.");
 }
 
 #ifdef USE_SSL
@@ -862,10 +862,10 @@ get_tls_handshake_key (const struct key_type *key_type,
       read_key_file (&key2, passphrase_file, false);
 
       /* succeeded? */
-      if (key2.n)
+      if (key2.n == 2)
 	{
 	  msg (M_INFO,
-	       "Control Channel Authentication: using '%s' as an OpenVPN static key file",
+	       "Control Channel Authentication: using '%s' as a " PACKAGE_NAME " static key file",
 	       passphrase_file);
 	}
       else
@@ -911,8 +911,8 @@ get_tls_handshake_key (const struct key_type *key_type,
 #endif
 
 /* header and footer for static key file */
-static const char static_key_head[] = "-----BEGIN OpenVPN Static key V1-----";
-static const char static_key_foot[] = "-----END OpenVPN Static key V1-----";
+static const char static_key_head[] = "-----BEGIN " PACKAGE_NAME " Static key V1-----";
+static const char static_key_foot[] = "-----END " PACKAGE_NAME " Static key V1-----";
 
 static const char printable_char_fmt[] =
   "Non-Hex character ('%c') found at line %d in key file '%s' (%d/%d/%d bytes found/min/max)";
@@ -1198,7 +1198,7 @@ write_key_file (const int nkeys, const char *filename)
   buf_printf (&out, "%s\n", static_key_foot);
 
   /* write number of bits */
-  buf_printf (&nbits_head_text, "#\n# %d bit OpenVPN static key\n#\n", nbits);
+  buf_printf (&nbits_head_text, "#\n# %d bit " PACKAGE_NAME " static key\n#\n", nbits);
   buf_write_string_file (&nbits_head_text, filename, fd);
 
   /* write key file, now formatted in out, to file */
@@ -1220,7 +1220,7 @@ void
 must_have_n_keys (const char *filename, const char *option, const struct key2 *key2, int n)
 {
   if (key2->n < n)
-    msg (M_FATAL, "Key file '%s' used in --%s contains insufficient key material [keys found=%d required=%d] -- try generating a new key file with 'openvpn --genkey --secret [file]', or use the existing key file in bidirectional mode by specifying --%s without a key direction parameter", filename, option, key2->n, n, option);
+    msg (M_FATAL, "Key file '%s' used in --%s contains insufficient key material [keys found=%d required=%d] -- try generating a new key file with '" PACKAGE " --genkey --secret [file]', or use the existing key file in bidirectional mode by specifying --%s without a key direction parameter", filename, option, key2->n, n, option);
 }
 
 int
@@ -1355,7 +1355,7 @@ show_available_ciphers ()
   int nid;
 
   printf ("The following ciphers and cipher modes are available\n"
-	  "for use with OpenVPN.  Each cipher shown below may be\n"
+	  "for use with " PACKAGE_NAME ".  Each cipher shown below may be\n"
 	  "used as a parameter to the --cipher option.  The default\n"
 	  "key size is shown as well as whether or not it can be\n"
           "changed with the --keysize directive.  Using a CBC mode\n"
@@ -1388,7 +1388,7 @@ show_available_digests ()
   int nid;
 
   printf ("The following message digests are available for use with\n"
-	  "OpenVPN.  A message digest is used in conjunction with\n"
+	  PACKAGE_NAME ".  A message digest is used in conjunction with\n"
 	  "the HMAC function, to authenticate received packets.\n"
 	  "You can specify a message digest as parameter to\n"
 	  "the --auth option.\n\n");

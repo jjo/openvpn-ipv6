@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -86,6 +86,8 @@ struct options
 
   /* Protocol type (PROTO_UDP or PROTO_TCP) */
   int proto;
+  int connect_retry_seconds;
+  bool connect_retry_defined;
 
   /* Advanced MTU negotiation and datagram fragmentation options */
   int mtu_discover_type; /* used if OS supports setting Path MTU discovery options on socket */

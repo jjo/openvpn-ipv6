@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -97,7 +97,7 @@ get_special_addr (const struct route_special_addr *spec,
 	*out = spec->remote_endpoint;
       else
 	{
-	  msg (M_INFO, "OpenVPN ROUTE: vpn_gateway undefined");
+	  msg (M_INFO, PACKAGE_NAME " ROUTE: vpn_gateway undefined");
 	  *status = false;
 	}
       return true;
@@ -108,7 +108,7 @@ get_special_addr (const struct route_special_addr *spec,
 	*out = spec->net_gateway;
       else
 	{
-	  msg (M_INFO, "OpenVPN ROUTE: net_gateway undefined -- unable to get default gateway from system");
+	  msg (M_INFO, PACKAGE_NAME " ROUTE: net_gateway undefined -- unable to get default gateway from system");
 	  *status = false;
 	}
       return true;
@@ -119,7 +119,7 @@ get_special_addr (const struct route_special_addr *spec,
 	*out = spec->remote_host;
       else
 	{
-	  msg (M_INFO, "OpenVPN ROUTE: remote_host undefined");
+	  msg (M_INFO, PACKAGE_NAME " ROUTE: remote_host undefined");
 	  *status = false;
 	}
       return true;
@@ -201,7 +201,7 @@ init_route (struct route *r,
 	r->gateway = spec->remote_endpoint;
       else
 	{
-	  msg (M_WARN, "OpenVPN ROUTE: OpenVPN needs a gateway parameter for a --route option and no default was specified by either --route-gateway or --ifconfig options");
+	  msg (M_WARN, PACKAGE_NAME " ROUTE: " PACKAGE_NAME " needs a gateway parameter for a --route option and no default was specified by either --route-gateway or --ifconfig options");
 	  goto fail;
 	}
     }
@@ -215,7 +215,7 @@ init_route (struct route *r,
       r->metric = atoi (ro->metric);
       if (r->metric < 0)
 	{
-	  msg (M_WARN, "OpenVPN ROUTE: route metric for network %s (%s) must be >= 0",
+	  msg (M_WARN, PACKAGE_NAME " ROUTE: route metric for network %s (%s) must be >= 0",
 	       ro->network,
 	       ro->metric);
 	  goto fail;
@@ -233,7 +233,7 @@ init_route (struct route *r,
   return true;
 
  fail:
-  msg (M_WARN, "OpenVPN ROUTE: failed to parse/resolve route for host/network: %s",
+  msg (M_WARN, PACKAGE_NAME " ROUTE: failed to parse/resolve route for host/network: %s",
        ro->network);
   r->defined = false;
   return false;
@@ -248,7 +248,7 @@ add_route_to_option_list (struct route_option_list *l,
 {
   struct route_option *ro;
   if (l->n >= MAX_ROUTES)
-    msg (M_FATAL, "OpenVPN ROUTE: cannot add more than %d routes",
+    msg (M_FATAL, PACKAGE_NAME " ROUTE: cannot add more than %d routes",
 	 MAX_ROUTES);
   ro = &l->routes[l->n];
   ro->network = network;
@@ -305,7 +305,7 @@ init_route_list (struct route_list *rl,
 	}
       else
 	{
-	  msg (M_WARN, "OpenVPN ROUTE: failed to parse/resolve default gateway: %s",
+	  msg (M_WARN, PACKAGE_NAME " ROUTE: failed to parse/resolve default gateway: %s",
 	       remote_endpoint);
 	  ret = false;
 	}

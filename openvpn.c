@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -1039,7 +1039,7 @@ openvpn (const struct options *options,
 #else /* USE_CRYPTO */
 
   msg (M_WARN,
-       "******* WARNING *******: OpenVPN built without OpenSSL -- encryption and authentication features disabled -- all data will be tunnelled as cleartext");
+       "******* WARNING *******: " PACKAGE_NAME " built without OpenSSL -- encryption and authentication features disabled -- all data will be tunnelled as cleartext");
 
 #endif /* USE_CRYPTO */
 
@@ -1161,6 +1161,18 @@ openvpn (const struct options *options,
 #endif
     }
 
+#ifdef FRAGMENT_ENABLE
+
+  if (options->fragment && options->mtu_test)
+    msg (M_WARN, "WARNING: using --fragment and --mtu-test together may produce an inaccurate MTU test result");
+
+  if ((options->mssfix || options->fragment) && TUN_MTU_SIZE (&frame_fragment) != ETHERNET_MTU)
+     msg (M_WARN, "WARNING: normally if you use --mssfix and/or --fragment, you should also set --tun-mtu %d (currently it is %d)",
+	  ETHERNET_MTU,
+	  TUN_MTU_SIZE (&frame_fragment));
+
+#endif
+
   /* bind the TCP/UDP socket */
 
   link_socket_init_phase1 (&link_socket,
@@ -1174,6 +1186,7 @@ openvpn (const struct options *options,
 			   link_socket_addr,
 			   options->ipchange,
 			   options->resolve_retry_seconds,
+			   options->connect_retry_seconds,
 			   options->mtu_discover_type);
 
   /* initialize tun/tap device object */
@@ -1531,7 +1544,7 @@ openvpn (const struct options *options,
 		     * No OCC_REPLY from peer after repeated attempts.
 		     * Give up.
 		     */
-		    msg (D_SHOW_OCC, "NOTE: failed to obtain options consistency info from peer -- this could occur if the remote peer is running a version of OpenVPN before 1.5-beta8 or if there is a network connectivity problem, and will not necessarily prevent OpenVPN from running (%u bytes received from peer, %u bytes authenticated data channel traffic) -- you can disable the options consistency check with --disable-occ.", (unsigned int) link_read_bytes, (unsigned int) link_read_bytes_auth);
+		    msg (D_SHOW_OCC, "NOTE: failed to obtain options consistency info from peer -- this could occur if the remote peer is running a version of " PACKAGE_NAME " before 1.5-beta8 or if there is a network connectivity problem, and will not necessarily prevent " PACKAGE_NAME " from running (%u bytes received from peer, %u bytes authenticated data channel traffic) -- you can disable the options consistency check with --disable-occ.", (unsigned int) link_read_bytes, (unsigned int) link_read_bytes_auth);
 		  event_timeout_clear (&occ_interval);
 		}
 	      else
@@ -1845,7 +1858,7 @@ openvpn (const struct options *options,
 	{
 	  if (signal_received == SIGUSR2)
 	    {
-	      msg (M_INFO, "Current OpenVPN Statistics:");
+	      msg (M_INFO, "Current " PACKAGE_NAME " Statistics:");
 	      msg (M_INFO, " TUN/TAP read bytes:   " counter_format, tun_read_bytes);
 	      msg (M_INFO, " TUN/TAP write bytes:  " counter_format, tun_write_bytes);
 	      msg (M_INFO, " TCP/UDP read bytes:   " counter_format, link_read_bytes);
@@ -2421,7 +2434,7 @@ openvpn (const struct options *options,
   if (options->inetd && (signal_received == SIGHUP || signal_received == SIGUSR1))
     {
       signal_received = SIGTERM;
-      msg (M_INFO, "OpenVPN started by inetd/xinetd cannot restart... Exiting.");
+      msg (M_INFO, PACKAGE_NAME " started by inetd/xinetd cannot restart... Exiting.");
     }
 
   if (free_to_link)
@@ -2726,6 +2739,13 @@ main (int argc, char *argv[])
 
       if (options.inetd && options.proto == PROTO_TCPv4_CLIENT)
 	msg (M_USAGE, "Options error: --proto tcp-client cannot be used with --inetd");
+
+      /*
+       * Sanity check on TCP mode options
+       */
+
+      if (options.connect_retry_defined && options.proto != PROTO_TCPv4_CLIENT)
+	msg (M_USAGE, "Options error: --connect-retry doesn't make sense unless also used with --proto tcp-client");
 
       /*
        * Sanity check on MTU parameters

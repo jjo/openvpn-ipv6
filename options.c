@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -79,12 +79,15 @@ static const char usage_message[] =
   "--remote host   : Remote host name or ip address.\n"
   "--proto p       : Use protocol p for communicating with peer.\n"
   "                  p = udp (default), tcp-server, or tcp-client\n"
+  "--connect-retry n : For --proto tcp-client, number of seconds to wait\n"
+  "                  between connection retries (default=%d).\n"
   "--http-proxy s p [up]: Connect to remote host through an HTTP proxy at address\n"
   "                  s and port p.  If proxy authentication is required, up is a\n"
   "                  file containing username/password on 2 lines.\n"
   "--http-proxy-retry : Retry indefinitely on HTTP proxy errors.\n"
   "--resolv-retry n: If hostname resolve fails for --remote, retry\n"
   "                  resolve for n seconds before failing (disabled by default).\n"
+  "                  Set n=\"infinite\" to retry indefinitely.\n"
   "--float         : Allow remote to change its IP address/port, such as through\n"
   "                  DHCP (this is the default if --remote is not used).\n"
   "--ipchange cmd  : Execute shell command cmd on remote ip address initial\n"
@@ -300,7 +303,7 @@ static const char usage_message[] =
   "--show-adapters : Show all TAP-Win32 adapters.\n"
   "--ip-win32 method : When using --ifconfig on Windows, set TAP-Win32 adapter\n"
   "                    IP address using method = manual, netsh, ipapi, or\n"
-  "                    dynamic (default = ipapi).\n"
+  "                    dynamic (default = dynamic).\n"
   "--tap-sleep n   : Sleep for n seconds after TAP adapter open before\n"
   "                  attempting to set adapter properties.\n"
   "--show-valid-subnets : Show valid subnets for --dev tun emulation.\n" 
@@ -332,6 +335,7 @@ init_options (struct options *o)
 {
   CLEAR (*o);
   o->proto = PROTO_UDPv4;
+  o->connect_retry_seconds = 5;
 #ifdef TUNSETPERSIST
   o->persist_mode = 1;
 #endif
@@ -346,7 +350,7 @@ init_options (struct options *o)
   o->comp_lzo_adaptive = true;
 #endif
 #ifdef WIN32
-  o->tuntap_flags = (IP_SET_IPAPI & IP_SET_MASK);
+  o->tuntap_flags = (IP_SET_DHCP & IP_SET_MASK);
 #endif
 #ifdef USE_CRYPTO
   o->ciphername = "BF-CBC";
@@ -359,7 +363,11 @@ init_options (struct options *o)
   o->use_iv = true;
   o->key_direction = KEY_DIRECTION_BIDIRECTIONAL;
 #ifdef USE_SSL
+#ifdef KEY_METHOD_DEFAULT_2
+  o->key_method = 2;
+#else
   o->key_method = 1;
+#endif
   o->tls_timeout = 2;
   o->renegotiate_seconds = 3600;
   o->handshake_window = 60;
@@ -461,6 +469,7 @@ show_settings (const struct options *o)
 #endif
 
   SHOW_INT (resolve_retry_seconds);
+  SHOW_INT (connect_retry_seconds);
 
   SHOW_STR (username);
   SHOW_STR (groupname);
@@ -724,7 +733,7 @@ options_cmp_equal (char *actual, const char *expected, size_t actual_n)
 #ifndef STRICT_OPTIONS_CHECK
       if (strncmp (actual, expected, 2))
 	{
-	  msg (D_SHOW_OCC, "NOTE: failed to perform options consistency check between peers because of OpenVPN version differences -- you can disable the options consistency check with --disable-occ (Required for TLS connections between OpenVPN 1.3.x and later versions).  Actual Remote Options: '%s'.  Expected Remote Options: '%s'", actual, expected);
+	  msg (D_SHOW_OCC, "NOTE: failed to perform options consistency check between peers because of " PACKAGE_NAME " version differences -- you can disable the options consistency check with --disable-occ (Required for TLS connections between " PACKAGE_NAME " 1.3.x and later versions).  Actual Remote Options: '%s'.  Expected Remote Options: '%s'", actual, expected);
 	  return true;
 	}
       else
@@ -784,7 +793,9 @@ usage (void)
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
   fprintf (fp, usage_message,
-	   title_string, o.local_port, o.remote_port,
+	   title_string,
+	   o.connect_retry_seconds,
+	   o.local_port, o.remote_port,
 	   TAP_MTU_DEFAULT, TAP_MTU_EXTRA_DEFAULT, LINK_MTU_DEFAULT,
 	   o.verbosity,
 	   o.authname, o.ciphername,
@@ -793,14 +804,18 @@ usage (void)
 	   o.handshake_window, o.transition_window);
 #elif defined(USE_CRYPTO)
   fprintf (fp, usage_message,
-	   title_string, o.local_port, o.remote_port,
+	   title_string,
+	   o.connect_retry_seconds,
+	   o.local_port, o.remote_port,
 	   TAP_MTU_DEFAULT, TAP_MTU_EXTRA_DEFAULT, LINK_MTU_DEFAULT,
 	   o.verbosity,
 	   o.authname, o.ciphername,
            o.replay_window, o.replay_time);
 #else
   fprintf (fp, usage_message,
-	   title_string, o.local_port, o.remote_port,
+	   title_string,
+	   o.connect_retry_seconds,
+	   o.local_port, o.remote_port,
 	   TAP_MTU_DEFAULT, TAP_MTU_EXTRA_DEFAULT, LINK_MTU_DEFAULT,
 	   o.verbosity);
 #endif
@@ -820,7 +835,7 @@ static void
 usage_version (void)
 {
   msg (M_INFO|M_NOPREFIX, "%s", title_string);
-  msg (M_INFO|M_NOPREFIX, "Copyright (C) 2002-2003 James Yonan <jim@yonan.net>");
+  msg (M_INFO|M_NOPREFIX, "Copyright (C) 2002-2004 James Yonan <jim@yonan.net>");
   openvpn_exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
 
@@ -861,75 +876,101 @@ space (char c)
 static int
 parse_line (char *line, char *p[], int n, const char *file, int line_num)
 {
+  const int STATE_INITIAL = 0;
+  const int STATE_READING_QUOTED_PARM = 1;
+  const int STATE_READING_UNQUOTED_PARM = 2;
+  const int STATE_DONE = 3;
+
   int ret = 0;
   char *c = line;
-  char *start = NULL;
+  int state = STATE_INITIAL;
+  bool backslash = false;
+  char in, out;
 
-  /*
-   * Parse states:
-   * 0 -- Initial
-   * 1 -- Reading non-quoted parm
-   * 2 -- Leading quote
-   * 3 -- Reading quoted parm
-   * 4 -- First char after parm
-   */
-  int state = 0;
+  char parm[256];
+  unsigned int parm_len = 0;
 
   do
     {
-      if (state == 0)
+      in = *c;
+      out = 0;
+
+      if (!backslash && in == '\\')
 	{
-	  if (!space (*c))
+	  backslash = true;
+	}
+      else
+	{
+	  if (state == STATE_INITIAL)
 	    {
-	      if (*c == ';' || *c == '#') /* comment */
-		break;
-	      if (*c == '\"')
-		state = 2;
-	      else
+	      if (!space (in))
 		{
-		  start = c;
-		  state = 1;
+		  if (in == ';' || in == '#') /* comment */
+		    break;
+		  if (!backslash && in == '\"')
+		    state = STATE_READING_QUOTED_PARM;
+		  else
+		    {
+		      out = in;
+		      state = STATE_READING_UNQUOTED_PARM;
+		    }
 		}
 	    }
+	  else if (state == STATE_READING_UNQUOTED_PARM)
+	    {
+	      if (!backslash && space (in))
+		state = STATE_DONE;
+	      else
+		out = in;
+	    }
+	  else if (state == STATE_READING_QUOTED_PARM)
+	    {
+	      if (!backslash && in == '\"')
+		state = STATE_DONE;
+	      else
+		out = in;
+	    }
+	  if (state == STATE_DONE)
+	    {
+	      ASSERT (parm_len > 0);
+	      p[ret] = gc_malloc (parm_len + 1);
+	      memcpy (p[ret], parm, parm_len);
+	      p[ret][parm_len] = '\0';
+	      state = 0;
+	      parm_len = 0;
+	      ++ret;
+	    }
+	  backslash = false;
 	}
-      else if (state == 1)
+
+      /* store parameter character */
+      if (out)
 	{
-	  if (space (*c))
-	    state = 4;
+	  if (parm_len >= SIZE (parm))
+	    {
+	      parm[SIZE (parm) - 1] = 0;
+	      msg (M_USAGE, "Parameter at %s:%d is too long (%d chars max): %s",
+		   file, line_num, (int) SIZE (parm), parm);
+	    }
+	  parm[parm_len++] = out;
 	}
-      else if (state == 2)
-	{
-	  start = c;
-	  state = 3;
-	}
-      else if (state == 3)
-	{
-	  if (*c == '\"')
-	    state = 4;
-	}
-      if (state == 4)
-	{
-	  const int len = (int) (c - start);
-	  ASSERT (len > 0);
-	  p[ret] = gc_malloc (len + 1);
-	  memcpy (p[ret], start, len);
-	  p[ret][len] = '\0';
-	  state = 0;
-	  if (++ret >= n)
-	    break;
-	}
+
+      /* avoid overflow if too many parms in one config file line */
+      if (ret >= n)
+	break;
+
     } while (*c++ != '\0');
 
-  if (state == 2 || state == 3)
+  if (state == STATE_READING_QUOTED_PARM)
 	msg (M_FATAL, "No closing quotation (\") in %s:%d", file, line_num);
-  if (state)
+  if (state != STATE_INITIAL)
 	msg (M_FATAL, "Residual parse state (%d) in %s:%d", state, file, line_num);
 #if 0
   {
     int i;
     for (i = 0; i < ret; ++i)
       {
-	msg (M_INFO, "%s:%d ARG[%d] '%s'", file, line_num, i, p[i]);
+	msg (M_INFO|M_NOPREFIX, "%s:%d ARG[%d] '%s'", file, line_num, i, p[i]);
       }
   }
 #endif
@@ -1082,7 +1123,16 @@ add_option (struct options *options, int i, char *p[],
   else if (streq (p[0], "resolv-retry") && p[1])
     {
       ++i;
-      options->resolve_retry_seconds = positive (atoi (p[1]));
+      if (streq (p[1], "infinite"))
+	options->resolve_retry_seconds = 1000000000;
+      else
+	options->resolve_retry_seconds = positive (atoi (p[1]));
+    }
+  else if (streq (p[0], "connect-retry") && p[1])
+    {
+      ++i;
+      options->connect_retry_seconds = positive (atoi (p[1]));
+      options->connect_retry_defined = true;
     }
   else if (streq (p[0], "ipchange") && p[1])
     {
@@ -1425,11 +1475,6 @@ add_option (struct options *options, int i, char *p[],
 	     "Bad --ip-win32 method: '%s'.  Allowed methods: %s",
 	     p[1],
 	     ipset2ascii_all());
-
-#if 1
-      if (index == IP_SET_DHCP)
-	msg (M_FATAL|M_NOPREFIX, "Sorry but '--ip-win32 dynamic' has not been implemented yet -- try one of the other three methods.");
-#endif
 
       options->tuntap_flags &= ~IP_SET_MASK;
       options->tuntap_flags |= (index & IP_SET_MASK);

@@ -8,7 +8,7 @@
  *  Copyright (C) Damion K. Wilson, 2003, and is released under the
  *  GPL version 2 (see below).
  *
- *  All other source code is Copyright (C) James Yonan, 2003,
+ *  All other source code is Copyright (C) James Yonan, 2003-2004,
  *  and is released under the GPL version 2 (see below).
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -47,7 +47,7 @@ unsigned char HexStringToDecimalInt (unsigned char p_Character)
     return l_Value;
    }
 
-void ConvertMacInfo (MACADDR p_Destination, unsigned char *p_Source, unsigned long p_Length)
+VOID ConvertMacInfo (MACADDR p_Destination, unsigned char *p_Source, unsigned long p_Length)
    {
     unsigned long l_Index, l_HexIdx, l_Ind = 0, l_Init = 1;
 
@@ -91,7 +91,7 @@ void ConvertMacInfo (MACADDR p_Destination, unsigned char *p_Source, unsigned lo
  * of collision would be 0.01157288998621678766.
  */
 
-void GenerateRandomMac (MACADDR mac, unsigned char *adapter_name)
+VOID GenerateRandomMac (MACADDR mac, unsigned char *adapter_name)
 {
   unsigned const char *cp = adapter_name;
   unsigned char c;
@@ -130,10 +130,10 @@ void GenerateRandomMac (MACADDR mac, unsigned char *adapter_name)
     }
 }
 
-void GenerateRelatedMAC (MACADDR dest, const MACADDR src)
+VOID GenerateRelatedMAC (MACADDR dest, const MACADDR src, int delta)
 {
   COPY_MAC (dest, src);
-  (*((ULONG *) ((unsigned char *) dest + 2)))++;
+  dest[2] += (UCHAR) delta;
 }
 
 #ifdef __cplusplus

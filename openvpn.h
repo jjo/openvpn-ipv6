@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -58,7 +58,7 @@
  */
 
 /* #define OPENVPN_DEBUG_COMMAND_LINE */
-#define OPENVPN_DEBUG_FILE "openvpn.log"
+#define OPENVPN_DEBUG_FILE PACKAGE ".log"
 
 /*
  * At exactly --verb 5 (not less or greater), print 'R' and 'W' chars

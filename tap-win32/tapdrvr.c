@@ -8,7 +8,7 @@
  *  Copyright (C) Damion K. Wilson, 2003, and is released under the
  *  GPL version 2 (see below).
  *
- *  All other source code is Copyright (C) James Yonan, 2003,
+ *  All other source code is Copyright (C) James Yonan, 2003-2004,
  *  and is released under the GPL version 2 (see below).
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -50,14 +50,18 @@
 #include <ntstrsafe.h>
 
 #include "constants.h"
+#include "common.h"
+#include "proto.h"
 #include "types.h"
 #include "prototypes.h"
 #include "error.h"
 #include "endian.h"
+#include "dhcp.h"
 
 #include "mem.c"
 #include "macinfo.c"
 #include "error.c"
+#include "dhcp.c"
 
 //========================================================
 //                            Globals
@@ -1267,7 +1271,58 @@ AdapterTransmit (IN NDIS_HANDLE p_AdapterContext, IN PNDIS_PACKET p_Packet,
 	NdisGetNextBuffer (l_NDIS_Buffer, &l_NDIS_Buffer);
       }
 
-    DEBUG_PACKET ("AdapterTransmit", l_PacketBuffer->m_Data, l_PacketLength);
+    DUMP_PACKET ("AdapterTransmit", l_PacketBuffer->m_Data, l_PacketLength);
+
+    //=====================================================
+    // Are we running in DHCP server masquerade mode?
+    //
+    // If so, catch both DHCP requests and ARP queries
+    // to resolve the address of our virtual DHCP server.
+    //=====================================================
+    if (l_Adapter->m_dhcp_enabled)
+      {
+	const ETH_HEADER *eth = (ETH_HEADER *) l_PacketBuffer->m_Data;
+	const IPHDR *ip = (IPHDR *) (l_PacketBuffer->m_Data + sizeof (ETH_HEADER));
+	const UDPHDR *udp = (UDPHDR *) (l_PacketBuffer->m_Data + sizeof (ETH_HEADER) + sizeof (IPHDR));
+
+	// ARP packet?
+	if (l_PacketLength == sizeof (ARP_PACKET) && eth->proto == htons (ETH_P_ARP))
+	  {
+	    if (ProcessARP (l_Adapter,
+			    (PARP_PACKET) l_PacketBuffer->m_Data,
+			    l_Adapter->m_dhcp_addr,
+			    l_Adapter->m_dhcp_server_ip,
+			    l_Adapter->m_dhcp_server_mac))
+	      goto no_queue;
+	  }
+
+	// DHCP packet?
+	else if (l_PacketLength >= sizeof (ETH_HEADER) + sizeof (IPHDR) + sizeof (UDPHDR) + sizeof (DHCP)
+		 && eth->proto == htons (ETH_P_IP)
+		 && ip->version_len == 0x45 // IPv4, 20 byte header
+		 && ip->protocol == IPPROTO_UDP
+		 && udp->dest == htons (BOOTPS_PORT))
+	  {
+	    const DHCP *dhcp = (DHCP *) (l_PacketBuffer->m_Data
+					 + sizeof (ETH_HEADER)
+					 + sizeof (IPHDR)
+					 + sizeof (UDPHDR));
+
+	    const int optlen = l_PacketLength
+	      - sizeof (ETH_HEADER)
+	      - sizeof (IPHDR)
+	      - sizeof (UDPHDR)
+	      - sizeof (DHCP);
+
+	    if (optlen > 0) // we must have at least one DHCP option
+	      {
+		if (ProcessDHCP (l_Adapter, eth, ip, udp, dhcp, optlen))
+		  goto no_queue;
+	      }
+	    else
+	      goto no_queue;
+	  }
+      }
 
     //===============================================
     // In Point-To-Point mode, check to see whether
@@ -1291,7 +1346,11 @@ AdapterTransmit (IN NDIS_HANDLE p_AdapterContext, IN PNDIS_PACKET p_Packet,
 	    if (l_PacketLength != sizeof (ARP_PACKET))
 	      goto no_queue;
 
-	    ProcessARP (l_Adapter, (PARP_PACKET) l_PacketBuffer->m_Data);
+	    ProcessARP (l_Adapter,
+			(PARP_PACKET) l_PacketBuffer->m_Data,
+			l_Adapter->m_localIP,
+			l_Adapter->m_remoteIP,
+			l_Adapter->m_TapToUser.dest);
 
 	  default:
 	    goto no_queue;
@@ -1595,7 +1654,7 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 		  (sizeof (IPADDR) * 2))
 		{
 		  MACADDR dest;
-		  GenerateRelatedMAC (dest, l_Adapter->m_MAC);
+		  GenerateRelatedMAC (dest, l_Adapter->m_MAC, 1);
 
 		  NdisAcquireSpinLock (&l_Adapter->m_Lock);
 
@@ -1640,6 +1699,44 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 		  NOTE_ERROR (l_Adapter);
 		  p_IRP->IoStatus.Status = l_Status = STATUS_INVALID_PARAMETER;
 		}
+	      break;
+	    }
+
+	  case TAP_IOCTL_CONFIG_DHCP_MASQ:
+	    {
+	      if (l_IrpSp->Parameters.DeviceIoControl.InputBufferLength >=
+		  (sizeof (IPADDR) * 4))
+		{
+		  NdisAcquireSpinLock (&l_Adapter->m_Lock);
+
+		  l_Adapter->m_dhcp_enabled = TRUE;
+
+		  // Adapter IP addr / netmask
+		  l_Adapter->m_dhcp_addr =
+		    ((IPADDR*) (p_IRP->AssociatedIrp.SystemBuffer))[0];
+		  l_Adapter->m_dhcp_netmask =
+		    ((IPADDR*) (p_IRP->AssociatedIrp.SystemBuffer))[1];
+
+		  // IP addr of DHCP masq server
+		  l_Adapter->m_dhcp_server_ip =
+		    ((IPADDR*) (p_IRP->AssociatedIrp.SystemBuffer))[2];
+
+		  // Lease time in seconds
+		  l_Adapter->m_lease_time =
+		    ((IPADDR*) (p_IRP->AssociatedIrp.SystemBuffer))[3];
+
+		  GenerateRelatedMAC (l_Adapter->m_dhcp_server_mac, l_Adapter->m_MAC, 2);
+
+		  NdisReleaseSpinLock (&l_Adapter->m_Lock);
+
+		  p_IRP->IoStatus.Information = 1; // Simple boolean value
+		}
+	      else
+		{
+		  NOTE_ERROR (l_Adapter);
+		  p_IRP->IoStatus.Status = l_Status = STATUS_INVALID_PARAMETER;
+		}
+	      
 	      break;
 	    }
 
@@ -1799,17 +1896,16 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 	      {
 		p_IRP->IoStatus.Information = l_IrpSp->Parameters.Write.Length;
 
-		DEBUG_PACKET ("IRP_MJ_WRITE",
-			      (unsigned char *) p_IRP->AssociatedIrp.SystemBuffer,
-			      l_IrpSp->Parameters.Write.Length);
+		DUMP_PACKET ("IRP_MJ_WRITE ETH",
+			     (unsigned char *) p_IRP->AssociatedIrp.SystemBuffer,
+			     l_IrpSp->Parameters.Write.Length);
 
 		NdisMEthIndicateReceive
 		  (l_Adapter->m_MiniportAdapterHandle,
 		   (NDIS_HANDLE) l_Adapter,
 		   (unsigned char *) p_IRP->AssociatedIrp.SystemBuffer,
 		   ETHERNET_HEADER_SIZE,
-		   (unsigned char *) p_IRP->AssociatedIrp.SystemBuffer +
-		   ETHERNET_HEADER_SIZE,
+		   (unsigned char *) p_IRP->AssociatedIrp.SystemBuffer + ETHERNET_HEADER_SIZE,
 		   l_IrpSp->Parameters.Write.Length - ETHERNET_HEADER_SIZE,
 		   l_IrpSp->Parameters.Write.Length - ETHERNET_HEADER_SIZE);
 		
@@ -1831,6 +1927,11 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 	    __try
 	      {
 		p_IRP->IoStatus.Information = l_IrpSp->Parameters.Write.Length;
+
+		DUMP_PACKET2 ("IRP_MJ_WRITE P2P",
+			      &l_Adapter->m_UserToTap,
+			      (unsigned char *) p_IRP->AssociatedIrp.SystemBuffer,
+			      l_IrpSp->Parameters.Write.Length);
 
 		NdisMEthIndicateReceive
 		  (l_Adapter->m_MiniportAdapterHandle,
@@ -1896,7 +1997,7 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 	    ++l_Adapter->m_TapOpens;
 	    first_open = (l_Adapter->m_TapOpens == 1);
 	    if (first_open)
-	      ResetPointToPointMode (l_Adapter);
+	      ResetTapDevState (l_Adapter);
 	    NdisReleaseSpinLock (&l_Adapter->m_Lock);
 
 #ifdef SET_MEDIA_STATUS_ON_OPEN
@@ -1939,7 +2040,7 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 	    if (l_Adapter->m_TapOpens == 0)
 	      {
 		fully_closed = TRUE;
-		ResetPointToPointMode (l_Adapter);
+		ResetTapDevState (l_Adapter);
 	      }
 	  }
 	NdisReleaseSpinLock (&l_Adapter->m_Lock);
@@ -1954,9 +2055,9 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 	break;
       }
 
-      //-----------------------------------------------------------
-      // Something screwed up if it gets here ! It won't die, though
-      //-----------------------------------------------------------
+      //------------------
+      // Strange Request
+      //------------------
     default:
       {
 	//NOTE_ERROR (l_Adapter);
@@ -1995,11 +2096,13 @@ CompleteIRP (TapAdapterPointer p_Adapter,
 
   IoSetCancelRoutine (p_IRP, NULL);  // Disable cancel routine
 
+  //-------------------------------------------
   // While p_PacketBuffer always contains a
   // full ethernet packet, including the
   // ethernet header, in point-to-point mode,
   // we only want to return the IPv4
   // component.
+  //-------------------------------------------
 
   if (p_PacketBuffer->m_SizeFlags & TP_POINT_TO_POINT)
     {
@@ -2188,11 +2291,15 @@ SetMediaStatus (TapAdapterPointer p_Adapter, BOOLEAN state)
 }
 
 //===================================================
-// Generate a return ARP message for
-// point-to-point IPv4 mode.
+// Generate an ARP reply message for specific kinds
+// ARP queries.
 //===================================================
-
-void ProcessARP (TapAdapterPointer p_Adapter, const PARP_PACKET src)
+BOOLEAN
+ProcessARP (TapAdapterPointer p_Adapter,
+	    const PARP_PACKET src,
+	    const IPADDR adapter_ip,
+	    const IPADDR ip,
+	    const MACADDR mac)
 {
   //-----------------------------------------------
   // Is this the kind of packet we are looking for?
@@ -2206,75 +2313,106 @@ void ProcessARP (TapAdapterPointer p_Adapter, const PARP_PACKET src)
       && src->m_MAC_AddressSize == sizeof (MACADDR)
       && src->m_PROTO_AddressType == htons (ETH_P_IP)
       && src->m_PROTO_AddressSize == sizeof (IPADDR)
-      && src->m_ARP_IP_Source == p_Adapter->m_localIP
-      && src->m_ARP_IP_Destination == p_Adapter->m_remoteIP)
+      && src->m_ARP_IP_Source == adapter_ip
+      && src->m_ARP_IP_Destination == ip)
     {
-      ARP_PACKET arp;
-      NdisZeroMemory (&arp, sizeof (arp));
-
-      //----------------------------------------------
-      // Initialize ARP reply fields
-      //----------------------------------------------
-      arp.m_Proto = htons (ETH_P_ARP);
-      arp.m_MAC_AddressType = htons (MAC_ADDR_TYPE);
-      arp.m_PROTO_AddressType = htons (ETH_P_IP);
-      arp.m_MAC_AddressSize = sizeof (MACADDR);
-      arp.m_PROTO_AddressSize = sizeof (IPADDR);
-      arp.m_ARP_Operation = htons (ARP_REPLY);
-
-      //----------------------------------------------
-      // ARP addresses
-      //----------------------------------------------      
-      COPY_MAC (arp.m_MAC_Source, p_Adapter->m_TapToUser.dest);
-      COPY_MAC (arp.m_MAC_Destination, p_Adapter->m_TapToUser.src);
-      COPY_MAC (arp.m_ARP_MAC_Source, p_Adapter->m_TapToUser.dest);
-      COPY_MAC (arp.m_ARP_MAC_Destination, p_Adapter->m_TapToUser.src);
-      arp.m_ARP_IP_Source = p_Adapter->m_remoteIP;
-      arp.m_ARP_IP_Destination = p_Adapter->m_localIP;
-
-      DEBUG_PACKET ("ProcessARP",
-		    (unsigned char *) &arp,
-		    sizeof (arp));
-
-      __try
+      ARP_PACKET *arp = (ARP_PACKET *) MemAllocZeroed (sizeof (ARP_PACKET));
+      if (arp)
 	{
-	  //------------------------------------------------------------
-	  // NdisMEthIndicateReceive and NdisMEthIndicateReceiveComplete
-	  // could potentially be called reentrantly both here and in
-	  // TapDeviceHook/IRP_MJ_WRITE.
-	  //
-	  // The DDK docs imply that this is okay.
-	  //------------------------------------------------------------
-	  NdisMEthIndicateReceive
-	    (p_Adapter->m_MiniportAdapterHandle,
-	     (NDIS_HANDLE) p_Adapter,
-	     (unsigned char *) &arp,
-	     ETHERNET_HEADER_SIZE,
-	     ((unsigned char *) &arp) + ETHERNET_HEADER_SIZE,
-	     sizeof (arp) - ETHERNET_HEADER_SIZE,
-	     sizeof (arp) - ETHERNET_HEADER_SIZE);
-		
-	  NdisMEthIndicateReceiveComplete (p_Adapter->m_MiniportAdapterHandle);
+	  //----------------------------------------------
+	  // Initialize ARP reply fields
+	  //----------------------------------------------
+	  arp->m_Proto = htons (ETH_P_ARP);
+	  arp->m_MAC_AddressType = htons (MAC_ADDR_TYPE);
+	  arp->m_PROTO_AddressType = htons (ETH_P_IP);
+	  arp->m_MAC_AddressSize = sizeof (MACADDR);
+	  arp->m_PROTO_AddressSize = sizeof (IPADDR);
+	  arp->m_ARP_Operation = htons (ARP_REPLY);
+
+	  //----------------------------------------------
+	  // ARP addresses
+	  //----------------------------------------------      
+	  COPY_MAC (arp->m_MAC_Source, mac);
+	  COPY_MAC (arp->m_MAC_Destination, p_Adapter->m_MAC);
+	  COPY_MAC (arp->m_ARP_MAC_Source, mac);
+	  COPY_MAC (arp->m_ARP_MAC_Destination, p_Adapter->m_MAC);
+	  arp->m_ARP_IP_Source = ip;
+	  arp->m_ARP_IP_Destination = adapter_ip;
+
+	  DUMP_PACKET ("ProcessARP",
+		       (unsigned char *) arp,
+		       sizeof (ARP_PACKET));
+
+	  InjectPacket (p_Adapter, (UCHAR *) arp, sizeof (ARP_PACKET));
+
+	  MemFree (arp, sizeof (ARP_PACKET));
 	}
-      __except (EXCEPTION_EXECUTE_HANDLER)
-	{
-	  DEBUGP (("[%s] NdisMEthIndicateReceive failed in ProcessARP\n",
-		   p_Adapter->m_Name));
-	  NOTE_ERROR (p_Adapter);
-	}
+
+      return TRUE;
+    }
+  else
+    return FALSE;
+}
+
+//===============================================================
+// Used in cases where internally generated packets such as
+// ARP or DHCP replies must be returned to the kernel, to be
+// seen as an incoming packet "arriving" on the interface.
+//===============================================================
+
+VOID
+InjectPacket (TapAdapterPointer p_Adapter, UCHAR *packet, const unsigned int len)
+{
+  MYASSERT (len >= ETHERNET_HEADER_SIZE);
+
+  __try
+    {
+      //------------------------------------------------------------
+      // NdisMEthIndicateReceive and NdisMEthIndicateReceiveComplete
+      // could potentially be called reentrantly both here and in
+      // TapDeviceHook/IRP_MJ_WRITE.
+      //
+      // The DDK docs imply that this is okay.
+      //------------------------------------------------------------
+      NdisMEthIndicateReceive
+	(p_Adapter->m_MiniportAdapterHandle,
+	 (NDIS_HANDLE) p_Adapter,
+	 packet,
+	 ETHERNET_HEADER_SIZE,
+	 packet + ETHERNET_HEADER_SIZE,
+	 len - ETHERNET_HEADER_SIZE,
+	 len - ETHERNET_HEADER_SIZE);
+      
+      NdisMEthIndicateReceiveComplete (p_Adapter->m_MiniportAdapterHandle);
+    }
+  __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+      DEBUGP (("[%s] NdisMEthIndicateReceive failed in InjectPacket\n",
+	       p_Adapter->m_Name));
+      NOTE_ERROR (p_Adapter);
     }
 }
 
 //===================================================================
-// Go back to default TAP mode from Point-To-Point mode
+// Go back to default TAP mode from Point-To-Point mode.
+// Also reset (i.e. disable) DHCP Masq mode.
 //===================================================================
-void ResetPointToPointMode (TapAdapterPointer p_Adapter)
+VOID ResetTapDevState (TapAdapterPointer p_Adapter)
 {
+  // Point-To-Point
   p_Adapter->m_PointToPoint = FALSE;
   p_Adapter->m_localIP = 0;
   p_Adapter->m_remoteIP = 0;
   NdisZeroMemory (&p_Adapter->m_TapToUser, sizeof (p_Adapter->m_TapToUser));
   NdisZeroMemory (&p_Adapter->m_UserToTap, sizeof (p_Adapter->m_UserToTap));
+
+  // DHCP Masq
+  p_Adapter->m_dhcp_enabled = FALSE;
+  p_Adapter->m_dhcp_addr = 0;
+  p_Adapter->m_dhcp_netmask = 0;
+  p_Adapter->m_dhcp_server_ip = 0;
+  NdisZeroMemory (p_Adapter->m_dhcp_server_mac, sizeof (MACADDR));
+  p_Adapter->m_lease_time = 0;
 }
 
 //===================================================================

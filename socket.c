@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -353,10 +353,9 @@ socket_connect (socket_descriptor_t *sd,
 		struct sockaddr_in *remote,
 		const char *remote_dynamic,
 		bool *remote_changed,
+		const int connect_retry_seconds,
 		volatile int *signal_received)
 {
-  const int try_again_seconds = 5;
-
   msg (M_INFO, "Attempting to establish TCP connection with %s", 
        print_sockaddr (remote));
   while (true)
@@ -373,10 +372,10 @@ socket_connect (socket_descriptor_t *sd,
 
       msg (D_LINK_ERRORS | M_ERRNO_SOCK,
 	   "connect() failed, will try again in %d seconds, error",
-	   try_again_seconds);
+	   connect_retry_seconds);
 
       openvpn_close_socket (*sd);
-      sleep (try_again_seconds);
+      sleep (connect_retry_seconds);
       *sd = create_socket_tcp ();
       update_remote (remote_dynamic, remote, remote_changed);
     }
@@ -553,6 +552,7 @@ link_socket_init_phase1 (struct link_socket *sock,
 			 struct link_socket_addr *lsa,
 			 const char *ipchange_command,
 			 int resolve_retry_seconds,
+			 int connect_retry_seconds,
 			 int mtu_discover_type)
 {
   link_socket_reset (sock);
@@ -566,6 +566,7 @@ link_socket_init_phase1 (struct link_socket *sock,
   sock->lsa = lsa;
   sock->ipchange_command = ipchange_command;
   sock->resolve_retry_seconds = resolve_retry_seconds;
+  sock->connect_retry_seconds = connect_retry_seconds;
   sock->mtu_discover_type = mtu_discover_type;
 
   /* are we running in HTTP proxy mode? */
@@ -618,6 +619,9 @@ link_socket_init_phase2 (struct link_socket *sock,
   const char *remote_dynamic = NULL;
   bool remote_changed = false;
 
+  /* initialize buffers */
+  socket_frame_init (frame, sock);
+
   /*
    * Pass a remote name to connect/accept so that
    * they can test for dynamic IP address changes
@@ -656,6 +660,7 @@ link_socket_init_phase2 (struct link_socket *sock,
 	{
 	  socket_connect (&sock->sd, &sock->lsa->actual,
 			  remote_dynamic, &remote_changed,
+			  sock->connect_retry_seconds,
 			  signal_received);
 
 	  if (*signal_received)
@@ -667,6 +672,7 @@ link_socket_init_phase2 (struct link_socket *sock,
 					     sock->sd,
 					     sock->proxy_dest_host,
 					     sock->proxy_dest_port,
+					     &sock->stream_buf.residual,
 					     signal_received);
 	    }
 	}
@@ -709,9 +715,6 @@ link_socket_init_phase2 (struct link_socket *sock,
   msg (M_INFO, "%s link remote: %s",
        proto2ascii (sock->proto, true),
        print_sockaddr_ex (&sock->lsa->actual, addr_defined (&sock->lsa->actual), ":"));
-
-  /* initialize buffers */
-  socket_frame_init (frame, sock);
 }
 
 /* for stream protocols, allow for packet length prefix */

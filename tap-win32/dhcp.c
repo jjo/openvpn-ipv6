@@ -1,0 +1,540 @@
+/*
+ *  TAP-Win32 -- A kernel driver to provide virtual tap device functionality
+ *               on Windows.  Originally derived from the CIPE-Win32
+ *               project by Damion K. Wilson, with extensive modifications by
+ *               James Yonan.
+ *
+ *  All source code which derives from the CIPE-Win32 project is
+ *  Copyright (C) Damion K. Wilson, 2003, and is released under the
+ *  GPL version 2 (see below).
+ *
+ *  All other source code is Copyright (C) James Yonan, 2003-2004,
+ *  and is released under the GPL version 2 (see below).
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program (see the file COPYING included with this
+ *  distribution); if not, write to the Free Software Foundation, Inc.,
+ *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
+USHORT
+ip_checksum (const UCHAR *buf, const int len_ip_header)
+{
+  USHORT word16;
+  ULONG sum = 0;
+  int i;
+    
+  // make 16 bit words out of every two adjacent 8 bit words in the packet
+  // and add them up
+  for (i = 0; i < len_ip_header - 1; i += 2) {
+    word16 = ((buf[i] << 8) & 0xFF00) + (buf[i+1] & 0xFF);
+    sum += (ULONG) word16;
+  }
+
+  // take only 16 bits out of the 32 bit sum and add up the carries
+  while (sum >> 16)
+    sum = (sum & 0xFFFF) + (sum >> 16);
+
+  // one's complement the result
+  return ((USHORT) ~sum);
+}
+
+USHORT
+udp_checksum (const UCHAR *buf,
+	      const int len_udp,
+	      const UCHAR *src_addr,
+	      const UCHAR *dest_addr)
+{
+  USHORT word16;
+  ULONG sum = 0;
+  int i;
+	
+  // make 16 bit words out of every two adjacent 8 bit words and 
+  // calculate the sum of all 16 bit words
+  for (i = 0; i < len_udp; i += 2){
+    word16 = ((buf[i] << 8) & 0xFF00) + ((i + 1 < len_udp) ? (buf[i+1] & 0xFF) : 0);
+    sum += word16;
+  }
+
+  // add the UDP pseudo header which contains the IP source and destination addresses
+  for (i = 0; i < 4; i += 2){
+    word16 =((src_addr[i] << 8) & 0xFF00) + (src_addr[i+1] & 0xFF);
+    sum += word16;
+  }
+  for (i = 0; i < 4; i += 2){
+    word16 =((dest_addr[i] << 8) & 0xFF00) + (dest_addr[i+1] & 0xFF);
+    sum += word16; 	
+  }
+
+  // the protocol number and the length of the UDP packet
+  sum += (USHORT) IPPROTO_UDP + (USHORT) len_udp;
+
+  // keep only the last 16 bits of the 32 bit calculated sum and add the carries
+  while (sum >> 16)
+    sum = (sum & 0xFFFF) + (sum >> 16);
+		
+  // Take the one's complement of sum
+  return ((USHORT) ~sum);
+}
+
+int
+GetDHCPMessageType (const DHCP *dhcp, const int optlen)
+{
+  const UCHAR *p = (UCHAR *) (dhcp + 1);
+  int i;
+
+  for (i = 0; i < optlen; ++i)
+    {
+      const UCHAR type = p[i];
+      const int room = optlen - i - 1;
+      if (type == DHCP_END)           // didn't find what we were looking for
+	return -1;
+      else if (type == DHCP_PAD)      // no-operation
+	;
+      else if (type == DHCP_MSG_TYPE) // what we are looking for
+	{
+	  if (room >= 2)
+	    {
+	      if (p[i+1] == 1)        // message length should be 1
+		return p[i+2];        // return message type
+	    }
+	  return -1;
+	}
+      else                            // some other message
+	{
+	  if (room >= 1)
+	    {
+	      const int len = p[i+1]; // get message length
+	      i += (len + 1);         // advance to next message
+	    }
+	}
+    }
+  return -1;
+}
+
+BOOLEAN
+DHCPMessageOurs (TapAdapterPointer p_Adapter,
+		 const ETH_HEADER *eth,
+		 const IPHDR *ip,
+		 const UDPHDR *udp,
+		 const DHCP *dhcp)
+{
+  // Must be UDPv4 protocol
+  if (!(eth->proto == htons (ETH_P_IP) && ip->protocol == IPPROTO_UDP))
+    return FALSE;
+
+  // Source MAC must be our adapter
+  if (!MAC_EQUAL (eth->src, p_Adapter->m_MAC))
+    return FALSE;
+
+  // Dest MAC must be either broadcast or our virtual DHCP server
+  if (!(MAC_EQUAL (eth->dest, p_Adapter->m_MAC_Broadcast)
+	|| MAC_EQUAL (eth->dest, p_Adapter->m_dhcp_server_mac)))
+    return FALSE;
+
+  // Port numbers must be correct
+  if (!(udp->dest == htons (BOOTPS_PORT)
+	&& udp->source == htons (BOOTPC_PORT)))
+    return FALSE;
+
+  // Hardware address must be MAC addr sized
+  if (!(dhcp->hlen == sizeof (MACADDR)))
+    return FALSE;
+
+  // Hardware address must match our adapter
+  if (!MAC_EQUAL (eth->src, dhcp->chaddr))
+    return FALSE;
+
+  return TRUE;
+}
+
+
+//======================================
+// Set IP and UDP packet checksums
+//======================================
+
+VOID
+SetChecksumDHCPPRE (const IPHDR *ip,
+		    const UDPHDR *udp,
+		    DHCPPRE *p,
+		    const int optlen)
+{
+  // Set IP checksum
+  p->ip.check = htons (ip_checksum ((UCHAR *) &p->ip, sizeof (IPHDR)));
+
+  // Set UDP Checksum
+  p->udp.check = htons (udp_checksum ((UCHAR *) &p->udp, 
+				      sizeof (UDPHDR) + sizeof (DHCP) + optlen,
+				      (UCHAR *)&p->ip.saddr,
+				      (UCHAR *)&p->ip.daddr));
+}
+
+//=====================================================
+// Build all of DHCP packet except for DHCP options.
+// Assume that *p has been zeroed before we are called.
+//=====================================================
+
+VOID
+BuildDHCPPRE (TapAdapterPointer a,
+	      const ETH_HEADER *eth,
+	      const IPHDR *ip,
+	      const UDPHDR *udp,
+	      const DHCP *dhcp,
+	      DHCPPRE *p,
+	      const int optlen,
+	      BOOLEAN directed)
+{
+  // Build ethernet header
+
+  COPY_MAC (p->eth.src, a->m_dhcp_server_mac);
+
+  if (directed)
+    COPY_MAC (p->eth.dest, eth->src);
+  else
+    COPY_MAC (p->eth.dest, a->m_MAC_Broadcast);
+
+  p->eth.proto = htons (ETH_P_IP);
+
+  // Build IP header
+
+  p->ip.version_len = (4 << 4) | (sizeof (IPHDR) >> 2);
+  p->ip.tos = 0;
+  p->ip.tot_len = htons (sizeof (IPHDR) + sizeof (UDPHDR) + sizeof (DHCP) + optlen);
+  p->ip.id = 0;
+  p->ip.frag_off = 0;
+  p->ip.ttl = 16;
+  p->ip.protocol = IPPROTO_UDP;
+  p->ip.check = 0;
+  p->ip.saddr = a->m_dhcp_server_ip;
+
+  if (directed)
+    p->ip.daddr = a->m_dhcp_addr;
+  else
+    p->ip.daddr = ~0;
+
+  // Build UDP header
+
+  p->udp.source = htons (BOOTPS_PORT);
+  p->udp.dest = htons (BOOTPC_PORT);
+  p->udp.len = htons (sizeof (UDPHDR) + sizeof (DHCP) + optlen);
+  p->udp.check = 0;
+
+  // Build DHCP response
+
+  p->dhcp.op = BOOTREPLY;
+  p->dhcp.htype = 1;
+  p->dhcp.hlen = sizeof (MACADDR);
+  p->dhcp.hops = 0;
+  p->dhcp.xid = dhcp->xid;
+  p->dhcp.secs = 0;
+  p->dhcp.flags = 0;
+  p->dhcp.ciaddr = 0;
+
+  if (directed)
+    p->dhcp.yiaddr = a->m_dhcp_addr;
+  else
+    p->dhcp.yiaddr = 0;
+
+  p->dhcp.siaddr = a->m_dhcp_server_ip;
+  p->dhcp.giaddr = 0;
+  COPY_MAC (p->dhcp.chaddr, eth->src);
+  p->dhcp.magic = htonl (0x63825363);
+}
+
+VOID
+SendDHCPOFFERACK (TapAdapterPointer a,
+		  BOOLEAN offer,
+		  const ETH_HEADER *eth,
+		  const IPHDR *ip,
+		  const UDPHDR *udp,
+		  const DHCP *dhcp)
+{
+  DHCP_OFFER_ACK *pkt = (DHCP_OFFER_ACK *) MemAllocZeroed (sizeof (DHCP_OFFER_ACK));
+
+  if (pkt)
+    {
+      const int optlen = sizeof (DHCP_OFFER_ACK) - sizeof (DHCPPRE);
+
+      // Most of the DHCP message gets built here
+      BuildDHCPPRE (a, eth, ip, udp, dhcp, &pkt->pre, optlen, TRUE);
+
+      //-----------------------
+      // Now build DHCP options
+      //-----------------------
+
+      // Message Type
+      SET_DHCP_OPT (pkt->msg_type, DHCP_MSG_TYPE, (offer ? DHCPOFFER : DHCPACK));
+
+      // Server ID
+      SET_DHCP_OPT (pkt->server_id, DHCP_SERVER_ID, a->m_dhcp_server_ip);
+
+      // Lease Time
+      SET_DHCP_OPT (pkt->lease_time, DHCP_LEASE_TIME, htonl (a->m_lease_time));
+
+      // Netmask
+      SET_DHCP_OPT (pkt->netmask, DHCP_NETMASK, a->m_dhcp_netmask);
+
+      // End
+      SET_DHCP_END (pkt);
+
+      // Checksum
+      SetChecksumDHCPPRE (ip, udp, &pkt->pre, optlen);
+
+      DUMP_PACKET ("DHCPOFFERACK",
+		   (unsigned char *) pkt,
+		   sizeof (DHCP_OFFER_ACK));
+
+      // Return DHCP response to kernel
+      InjectPacket (a, (UCHAR *) pkt, sizeof (DHCP_OFFER_ACK));
+
+      MemFree (pkt, sizeof (DHCP_OFFER_ACK));
+    }
+}
+
+VOID
+SendDHCPNAK (TapAdapterPointer a,
+	     const ETH_HEADER *eth,
+	     const IPHDR *ip,
+	     const UDPHDR *udp,
+	     const DHCP *dhcp)
+{
+  DHCP_NAK *pkt = (DHCP_NAK *) MemAllocZeroed (sizeof (DHCP_NAK));
+
+  if (pkt)
+    {
+      const int optlen = sizeof (DHCP_NAK) - sizeof (DHCPPRE);
+
+      // Most of the DHCP message gets built here
+      BuildDHCPPRE (a, eth, ip, udp, dhcp, &pkt->pre, optlen, FALSE);
+
+      //-----------------------
+      // Now build DHCP options
+      //-----------------------
+
+      // Message Type
+      SET_DHCP_OPT (pkt->msg_type, DHCP_MSG_TYPE, DHCPNAK);
+
+      // Server ID
+      SET_DHCP_OPT (pkt->server_id, DHCP_SERVER_ID, a->m_dhcp_server_ip);
+
+      // End
+      SET_DHCP_END (pkt);
+
+      // Checksum
+      SetChecksumDHCPPRE (ip, udp, &pkt->pre, optlen);
+
+      DUMP_PACKET ("DHCPNAK",
+		   (unsigned char *) pkt,
+		   sizeof (DHCP_NAK));
+
+      // Return DHCP response to kernel
+      InjectPacket (a, (UCHAR *) pkt, sizeof (DHCP_NAK));
+
+      MemFree (pkt, sizeof (DHCP_NAK));
+    }
+}
+
+//===================================================================
+// Handle a BOOTPS packet produced by the local system to
+// resolve the address/netmask of this adapter.
+// If we are in TAP_IOCTL_CONFIG_DHCP_MASQ mode, reply
+// to the message.  Return TRUE if we processed the passed
+// message, so that downstream stages can ignore it.
+//===================================================================
+
+BOOLEAN
+ProcessDHCP (TapAdapterPointer p_Adapter,
+	     const ETH_HEADER *eth,
+	     const IPHDR *ip,
+	     const UDPHDR *udp,
+	     const DHCP *dhcp,
+	     int optlen)
+{
+  int msg_type;
+
+  // Sanity check IP header
+  if (!(ntohs (ip->tot_len) == sizeof (IPHDR) + sizeof (UDPHDR) + sizeof (DHCP) + optlen
+	&& (ntohs (ip->frag_off) & IP_OFFMASK) == 0))
+    return TRUE;
+
+  // Does this message belong to us?
+  if (!DHCPMessageOurs (p_Adapter, eth, ip, udp, dhcp))
+    return FALSE;
+
+  msg_type = GetDHCPMessageType (dhcp, optlen);
+
+  // Drop non-BOOTREQUEST messages
+  if (dhcp->op != BOOTREQUEST)
+    return TRUE;
+
+  // Drop any messages except DHCPDISCOVER or DHCPREQUEST
+  if (!(msg_type == DHCPDISCOVER || msg_type == DHCPREQUEST))
+    return TRUE;
+
+  // Should we reply with DHCPOFFER, DHCPACK, or DHCPNAK?
+  if (msg_type == DHCPREQUEST && dhcp->ciaddr && dhcp->ciaddr != p_Adapter->m_dhcp_addr)
+    SendDHCPNAK (p_Adapter, eth, ip, udp, dhcp);
+  else
+    SendDHCPOFFERACK (p_Adapter, (msg_type == DHCPDISCOVER), eth, ip, udp, dhcp);
+
+  return TRUE;
+}
+
+#if DBG
+
+const char *
+message_op_text (int op)
+{
+  switch (op)
+    {
+    case BOOTREQUEST:
+      return "BOOTREQUEST";
+    case BOOTREPLY:
+      return "BOOTREPLY";
+    default:
+      return "???";
+    }
+}
+
+const char *
+message_type_text (int type)
+{
+  switch (type)
+    {
+    case DHCPDISCOVER:
+      return "DHCPDISCOVER";
+    case DHCPOFFER:
+      return "DHCPOFFER";
+    case DHCPREQUEST:
+      return "DHCPREQUEST";
+    case DHCPDECLINE:
+      return "DHCPDECLINE";
+    case DHCPACK:
+      return "DHCPACK";
+    case DHCPNAK:
+      return "DHCPNAK";
+    case DHCPRELEASE:
+      return "DHCPRELEASE";
+    case DHCPINFORM:
+      return "DHCPINFORM";
+    default:
+      return "???";
+    }
+}
+
+const char *
+port_name (int port)
+{
+  switch (port)
+    {
+    case BOOTPS_PORT:
+      return "BOOTPS";
+    case BOOTPC_PORT:
+      return "BOOTPC";
+    default:
+      return "unknown";
+    }
+}
+
+VOID
+DumpDHCP (const ETH_HEADER *eth,
+	  const IPHDR *ip,
+	  const UDPHDR *udp,
+	  const DHCP *dhcp,
+	  const int optlen)
+{
+  DbgPrint (" %s", message_op_text (dhcp->op));
+  DbgPrint (" %s ", message_type_text (GetDHCPMessageType (dhcp, optlen)));
+  PrIP (ip->saddr);
+  DbgPrint (":%s[", port_name (ntohs (udp->source)));
+  PrMac (eth->src);
+  DbgPrint ("] -> ");
+  PrIP (ip->daddr);
+  DbgPrint (":%s[", port_name (ntohs (udp->dest)));
+  PrMac (eth->dest);
+  DbgPrint ("]");
+  if (dhcp->ciaddr)
+    {
+      DbgPrint (" ci=");
+      PrIP (dhcp->ciaddr);
+    }
+  if (dhcp->yiaddr)
+    {
+      DbgPrint (" yi=");
+      PrIP (dhcp->yiaddr);
+    }
+  if (dhcp->siaddr)
+    {
+      DbgPrint (" si=");
+      PrIP (dhcp->siaddr);
+    }
+  if (dhcp->hlen == sizeof (MACADDR))
+    {
+      DbgPrint (" ch=");
+      PrMac (dhcp->chaddr);
+    }
+
+  DbgPrint (" xid=0x%08x", ntohl (dhcp->xid));
+
+  if (ntohl (dhcp->magic) != 0x63825363)
+    DbgPrint (" ma=0x%08x", ntohl (dhcp->magic));
+  if (dhcp->htype != 1)
+    DbgPrint (" htype=%d", dhcp->htype);
+  if (dhcp->hops)
+    DbgPrint (" hops=%d", dhcp->hops);
+  if (ntohs (dhcp->secs))
+    DbgPrint (" secs=%d", ntohs (dhcp->secs));
+  if (ntohs (dhcp->flags))
+    DbgPrint (" flags=0x%04x", ntohs (dhcp->flags));
+
+  // extra stuff
+  
+  if (ip->version_len != 0x45)
+    DbgPrint (" vl=0x%02x", ip->version_len);
+  if (ntohs (ip->tot_len) != sizeof (IPHDR) + sizeof (UDPHDR) + sizeof (DHCP) + optlen)
+    DbgPrint (" tl=%d", ntohs (ip->tot_len));
+  if (ntohs (udp->len) != sizeof (UDPHDR) + sizeof (DHCP) + optlen)
+    DbgPrint (" ul=%d", ntohs (udp->len));
+
+  if (ip->tos)
+    DbgPrint (" tos=0x%02x", ip->tos);
+  if (ntohs (ip->id))
+    DbgPrint (" id=0x%04x", ntohs (ip->id));
+  if (ntohs (ip->frag_off))
+    DbgPrint (" frag_off=0x%04x", ntohs (ip->frag_off));
+  
+  DbgPrint (" ttl=%d", ip->ttl);
+  DbgPrint (" ic=0x%04x [0x%04x]", ntohs (ip->check),
+	    ip_checksum ((UCHAR*)ip, sizeof (IPHDR)));
+  DbgPrint (" uc=0x%04x [0x%04x/%d]", ntohs (udp->check),
+	    udp_checksum ((UCHAR *) udp,
+			  sizeof (UDPHDR) + sizeof (DHCP) + optlen,
+			  (UCHAR *) &ip->saddr,
+			  (UCHAR *) &ip->daddr),
+	    optlen);
+
+  // Options
+  {
+    const UCHAR *opt = (UCHAR *) (dhcp + 1);
+    int i;
+
+    DbgPrint (" OPT");
+    for (i = 0; i < optlen; ++i)
+      {
+	const UCHAR data = opt[i];
+	DbgPrint (".%d", data);
+      }
+  }
+}
+
+#endif /* DBG */

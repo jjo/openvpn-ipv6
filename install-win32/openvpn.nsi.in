@@ -1,5 +1,5 @@
 ; ****************************************************************************
-; * COPYRIGHT (C) 2003 James Yonan                                           *
+; * COPYRIGHT (C) 2003-2004 James Yonan                                      *
 ; *  This program is free software; you can redistribute it and/or modify    *
 ; *  it under the terms of the GNU General Public License as published by    *
 ; *  the Free Software Foundation; either version 2 of the License, or       *
@@ -493,6 +493,8 @@ Section "Uninstall"
   DeleteRegKey HKLM SOFTWARE\OpenVPN
   DeleteRegKey HKCU "Software\${MUI_PRODUCT}"
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\OpenVPN"
+
+  Messagebox MB_OK "Note: If you intend on reinstalling OpenVPN after this uninstall, and you are running Win2K, you are strongly urged to reboot before reinstalling (this is an informational message only, pressing OK will not reboot)."
 
   ;Display the Finish header
   !insertmacro MUI_UNFINISHHEADER

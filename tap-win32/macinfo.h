@@ -8,7 +8,7 @@
  *  Copyright (C) Damion K. Wilson, 2003, and is released under the
  *  GPL version 2 (see below).
  *
- *  All other source code is Copyright (C) James Yonan, 2003,
+ *  All other source code is Copyright (C) James Yonan, 2004,
  *  and is released under the GPL version 2 (see below).
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -57,10 +57,11 @@ extern "C" {
 //                          MAC Address Manipulation Routines
 //===================================================================================
 unsigned char HexStringToDecimalInt (unsigned char p_Character);
-void ConvertMacInfo (MACADDR p_Destination, unsigned char *p_Source, unsigned long p_Length);
-void GenerateRandomMac (MACADDR mac, unsigned char *adapter_name);
+VOID ConvertMacInfo (MACADDR p_Destination, unsigned char *p_Source, unsigned long p_Length);
+VOID GenerateRandomMac (MACADDR mac, unsigned char *adapter_name);
 
-#define COPY_MAC(dest, src) memcpy(dest, src, sizeof (MACADDR));
+#define COPY_MAC(dest, src) NdisMoveMemory (dest, src, sizeof (MACADDR))
+#define MAC_EQUAL(a,b) (memcmp (a, b, sizeof (MACADDR)) == 0)
 
 #ifdef __cplusplus
 }

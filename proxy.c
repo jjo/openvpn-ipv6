@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -45,10 +45,17 @@ static bool
 recv_line (socket_descriptor_t sd,
 	   char *buf,
 	   int len,
+	   const int timeout_sec,
+	   const bool verbose,
+	   struct buffer *lookahead,
 	   volatile int *signal_received)
 {
-  const char term = '\n';
-  const int timeout_sec = 5;
+  struct buffer la;
+  int lastc = 0;
+
+  CLEAR (la);
+  if (lookahead)
+    la = *lookahead;
 
   while (true)
     {
@@ -56,7 +63,12 @@ recv_line (socket_descriptor_t sd,
       ssize_t size;
       fd_set reads;
       struct timeval tv;
-      char c;
+      uint8_t c;
+
+      if (buf_defined (&la))
+	{
+	  ASSERT (buf_init (&la, 0));
+	}
 
       FD_ZERO (&reads);
       FD_SET (sd, &reads);
@@ -67,31 +79,41 @@ recv_line (socket_descriptor_t sd,
 
       GET_SIGNAL (*signal_received);
       if (*signal_received)
-	return false;
+	goto error;
 
       /* timeout? */
       if (status == 0)
 	{
-	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read timeout expired");
-	  return false;
+	  if (verbose)
+	    msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read timeout expired");
+	  goto error;
 	}
 
       /* error */
       if (status < 0)
 	{
-	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read failed on select()");
-	  return false;
+	  if (verbose)
+	    msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read failed on select()");
+	  goto error;
 	}
 
       /* read single char */
-      size = recv(sd, &c, 1, MSG_NOSIGNAL);
+      size = recv (sd, &c, 1, MSG_NOSIGNAL);
 
       /* error? */
       if (size != 1)
 	{
-	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read failed on recv()");
-	  return false;
+	  if (verbose)
+	    msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read failed on recv()");
+	  goto error;
 	}
+
+#if 0
+      if (isprint(c))
+	msg (M_INFO, "PROXY: read '%c' (%d)", c, (int)c);
+      else
+	msg (M_INFO, "PROXY: read (%d)", (int)c);
+#endif
 
       /* store char in buffer */
       if (len > 1)
@@ -100,9 +122,24 @@ recv_line (socket_descriptor_t sd,
 	  --len;
 	}
 
+      /* also store char in lookahead buffer */
+      if (buf_defined (&la))
+	{
+	  buf_write_u8 (&la, c);
+	  if (!isprint(c) && !isspace(c)) /* not ascii? */
+	    {
+	      if (verbose)
+		msg (D_LINK_ERRORS | M_ERRNO_SOCK, "Non-ASCII character (%d) read on recv()", (int)c);
+	      *lookahead = la;
+	      return false;
+	    }
+	}
+
       /* end of line? */
-      if (c == term)
+      if (lastc == '\r' && c == '\n')
 	break;
+
+      lastc = c;
     }
 
   /* append trailing null */
@@ -110,6 +147,9 @@ recv_line (socket_descriptor_t sd,
     *buf++ = '\0';
 
   return true;
+
+ error:
+  return false;
 }
 
 static bool
@@ -261,6 +301,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
 			       socket_descriptor_t sd, /* already open to proxy */
 			       const char *host,       /* openvpn server remote */
 			       const int port,         /* openvpn server port */
+			       struct buffer *lookahead,
 			       volatile int *signal_received)
 {
   char buf[128];
@@ -286,6 +327,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
 			username_password_as_base64 (p));
       msg (D_PROXY, "Attempting Basic Proxy-Authorization");
       msg (D_SHOW_KEYS, "Send to HTTP proxy: '%s'", buf);
+      sleep (1);
       if (!send_line_crlf (sd, buf))
 	goto error;
       break;
@@ -295,11 +337,12 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
     }
 
   /* send empty CR, LF */
+  sleep (1);
   if (!send_crlf (sd))
     goto error;
 
   /* receive reply from proxy */
-  if (!recv_line (sd, buf, sizeof(buf), signal_received))
+  if (!recv_line (sd, buf, sizeof(buf), 5, true, NULL, signal_received))
     goto error;
 
   /* remove trailing CR, LF */
@@ -318,7 +361,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
       /* DEBUGGING -- show a multi-line HTTP error response */
       while (true)
 	{
-	  if (!recv_line (sd, buf, sizeof (buf), signal_received))
+	  if (!recv_line (sd, buf, sizeof (buf), 5, true, NULL, signal_received))
 	    goto error;
 	  chomp (buf);
 	  msg (D_PROXY, "HTTP proxy returned: '%s'", buf);
@@ -328,8 +371,20 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
     }
 
   /* receive line from proxy and discard */
-  if (!recv_line (sd, NULL, 0, signal_received))
+  if (!recv_line (sd, NULL, 0, 5, true, NULL, signal_received))
     goto error;
+
+  /*
+   * Toss out any extraneous chars, but don't throw away the
+   * start of the OpenVPN data stream (put it in lookahead).
+   */
+  while (recv_line (sd, NULL, 0, 2, false, lookahead, signal_received))
+    ;
+
+#if 0
+  if (lookahead && BLEN (lookahead))
+    msg (M_INFO, "PROXY: lookahead: %s", format_hex (BPTR (lookahead), BLEN (lookahead), 0));
+#endif
 
   return;
 

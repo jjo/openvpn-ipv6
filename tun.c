@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -1679,7 +1679,7 @@ get_device_guid (const char *name,
     msg (M_FATAL|M_NOPREFIX, "TAP-Win32 adapter '%s' not found -- run with --show-adapters to show a list of TAP-WIN32 adapters on this system", name);
 
   if (!dev_count)
-    msg (M_FATAL|M_NOPREFIX, "There are no TAP-Win32 adapters on this system.  You should be able to create a TAP-Win32 adapter by going to Start -> All Programs -> OpenVPN -> Add a new TAP-Win32 virtual ethernet adapter.");
+    msg (M_FATAL|M_NOPREFIX, "There are no TAP-Win32 adapters on this system.  You should be able to create a TAP-Win32 adapter by going to Start -> All Programs -> " PACKAGE_NAME " -> Add a new TAP-Win32 virtual ethernet adapter.");
 
   ASSERT (dev_count == 1);
  
@@ -1717,7 +1717,7 @@ verify_255_255_255_252 (in_addr_t local, in_addr_t remote)
   return;
 
  error:
-  msg (M_FATAL, "There is a problem in your selection of --ifconfig endpoints [local=%s, remote=%s].  The local and remote VPN endpoints %s.  Try 'openvpn --show-valid-subnets' option for more info.",
+  msg (M_FATAL, "There is a problem in your selection of --ifconfig endpoints [local=%s, remote=%s].  The local and remote VPN endpoints %s.  Try '" PACKAGE " --show-valid-subnets' option for more info.",
        print_in_addr_t (local, false),
        print_in_addr_t (remote, false),
        err);
@@ -1959,8 +1959,9 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 	     (info[2] ? "(DEBUG)" : ""));
 
       }
-    if ( !(info[0] > TAP_WIN32_MIN_MAJOR || (info[0] == TAP_WIN32_MIN_MAJOR && info[1] >= TAP_WIN32_MIN_MINOR)) )
-      msg (M_FATAL, "ERROR:  This version of OpenVPN requires a TAP-Win32 driver that is at least version %d.%d -- If you recently upgraded your OpenVPN distribution, a reboot is probably required at this point to get Windows to see the new driver.",
+    if ( !(info[0] > TAP_WIN32_MIN_MAJOR
+	   || (info[0] == TAP_WIN32_MIN_MAJOR && info[1] >= TAP_WIN32_MIN_MINOR)) )
+      msg (M_FATAL, "ERROR:  This version of " PACKAGE_NAME " requires a TAP-Win32 driver that is at least version %d.%d -- If you recently upgraded your " PACKAGE_NAME " distribution, a reboot is probably required at this point to get Windows to see the new driver.",
 	   TAP_WIN32_MIN_MAJOR,
 	   TAP_WIN32_MIN_MINOR);
   }
@@ -1997,9 +1998,11 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
      of setting the adapter address? */
   if (tt->did_ifconfig_setup && (tt->flags & IP_SET_MASK) == IP_SET_DHCP)
     {
-      in_addr_t ep[2];
+      in_addr_t ep[4];
       ep[0] = htonl (tt->local);
       ep[1] = htonl (tt->adapter_netmask);
+      ep[2] = htonl (tt->local & tt->adapter_netmask); /* DHCP masq server IP */
+      ep[3] = 300;                                     /* lease time in seconds */
       if (!DeviceIoControl (tt->hand, TAP_IOCTL_CONFIG_DHCP_MASQ,
 			    ep, sizeof (ep),
 			    ep, sizeof (ep), &len, NULL))

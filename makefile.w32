@@ -44,7 +44,7 @@ HEADERS = basic.h buffer.h circ_list.h common.h \
 	memdbg.h misc.h mss.h mtu.h win32.h openvpn.h \
 	options.h packet_id.h proto.h proxy.h reliable.h route.h \
         session_id.h shaper.h socket.h ssl.h syshead.h \
-	thread.h tun.h tap-win32/constants.h
+	thread.h tun.h tap-win32/common.h
 
 OBJS =	buffer.o crypto.o error.o fdmisc.o fragment.o \
 	gremlin.o inet_aton.o io.o lzo.o misc.o mss.o mtu.o \

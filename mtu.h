@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -49,6 +49,11 @@
  */
 
 /*
+ * Standard ethernet MTU
+ */
+#define ETHERNET_MTU       1500
+
+/*
  * It is a fatal error if mtu is less than
  * this value for tun device.
  */
@@ -56,7 +61,6 @@
 
 /*
  * Default MTU of network over which tunnel data will pass by TCP/UDP.
- * TODO: DEFAULT_LINK_MTU = 1500 is probably too big...
  */
 #define LINK_MTU_DEFAULT   1300
 
@@ -68,7 +72,7 @@
 /*
  * MTU Defaults for TAP devices
  */
-#define TAP_MTU_DEFAULT        1500
+#define TAP_MTU_DEFAULT        ETHERNET_MTU
 #define TAP_MTU_EXTRA_DEFAULT  32
 
 struct frame {

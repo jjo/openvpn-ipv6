@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -300,7 +300,7 @@ generate_window_title (const char *title)
   if (!win32_signal.service)
     {
       struct buffer out = alloc_buf_gc (256);
-      buf_printf (&out, "[%s] OpenVPN " VERSION " F4:EXIT F1:USR1 F2:USR2 F3:HUP", title);
+      buf_printf (&out, "[%s] " PACKAGE_NAME " " VERSION " F4:EXIT F1:USR1 F2:USR2 F3:HUP", title);
       SetConsoleTitle (BSTR (&out));
     }
 }
@@ -389,7 +389,7 @@ struct semaphore netcmd_semaphore;
 void
 netcmd_semaphore_init (void)
 {
-  semaphore_open (&netcmd_semaphore, "openvpn_netcmd");
+  semaphore_open (&netcmd_semaphore, PACKAGE "_netcmd");
 }
 
 void

@@ -1,8 +1,8 @@
-OpenVPN on Windows notes, Copyright (C) James Yonan, 2003
----------------------------------------------------------
+OpenVPN on Windows notes, Copyright (C) James Yonan, 2003-2004
+--------------------------------------------------------------
 
 Please report any bugs to the openvpn-users
-list (you don't need to subscribe in order to post).
+list.
 
 Before you post, check out the troubleshooting
 guide for more info:
@@ -12,6 +12,18 @@ http://openvpn.sourceforge.net/trouble.html
 Currently, OpenVPN runs on Win 2000/XP, Linux, Mac OS X,
 Solaris, FreeBSD, NetBSD, and OpenBSD, making it one of the
 most portable VPN packages today.
+
+What's new in 1.6-beta1
+-----------------------
+
+THIS IS A BETA RELEASE.
+
+This release is primarily focused on bug fixes and minor
+feature improvements over 1.5.
+
+See Change Log for more details:
+
+http://openvpn.sourceforge.net/changelog.html
 
 What's new in 1.5.0
 -------------------

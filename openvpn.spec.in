@@ -39,7 +39,7 @@ library for compression.
 %__install -c -d -m 755 %{buildroot}/etc/%{name}
 
 %__mkdir_p %{buildroot}%{_datadir}/%{name}
-%__cp -pr easy-rsa sample-{config-file,key,script}s %{buildroot}%{_datadir}/%{name}
+%__cp -pr contrib easy-rsa sample-{config-file,key,script}s %{buildroot}%{_datadir}/%{name}
 
 %clean
 [ %{buildroot} != "/" ] && rm -rf %{buildroot}

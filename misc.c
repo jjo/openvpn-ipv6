@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -185,7 +185,9 @@ run_script (const char *command,
 
       openvpn_snprintf (command_line, sizeof (command_line),
 			"%s %s %d %d %s %s %s",
-			command, arg, tun_mtu, link_mtu,
+			command,
+			arg,
+			tun_mtu, link_mtu,
 			ifconfig_local, ifconfig_remote,
 			context);
       msg (M_INFO, "%s", command_line);
@@ -595,7 +597,7 @@ add_env (char *str)
 	  return;
 	}
     }
-  msg (M_FATAL, "OpenVPN environmental variable cache is full (a maximum of %d variables is allowed) -- try increasing MAX_ENV_STRINGS size in misc.h", MAX_ENV_STRINGS);
+  msg (M_FATAL, PACKAGE_NAME " environmental variable cache is full (a maximum of %d variables is allowed) -- try increasing MAX_ENV_STRINGS size in misc.h", MAX_ENV_STRINGS);
 }
 
 static void

@@ -8,7 +8,7 @@
  *  Copyright (C) Damion K. Wilson, 2003, and is released under the
  *  GPL version 2 (see below).
  *
- *  All other source code is Copyright (C) James Yonan, 2003,
+ *  All other source code is Copyright (C) James Yonan, 2003-2004,
  *  and is released under the GPL version 2 (see below).
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -61,58 +61,189 @@ PrIP (IPADDR ip_addr)
 	    ip[0], ip[1], ip[2], ip[3]);
 }
 
+const char *
+PrIPProto (int proto)
+{
+  switch (proto)
+    {
+    case IPPROTO_UDP:
+      return "UDP";
+    case IPPROTO_TCP:
+      return "TCP";
+    case IPPROTO_ICMP:
+      return "ICMP";
+    case IPPROTO_IGMP:
+      return "IGMP";
+    default:
+      return "???";
+    }
+}
+
 VOID
-DebugPacket (const char *prefix,
-	     const unsigned char *data,
-	     int len)
+DumpARP (const char *prefix, const ARP_PACKET *arp)
+{
+  DbgPrint ("%s ARP src=", prefix);
+  PrMac (arp->m_MAC_Source);
+  DbgPrint (" dest=");
+  PrMac (arp->m_MAC_Destination);
+  DbgPrint (" OP=0x%04x",
+	    (int)ntohs(arp->m_ARP_Operation));
+  DbgPrint (" M=0x%04x(%d)",
+	    (int)ntohs(arp->m_MAC_AddressType),
+	    (int)arp->m_MAC_AddressSize);
+  DbgPrint (" P=0x%04x(%d)",
+	    (int)ntohs(arp->m_PROTO_AddressType),
+	    (int)arp->m_PROTO_AddressSize);
+
+  DbgPrint (" MacSrc=");
+  PrMac (arp->m_ARP_MAC_Source);
+  DbgPrint (" MacDest=");
+  PrMac (arp->m_ARP_MAC_Destination);
+
+  DbgPrint (" IPSrc=");
+  PrIP (arp->m_ARP_IP_Source);
+  DbgPrint (" IPDest=");
+  PrIP (arp->m_ARP_IP_Destination);
+
+  DbgPrint ("\n");
+}
+
+struct ethpayload {
+  ETH_HEADER eth;
+  UCHAR payload[DEFAULT_PACKET_LOOKAHEAD];
+};
+
+VOID DumpPacket2 (const char *prefix,
+		  const ETH_HEADER *eth,
+		  const unsigned char *data,
+		  unsigned int len)
+{
+  struct ethpayload *ep = (struct ethpayload *) MemAllocZeroed (sizeof (struct ethpayload));
+  if (ep)
+    {
+      if (len > DEFAULT_PACKET_LOOKAHEAD)
+	len = DEFAULT_PACKET_LOOKAHEAD;
+      ep->eth = *eth;
+      NdisMoveMemory (ep->payload, data, len);
+      DumpPacket (prefix, (unsigned char *) ep, sizeof (ETH_HEADER) + len);
+      MemFree (ep, sizeof (struct ethpayload));
+    }
+}
+
+VOID
+DumpPacket (const char *prefix,
+	    const unsigned char *data,
+	    unsigned int len)
 {
   const ETH_HEADER *eth = (const ETH_HEADER *) data;
-  const ARP_PACKET *arp = (const ARP_PACKET *) data;
+  const IPHDR *ip = (const IPHDR *) (data + sizeof (ETH_HEADER));
 
   if (len < sizeof (ETH_HEADER))
     {
-      DbgPrint ("%s BAD LEN=%d\n", prefix, len);
+      DbgPrint ("%s TRUNCATED PACKET LEN=%d\n", prefix, len);
       return;
     }
 
-  if (len >= sizeof (ARP_PACKET)
-      && arp->m_Proto == htons (ETH_P_ARP))
+  // ARP Packet?
+  if (len >= sizeof (ARP_PACKET) && eth->proto == htons (ETH_P_ARP))
     {
-      DbgPrint ("%s ARP src=", prefix);
-      PrMac (arp->m_MAC_Source);
-      DbgPrint (" dest=");
-      PrMac (arp->m_MAC_Destination);
-      DbgPrint (" OP=0x%04x",
-		(int)ntohs(arp->m_ARP_Operation));
-      DbgPrint (" M=0x%04x(%d)",
-		(int)ntohs(arp->m_MAC_AddressType),
-		(int)arp->m_MAC_AddressSize);
-      DbgPrint (" P=0x%04x(%d)",
-		(int)ntohs(arp->m_PROTO_AddressType),
-		(int)arp->m_PROTO_AddressSize);
+      DumpARP (prefix, (const ARP_PACKET *) data);
+      return;
+    }
 
-      DbgPrint (" MacSrc=");
-      PrMac (arp->m_ARP_MAC_Source);
-      DbgPrint (" MacDest=");
-      PrMac (arp->m_ARP_MAC_Destination);
+  // IPv4 packet?
+  if (len >= (sizeof (IPHDR) + sizeof (ETH_HEADER))
+      && eth->proto == htons (ETH_P_IP)
+      && IPH_GET_VER (ip->version_len) == 4)
+    {
+      const int hlen = IPH_GET_LEN (ip->version_len);
+      const int blen = len - sizeof (ETH_HEADER);
+      BOOLEAN did = FALSE;
 
-      DbgPrint (" IPSrc=");
-      PrIP (arp->m_ARP_IP_Source);
-      DbgPrint (" IPDest=");
-      PrIP (arp->m_ARP_IP_Destination);
+      DbgPrint ("%s IPv4 %s[%d]", prefix, PrIPProto (ip->protocol), len);
+
+      if (!(ntohs (ip->tot_len) == blen && hlen <= blen))
+	{
+	  DbgPrint (" XXX");
+	  return;
+	}
+      
+      // TCP packet?
+      if (ip->protocol == IPPROTO_TCP
+	  && blen - hlen >= (sizeof (TCPHDR)))
+	{
+	  const TCPHDR *tcp = (TCPHDR *) (data + sizeof (ETH_HEADER) + hlen);
+	  DbgPrint (" ");
+	  PrIP (ip->saddr);
+	  DbgPrint (":%d", ntohs (tcp->source));
+	  DbgPrint (" -> ");
+	  PrIP (ip->daddr);
+	  DbgPrint (":%d", ntohs (tcp->dest));
+	  did = TRUE;
+	}
+
+      // UDP packet?
+      else if ((ntohs (ip->frag_off) & IP_OFFMASK) == 0
+	       && ip->protocol == IPPROTO_UDP
+	       && blen - hlen >= (sizeof (UDPHDR)))
+	{
+	  const UDPHDR *udp = (UDPHDR *) (data + sizeof (ETH_HEADER) + hlen);
+	  
+	  // DHCP packet?
+	  if ((udp->dest == htons (BOOTPC_PORT) || udp->dest == htons (BOOTPS_PORT))
+	      && blen - hlen >= (sizeof (UDPHDR) + sizeof (DHCP)))
+	    {
+	      const DHCP *dhcp = (DHCP *) (data
+					   + hlen
+					   + sizeof (ETH_HEADER)
+					   + sizeof (UDPHDR));
+	      
+	      int optlen = len
+		- sizeof (ETH_HEADER)
+		- hlen
+		- sizeof (UDPHDR)
+		- sizeof (DHCP);
+
+	      if (optlen < 0)
+		optlen = 0;
+
+	      DumpDHCP (eth, ip, udp, dhcp, optlen);
+	      did = TRUE;
+	    }
+
+	  if (!did)
+	    {
+	      DbgPrint (" ");
+	      PrIP (ip->saddr);
+	      DbgPrint (":%d", ntohs (udp->source));
+	      DbgPrint (" -> ");
+	      PrIP (ip->daddr);
+	      DbgPrint (":%d", ntohs (udp->dest));
+	      did = TRUE;
+	    }
+	}
+
+      if (!did)
+	{
+	  DbgPrint (" ipproto=%d ", ip->protocol);
+	  PrIP (ip->saddr);
+	  DbgPrint (" -> ");
+	  PrIP (ip->daddr);
+	}
 
       DbgPrint ("\n");
+      return;
     }
-  else
-    {
-      DbgPrint ("%s EH src=", prefix);
-      PrMac (eth->src);
-      DbgPrint (" dest=");
-      PrMac (eth->dest);
-      DbgPrint (" proto=0x%04x len=%d\n",
-		(int) ntohs(eth->proto),
-		len);
-    }
+
+  {
+    DbgPrint ("%s ??? src=", prefix);
+    PrMac (eth->src);
+    DbgPrint (" dest=");
+    PrMac (eth->dest);
+    DbgPrint (" proto=0x%04x len=%d\n",
+	      (int) ntohs(eth->proto),
+	      len);
+  }
 }
 
 #endif
