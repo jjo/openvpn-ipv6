@@ -1307,7 +1307,7 @@ tls_process (struct tls_multi *multi,
   /* Kill lame duck key transition_window seconds after primary key negotiation */
   if (lame_duck_must_die (session, wakeup, current)) {
 	key_state_free (ks_lame, true);
-	msg (D_TLS_DEBUG_LOW, "tls_process: killed lame duck key");
+	msg (D_TLS_DEBUG_LOW, "tls_process: killed expiring key");
   }
 
   mutex_cycle (L_TLS);

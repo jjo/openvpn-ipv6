@@ -102,13 +102,11 @@ dev_component_in_dev_node (const char *dev_node)
 static void
 ipv6_support (bool ipv6, bool ipv6_explicitly_supported, struct tuntap* tt)
 {
+  tt->ipv6 = false;
   if (ipv6_explicitly_supported)
     tt->ipv6 = ipv6;
   else if (ipv6)
-    {
-      tt->ipv6 = false;
-      msg (M_WARN, "NOTE: explicit support for IPv6 tun devices is not provided for this OS");
-    }
+    msg (M_WARN, "NOTE: explicit support for IPv6 tun devices is not provided for this OS");
 }
 
 /* do ifconfig */
