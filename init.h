@@ -101,7 +101,9 @@ struct context_buffers *init_context_buffers (const struct frame *frame);
 
 void free_context_buffers (struct context_buffers *b);
 
-void initialization_sequence_completed (struct context *c, const bool errors);
+#define ISC_ERRORS (1<<0)
+#define ISC_SERVER (1<<1)
+void initialization_sequence_completed (struct context *c, const unsigned int flags);
 
 #ifdef ENABLE_MANAGEMENT
 

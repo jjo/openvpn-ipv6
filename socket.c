@@ -342,18 +342,25 @@ remote_list_next (struct remote_list *l)
 {
   if (l)
     {
-      int i;
-      if (++l->current >= l->len)
-	l->current = 0;
-
-      dmsg (D_REMOTE_LIST, "REMOTE_LIST len=%d current=%d",
-	   l->len, l->current);
-      for (i = 0; i < l->len; ++i)
+      if (l->no_advance && l->current >= 0)
 	{
-	  dmsg (D_REMOTE_LIST, "[%d] %s:%d",
-	       i,
-	       l->array[i].hostname,
-	       l->array[i].port);
+	  l->no_advance = false;
+	}
+      else
+	{
+	  int i;
+	  if (++l->current >= l->len)
+	    l->current = 0;
+
+	  dmsg (D_REMOTE_LIST, "REMOTE_LIST len=%d current=%d",
+		l->len, l->current);
+	  for (i = 0; i < l->len; ++i)
+	    {
+	      dmsg (D_REMOTE_LIST, "[%d] %s:%d",
+		    i,
+		    l->array[i].hostname,
+		    l->array[i].port);
+	    }
 	}
     }
 }

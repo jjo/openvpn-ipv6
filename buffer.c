@@ -513,11 +513,11 @@ buf_string_compare_advance (struct buffer *src, const char *match)
 }
 
 int
-buf_substring_len (const struct buffer *buf, char delim)
+buf_substring_len (const struct buffer *buf, int delim)
 {
   int i = 0;
   struct buffer tmp = *buf;
-  char c;
+  int c;
 
   while ((c = buf_read_u8 (&tmp)) >= 0)
     {

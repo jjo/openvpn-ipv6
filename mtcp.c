@@ -682,7 +682,7 @@ tunnel_server_tcp (struct context *top)
   init_management_callback_multi (&multi);
 
   /* finished with initialization */
-  initialization_sequence_completed (top, false); /* --mode server --proto tcp-server */
+  initialization_sequence_completed (top, ISC_SERVER); /* --mode server --proto tcp-server */
 
   /* per-packet event loop */
   while (true)

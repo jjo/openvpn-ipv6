@@ -227,7 +227,6 @@ Section "OpenVPN Service" SecService
   File "${HOME}\service-win32\openvpnserv.exe"
 
   SetOutPath "$INSTDIR\config"
-  File "${HOME}\install-win32\sample.${SERV_CONFIG_EXT}.txt"
 
   FileOpen $R0 "$INSTDIR\config\README.txt" w
   FileWrite $R0 "This directory should contain OpenVPN configuration files$\r$\n"
@@ -236,6 +235,11 @@ Section "OpenVPN Service" SecService
   FileWrite $R0 "When OpenVPN is started as a service, a separate OpenVPN$\r$\n"
   FileWrite $R0 "process will be instantiated for each configuration file.$\r$\n"
   FileClose $R0
+
+  SetOutPath "$INSTDIR\sample-config"
+  File "${HOME}\install-win32\sample.${SERV_CONFIG_EXT}"
+  File "${HOME}\install-win32\client.${SERV_CONFIG_EXT}"
+  File "${HOME}\install-win32\server.${SERV_CONFIG_EXT}"
 
   CreateDirectory "$INSTDIR\log"
   FileOpen $R0 "$INSTDIR\log\README.txt" w
@@ -306,8 +310,9 @@ Section "Add Shortcuts to Start Menu" SecAddShortcuts
 
   SetOverwrite on
   CreateDirectory "$SMPROGRAMS\OpenVPN"
-  CreateShortCut "$SMPROGRAMS\OpenVPN\OpenVPN Win32 README.lnk" "$INSTDIR\INSTALL-win32.txt" ""
+  WriteINIStr "$SMPROGRAMS\OpenVPN\OpenVPN Windows Notes.url" "InternetShortcut" "URL" "http://openvpn.net/INSTALL-win32.html"
   WriteINIStr "$SMPROGRAMS\OpenVPN\OpenVPN Manual Page.url" "InternetShortcut" "URL" "http://openvpn.net/man.html"
+  WriteINIStr "$SMPROGRAMS\OpenVPN\OpenVPN HOWTO.url" "InternetShortcut" "URL" "http://openvpn.net/howto.html"
   WriteINIStr "$SMPROGRAMS\OpenVPN\OpenVPN Web Site.url" "InternetShortcut" "URL" "http://openvpn.net/"
   CreateShortCut "$SMPROGRAMS\OpenVPN\Uninstall OpenVPN.lnk" "$INSTDIR\Uninstall.exe"
 
@@ -452,8 +457,12 @@ Section -post
       CreateShortCut "$SMPROGRAMS\OpenVPN\OpenVPN configuration file directory.lnk" "$INSTDIR\config" ""
 
  log_shortcut:
-    IfFileExists "$INSTDIR\log" "" genkey_shortcut
+    IfFileExists "$INSTDIR\log" "" samp_shortcut
       CreateShortCut "$SMPROGRAMS\OpenVPN\OpenVPN log file directory.lnk" "$INSTDIR\log" ""
+
+ samp_shortcut:
+    IfFileExists "$INSTDIR\sample-config" "" genkey_shortcut
+      CreateShortCut "$SMPROGRAMS\OpenVPN\OpenVPN Sample Configuration Files.lnk" "$INSTDIR\sample-config" ""
 
  genkey_shortcut:
     IfFileExists "$INSTDIR\bin\openvpn.exe" "" noshortcuts
@@ -556,9 +565,12 @@ Section "Uninstall"
   Delete "$INSTDIR\easy-rsa\*.start"
   Delete "$INSTDIR\easy-rsa\*.cnf"
 
+  Delete "$INSTDIR\sample-config\*.ovpn"
+
   RMDir "$INSTDIR\bin"
   RMDir "$INSTDIR\driver"
   RMDir "$INSTDIR\easy-rsa"
+  RMDir "$INSTDIR\sample-config"
   RMDir "$INSTDIR"
 
   !insertmacro DelRegKeyIfUnchanged HKCR ".${SERV_CONFIG_EXT}" "OpenVPNFile"

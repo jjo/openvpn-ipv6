@@ -3,6 +3,22 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.02.05 -- Version 2.0-rc12
+
+* Removed some debugging code inadvertently included
+  in rc11 which would print the --auth-user-pass
+  username/password provided by clients in the server
+  logfile.
+* Client code for cycling through --remote list will
+  retry the last address which successfully authenticated
+  before moving on through the list.
+* Windows installer will now install sample configuration
+  files in \Program Files\OpenVPN\sample-configs as well
+  as generate a start menu shortcut to this directory.
+* Minor type change in buffer.[ch] to work around char-type
+  ambiguity bug.  Caused management interface lock-ups on
+  ARM when building with armv4b-hardhat-linux-gcc 2.95.3.
+
 2005.02.03 -- Version 2.0-rc11
 
 * Windows installer will now install easy-rsa directory

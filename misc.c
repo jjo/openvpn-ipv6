@@ -1254,7 +1254,7 @@ get_user_pass (struct user_pass *up,
       up->defined = true;
     }
 
-#if 1 // JYFIXME
+#if 0
   msg (M_INFO, "GET_USER_PASS %s u='%s' p='%s'", prefix, up->username, up->password);
 #endif
 

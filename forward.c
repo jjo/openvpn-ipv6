@@ -257,7 +257,7 @@ check_add_routes_action (struct context *c, const bool errors)
   update_time ();
   event_timeout_clear (&c->c2.route_wakeup);
   event_timeout_clear (&c->c2.route_wakeup_expire);
-  initialization_sequence_completed (c, errors); /* client/p2p --route-delay was defined */
+  initialization_sequence_completed (c, errors ? ISC_ERRORS : 0); /* client/p2p --route-delay was defined */
 }
 
 void

@@ -565,26 +565,32 @@ do_init_route_list (const struct options *options,
  * Called after all initialization has been completed.
  */
 void
-initialization_sequence_completed (struct context *c, const bool errors)
+initialization_sequence_completed (struct context *c, const unsigned int flags)
 {
   static const char message[] = "Initialization Sequence Completed";
 
   /* If we delayed UID/GID downgrade or chroot, do it now */
   do_uid_gid_chroot (c, true);
 
-  if (errors)
+  /* Test if errors */
+  if (flags & ISC_ERRORS)
     msg (M_INFO, "%s With Errors", message);
   else
     msg (M_INFO, "%s", message);
 
+  /* Flag remote_list that we initialized */
+  if ((flags & (ISC_ERRORS|ISC_SERVER)) == 0 && c->c1.remote_list && c->c1.remote_list->len > 1)
+    c->c1.remote_list->no_advance = true;
+
 #ifdef ENABLE_MANAGEMENT
+  /* Tell management interface that we initialized */
   if (management)
     {
       in_addr_t tun_local = 0;
       const char *detail = "SUCCESS";
       if (c->c1.tuntap)
 	tun_local = c->c1.tuntap->local;
-      if (errors)
+      if (flags & ISC_ERRORS)
 	detail = "ERROR";
       management_set_state (management,
 			    OPENVPN_STATE_CONNECTED,
@@ -917,12 +923,12 @@ do_up (struct context *c, bool pulled_options, unsigned int option_types_found)
 	    }
 	  else
 	    {
-	      initialization_sequence_completed (c, false); /* client/p2p --route-delay undefined */
+	      initialization_sequence_completed (c, 0); /* client/p2p --route-delay undefined */
 	    }
 	}
       else if (c->options.mode == MODE_POINT_TO_POINT)
 	{
-	  initialization_sequence_completed (c, false); /* client/p2p restart with --persist-tun */
+	  initialization_sequence_completed (c, 0); /* client/p2p restart with --persist-tun */
 	}
 	
       c->c2.do_up_ran = true;

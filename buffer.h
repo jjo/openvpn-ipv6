@@ -536,7 +536,7 @@ buf_string_match_head (const struct buffer *src, const void *match, int size)
 
 bool buf_string_match_head_str (const struct buffer *src, const char *match);
 bool buf_string_compare_advance (struct buffer *src, const char *match);
-int buf_substring_len (const struct buffer *buf, char delim);
+int buf_substring_len (const struct buffer *buf, int delim);
 
 /*
  * Bitwise operations

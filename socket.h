@@ -60,6 +60,7 @@ struct remote_list
 {
   int len;
   int current;
+  bool no_advance;
   struct remote_entry array[REMOTE_LIST_SIZE];
 };
 
