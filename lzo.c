@@ -148,7 +148,7 @@ lzo_compress (struct buffer *buf, struct buffer work,
       err = LZO_COMPRESS (BPTR (buf), BLEN (buf), BPTR (&work), &zlen, lzowork->wmem);
       if (err != LZO_E_OK)
 	{
-	  msg (M_INFO, "LZO compression error: %d", err);
+	  msg (D_COMP_ERRORS, "LZO compression error: %d", err);
 	  buf->len = 0;
 	  return;
 	}
@@ -203,7 +203,7 @@ lzo_decompress (struct buffer *buf, struct buffer work,
 			    lzowork->wmem);
       if (err != LZO_E_OK)
 	{
-	  msg (M_INFO, "LZO decompression error: %d", err);
+	  msg (D_COMP_ERRORS, "LZO decompression error: %d", err);
 	  buf->len = 0;
 	  return;
 	}
@@ -223,7 +223,7 @@ lzo_decompress (struct buffer *buf, struct buffer work,
     }
   else
     {
-      msg (M_INFO, "Bad LZO decompression header byte: %d", c);
+      msg (D_COMP_ERRORS, "Bad LZO decompression header byte: %d", c);
       buf->len = 0;
     }
 }

@@ -5,7 +5,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "25 June 2002"
+.TH openvpn 8 "1 July 2002"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -135,6 +135,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-tls\-auth\fR\ \fIf\fR\ ]
 [\ \fB\-\-askpass\fR\ ]
 [\ \fB\-\-tls\-verify\fR\ \fIcmd\fR\ ]
+[\ \fB\-\-disable\-occ\fR\ ]
 .in -4
 .ti +4
 .hy
@@ -1232,6 +1233,32 @@ that forwards over UDP with only the overhead of encrypt,
 decrypt, and HMAC functions,
 and a control channel that provides all of the security features of TLS,
 including certificate-based authentication and perfect forward security.
+
+To use TLS mode, each peer that runs OpenVPN should have its own local
+certificate/key pair (
+.B --cert
+and
+.B --key
+), signed by the root certificate which is specified
+in
+.B --ca.
+
+When two OpenVPN peers connect, each presents its local certificate to the
+other.  Each peer will then check that its partner peer presented a
+certificate which was signed by the master root certificate as specified in
+.B --ca.
+
+If that check on both peers succeeds, then the TLS negotiation will succeed, both OpenVPN
+peers will exchange temporary session keys, and the tunnel will begin
+passing data.
+
+The OpenVPN distribution contains a set of scripts for managing RSA certificates & keys,
+located in the
+.I easy-rsa
+subdirectory.
+
+The easy-rsa package is also rendered in web form here:
+.I http://openvpn.sourceforge.net/easyrsa.html
 .TP
 .B --tls-server
 Enable TLS and assume server role during TLS handshake.  Note that
@@ -1243,11 +1270,18 @@ control channel.
 Enable TLS and assume client role during TLS handshake.
 .TP
 .B --ca file
-Certificate authority (CA) file in .pem format.  This file can have multiple
+Certificate authority (CA) file in .pem format, also referred to as the
+.I root
+certificate.  This file can have multiple
 certificates in .pem format, concatenated together.  You can construct your own
 certificate authority certificate and private key by using a command such as:
 
 .B openssl req -nodes -new -x509 -keyout tmp-ca.key -out tmp-ca.crt
+
+Then edit your openssl.cnf file and edit the
+.B certificate
+variable to point to your new root certificate
+.B tmp-ca.crt.
 
 For testing purposes only, the OpenVPN distribution includes a sample
 CA certificate (tmp-ca.crt).
@@ -1269,7 +1303,7 @@ included with the OpenVPN distribution.  Diffie Hellman parameters
 may be considered public.
 .TP
 .B --cert file
-Peer's signed certificate in .pem format -- must be signed
+Local peer's signed certificate in .pem format -- must be signed
 by a certificate authority whose certificate is in
 .B --ca file.
 Each peer in an OpenVPN link running in TLS mode should have its own
@@ -1312,7 +1346,7 @@ that for certificate authority functions, you must set up the files
 ).
 .TP
 .B --key file
-My private key in .pem format.  Use the private key which was generated
+Local peer's private key in .pem format.  Use the private key which was generated
 when you built your peer's certificate (see
 .B -cert file
 above).
@@ -1500,6 +1534,13 @@ not it should be accepted.  For a simple perl script which will test
 the common name field on the certificate, see the file
 .B verify-cn
 in the OpenVPN distribution.
+.TP
+.B --disable-occ
+Disable options compatibility check between peers.  This is designed
+to circumvent OpenVPN's normal options compatibility check in
+TLS mode.  Use of this option is discouraged, but is provided as
+a temporary fix in situations where a recent version of OpenVPN must
+connect to an old version.
 .SS SSL Library information:
 .TP
 .B --show-ciphers
@@ -1930,6 +1971,8 @@ These rules are secure if you use packet authentication,
 since no incoming packets will arrive on a tun or tap
 virtual device
 unless they first pass an HMAC authentication test.
+.SH FAQ
+.I http://openvpn.sourceforge.net/faq.html
 .SH HOWTO
 For a more comprehensive guide to setting up OpenVPN
 in a production setting, see the OpenVPN HOWTO at

@@ -94,7 +94,6 @@ typedef uint16_t net_time_t;
  * Printf formats for special types
  */
 #define packet_id_format "%u"
-#define time_format      "%u"
 
 /*
  * Maximum allowed backtrack in

@@ -38,6 +38,8 @@
 
 #include "memdbg.h"
 
+#if 1
+
 #define CORRUPT_ENABLE
 #define UP_DOWN_ENABLE
 #define DROP_ENABLE
@@ -65,6 +67,13 @@
  */
 #define DOWN_LOW  10
 #define DOWN_HIGH 60
+
+#else
+
+#define CORRUPT_ENABLE
+#define CORRUPT_FREQ 10
+
+#endif
 
 /*
  * Return true with probability 1/n

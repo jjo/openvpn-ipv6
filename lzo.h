@@ -33,7 +33,7 @@
 /*
  * Use LZO compress routine lzo1x_1_15_compress which is described
  * as faster but needs a bit more memory than the standard routine.
- * Use safe compress (i.e. check for buffer overflows).
+ * Use safe decompress (i.e. check for buffer overflows).
  * You may want to use the non-safe version
  * of decompress if speed is essential and if you know
  * that you will always be using a MAC to verify the

@@ -31,13 +31,15 @@
 
 /*
  * Default MTU of network over which tunnel data will pass by UDP.
+ * TODO: DEFAULT_UDP_MTU = 1500 is probably too big... 1450 would be better.
  */
-#define DEFAULT_UDP_MTU 1500
+#define DEFAULT_UDP_MTU 1450
 
 /*
  * Default MTU of tunnel device.
+ * TODO: decrease DEFAULT_TUN_MTU to 1400.
  */
-#define DEFAULT_TUN_MTU 1450
+#define DEFAULT_TUN_MTU 1400
 
 struct frame {
   int mtu;       /* MTU of tun/tap device */

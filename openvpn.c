@@ -514,6 +514,7 @@ openvpn (const struct options *options,
       to.renegotiate_packets = options->renegotiate_packets;
       to.renegotiate_seconds = options->renegotiate_seconds;
       to.single_session = options->single_session;
+      to.disable_occ = options->disable_occ;
 
       /* TLS handshake authentication (--tls-auth) */
       if (options->tls_auth_file)
@@ -1504,7 +1505,7 @@ main (int argc, char *argv[])
 #endif
 #endif
 	    )
-	  msg (M_FATAL, "Options --mktun or --rmtun should only be used together with --dev");
+	  msg (M_FATAL, "Options error: options --mktun or --rmtun should only be used together with --dev");
 	tuncfg (options.dev, options.dev_type, options.dev_node, options.persist_mode);
 	goto exit;
       }
@@ -1525,12 +1526,37 @@ main (int argc, char *argv[])
 
       if (options.tun_mtu_defined && options.udp_mtu_defined)
 	{
-	  msg (M_WARN, "only one of --tun-mtu or --udp-mtu may be defined (note that --ifconfig implies --udp-mtu %d)", DEFAULT_UDP_MTU);
+	  msg (M_WARN, "Options error: only one of --tun-mtu or --udp-mtu may be defined (note that --ifconfig implies --udp-mtu %d)", DEFAULT_UDP_MTU);
 	  usage_small ();
 	}
 
       if (!options.tun_mtu_defined && !options.udp_mtu_defined)
 	options.tun_mtu_defined = true;
+
+      /*
+       * Sanity check on --local, --remote, and ifconfig
+       */
+      if (string_defined_equal (options.local, options.remote)
+	  && options.local_port == options.remote_port)
+	{
+	  msg (M_WARN, "Options error: --remote and --local addresses are the same");
+	  usage_small ();
+	}
+	
+      if (string_defined_equal (options.local, options.ifconfig_local)
+	  || string_defined_equal (options.local, options.ifconfig_remote)
+	  || string_defined_equal (options.remote, options.ifconfig_local)
+	  || string_defined_equal (options.remote, options.ifconfig_remote))
+	{
+	  msg (M_WARN, "Options error: --local and --remote addresses must be distinct from --ifconfig addresses");
+	  usage_small ();
+	}
+
+      if (string_defined_equal (options.ifconfig_local, options.ifconfig_remote))
+	{
+	  msg (M_WARN, "Options error: local and remote --ifconfig addresses must be different");
+	  usage_small ();
+	}
 
 #ifdef USE_CRYPTO
 

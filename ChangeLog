@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.06.30 -- Version 1.2.1.8
+2002.07.07 -- Version 1.2.1.9
 
 * Added --dev-node option to allow explicit selection of
   tun/tap device node.
@@ -24,8 +24,19 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   incorrectly.
 * Print more concise error message when system() call
   fails.
-* All changes maintain protocol compatibility with OpenVPN
-  versions since 1.1.0.
+* Added --disable-occ option.
+* Added --local, --remote, and --ifconfig options sanity
+  check.
+* Changed default UDP MTU to 1450 and TUN/TAP MTU to
+  1400.
+* Successfully tested with OpenSSL 0.9.7 Beta 2.
+* Broke out debug level definitions to errlevel.h
+* Minor documentation and web site changes.
+* All changes maintain protocol compatibility
+  with OpenVPN versions since 1.1.0, however default
+  MTU changes will require setting the MTU explicitly
+  by command line option, if you want 1.2.1.9 to
+  communicate with previous versions.
 
 2002.06.12 -- Version 1.2.1
 

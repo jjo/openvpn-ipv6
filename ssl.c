@@ -48,6 +48,65 @@
 
 #include "memdbg.h"
 
+#ifdef BIO_DEBUG
+
+static FILE *biofp;
+static bool biofp_toggle;
+static time_t biofp_last_open;
+static const int biofp_reopen_interval = 600;
+
+static void
+close_biofp()
+{
+  if (biofp)
+    {
+      ASSERT (!fclose (biofp));
+      biofp = NULL;
+    }
+}
+
+static void
+open_biofp()
+{
+  const time_t current = time (NULL);
+  const pid_t pid = getpid ();
+
+  if (biofp_last_open + biofp_reopen_interval < current)
+    close_biofp();
+  if (!biofp)
+    {
+      char fn[256];
+      snprintf(fn, sizeof(fn), "bio/%d-%d.log", pid, biofp_toggle);
+      biofp = fopen (fn, "w");
+      ASSERT (biofp);
+      biofp_last_open = time (NULL);
+      biofp_toggle ^= 1;
+    }
+}
+
+static void
+bio_debug_data (const char *mode, BIO *bio, uint8_t *buf, int len, const char *desc)
+{
+  if (len > 0)
+    {
+      open_biofp();
+      fprintf(biofp, "BIO_%s %s time=" time_format " bio=" ptr_format " len=%d data=%s\n",
+	      mode, desc, time (NULL), bio, len, format_hex (buf, len, 0));
+      fflush (biofp);
+    }
+}
+
+static void
+bio_debug_oc (const char *mode, BIO *bio)
+{
+  open_biofp();
+  fprintf(biofp, "BIO %s time=" time_format " bio=" ptr_format "\n",
+	  mode, time (NULL), bio);
+  fflush (biofp);
+}
+
+#endif
+
 /*
  * Max number of bytes we will add
  * for data structures common to both
@@ -568,6 +627,9 @@ bio_write (BIO * bio, struct buffer *buf, const char *desc)
        * tls_pre_decrypt or tls_pre_encrypt,
        * allowing tunnel packet forwarding to continue.
        */
+#ifdef BIO_DEBUG
+      bio_debug_data ("write", bio, BPTR (buf), BLEN (buf), desc);
+#endif
       mutex_unlock (L_TLS);
       i = BIO_write (bio, BPTR (buf), BLEN (buf));
       mutex_lock (L_TLS);
@@ -631,6 +693,9 @@ bio_read (BIO * bio, struct buffer *buf, int maxlen, const char *desc)
       mutex_unlock (L_TLS);
       i = BIO_read (bio, BPTR (buf), len);
       mutex_lock (L_TLS);
+#ifdef BIO_DEBUG
+      bio_debug_data ("read", bio, BPTR (buf), i, desc);
+#endif
       if (i < 0)
 	{
 	  if (BIO_should_retry (bio))
@@ -712,6 +777,12 @@ key_state_init (struct tls_session *session, struct key_state *ks,
   ks->ct_in = getbio (BIO_s_mem (), "ct_in");
   ks->ct_out = getbio (BIO_s_mem (), "ct_out");
 
+#ifdef BIO_DEBUG
+  bio_debug_oc ("open ssl_bio", ks->ssl_bio);
+  bio_debug_oc ("open ct_in", ks->ct_in);
+  bio_debug_oc ("open ct_out", ks->ct_out);
+#endif
+
   if (session->opt->server)
     SSL_set_accept_state (ks->ssl);
   else
@@ -752,6 +823,11 @@ key_state_free (struct key_state *ks, bool clear)
   ks->state = S_UNDEF;
 
   if (ks->ssl) {
+#ifdef BIO_DEBUG
+    bio_debug_oc ("close ssl_bio", ks->ssl_bio);
+    bio_debug_oc ("close ct_in", ks->ct_in);
+    bio_debug_oc ("close ct_out", ks->ct_out);
+#endif
     BIO_free_all(ks->ssl_bio);
     SSL_free (ks->ssl);
   }
@@ -1394,7 +1470,7 @@ tls_process (struct tls_multi *multi,
 		}
 
 	      ASSERT (buf->len > 0);
-	      if (strncmp (BPTR (buf), session->opt->options, buf->len))
+	      if (!session->opt->disable_occ && strncmp (BPTR (buf), session->opt->options, buf->len))
 		{
 		  msg (D_TLS_ERRORS,
 		       "TLS Error: Local ('%s') and Remote ('%s') options are incompatible",
@@ -2235,7 +2311,7 @@ tls_pre_encrypt (struct tls_multi *multi,
 	      return;
 	    }
 	}
-      msg (D_TLS_NO_SEND_KEY, "TLS Error: no data channel send key available: %s",
+      msg (D_TLS_NO_SEND_KEY, "TLS Warning: no data channel send key available: %s",
 	   print_key_id (multi));
     }
 

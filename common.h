@@ -36,5 +36,6 @@ typedef unsigned long counter_type;
  */
 #define counter_format "%10lu"
 #define ptr_format     "0x%08zx"
+#define time_format    "%u"
 
 #endif

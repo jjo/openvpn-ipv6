@@ -195,6 +195,7 @@ struct tls_options
   /* from command line */
   bool packet_id;
   bool single_session;
+  bool disable_occ;
   int transition_window;
   int handshake_window;
   int packet_timeout;

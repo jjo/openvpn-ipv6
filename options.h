@@ -143,6 +143,9 @@ struct options
 
   /* Allow only one session */
   bool single_session;
+
+  /* Disable options check between peers */
+  bool disable_occ;
 #endif /* USE_SSL */
 #endif /* USE_CRYPTO */
 };
@@ -158,3 +161,5 @@ void show_settings (const struct options *o);
 char *options_string (const struct options *o);
 
 void parse_argv (struct options* options, int argc, char *argv[]);
+
+bool string_defined_equal (const char *s1, const char *s2);

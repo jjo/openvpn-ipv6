@@ -98,7 +98,7 @@ void assert_failed (const char *filename, int line);
 static inline bool
 check_debug_level (int level)
 {
-  return level < _debug_level;
+  return (level & M_DEBUG_LEVEL) < _debug_level;
 }
 
 static inline void

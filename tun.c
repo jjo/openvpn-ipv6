@@ -53,6 +53,19 @@ is_dev_type (const char *dev, const char *dev_type, const char *match_type)
 }
 
 const char *
+dev_type_string(const char *dev, const char *dev_type)
+{
+  if (is_dev_type (dev, dev_type, "tun"))
+    return "tun";
+  else if (is_dev_type (dev, dev_type, "tap"))
+    return "tap";
+  else if (is_dev_type (dev, dev_type, "null"))
+    return "null";
+  else
+    return "[unknown-dev-type]";
+}
+
+const char *
 dev_component_in_dev_node (const char *dev_node)
 {
   const char *ret;

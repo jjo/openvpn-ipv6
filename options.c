@@ -158,13 +158,14 @@ static const char usage_message[] =
   "(These options are meaningful only for TLS-mode)\n"
   "--tls-server    : Enable TLS and assume server role during TLS handshake.\n"
   "--tls-client    : Enable TLS and assume client role during TLS handshake.\n"
-  "--ca file       : Certificate authority file in .pem format.\n"
+  "--ca file       : Certificate authority file in .pem format containing\n"
+  "                  root certificate.\n"
   "--dh file       : File containing Diffie Hellman parameters\n"
   "                  in .pem format (for --tls-server only).\n"
   "                  Use \"openssl dhparam -out dh1024.pem 1024\" to generate.\n"
-  "--cert file     : My signed certificate in .pem format -- must be signed\n"
+  "--cert file     : Local certificate in .pem format -- must be signed\n"
   "                  by a Certificate Authority in --ca file.\n"
-  "--key file      : My private key in .pem format.\n"
+  "--key file      : Local private key in .pem format.\n"
   "--tls-cipher l  : A list l of allowable TLS ciphers separated by | (optional).\n"
   "                : Use --show-tls to see a list of supported TLS ciphers.\n"
   "--tls-timeout n : Packet retransmit timeout on TLS control channel\n"
@@ -187,6 +188,7 @@ static const char usage_message[] =
   "                  TLS handshake to proceed, or 1 to fail.  (cmd is\n"
   "                  executed as 'cmd certificate_depth X509_NAME_oneline')\n"
   "                  (',' may be used to separate multiple args in cmd)\n"
+  "--disable-occ   : Disable options compatibility check between peers.\n"
 #endif				/* USE_SSL */
   "\n"
   "SSL Library information:\n"
@@ -353,6 +355,7 @@ show_settings (const struct options *o)
   SHOW_INT (transition_window);
 
   SHOW_BOOL (single_session);
+  SHOW_BOOL (disable_occ);
 
   SHOW_STR (tls_auth_file);
 #endif
@@ -371,12 +374,12 @@ show_settings (const struct options *o)
  * This string must match exactly between peers.  The keysize is checked
  * separately by read_key().
  *
- * TODO: add --dev-type tun|tap|null
+ * TODO: add --dev-type tun|tap|null to TLS negotiation string using dev_type_string()
  */
 char *
 options_string (const struct options *o)
 {
-  struct buffer out = alloc_buf (128);
+  struct buffer out = alloc_buf (256);
   buf_printf (&out, "V1");
   if (o->ciphername_defined)
     buf_printf (&out, " --cipher %s", o->ciphername);
@@ -456,15 +459,24 @@ notnull (const char *arg, const char *description)
 {
   if (!arg)
     {
-      msg (M_WARN, "You must define %s", description);
+      msg (M_WARN, "Options error: You must define %s", description);
       usage_small ();
     }
+}
+
+bool
+string_defined_equal (const char *s1, const char *s2)
+{
+  if (s1 && s2)
+    return !strcmp (s1, s2);
+  else
+    return false;
 }
 
 static void
 ping_rec_err ()
 {
-  msg (M_WARN, "only one of --ping-exit or --ping-restart options may be specified");
+  msg (M_WARN, "Options error: only one of --ping-exit or --ping-restart options may be specified");
   usage_small ();
 }
 
@@ -962,6 +974,10 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
   else if (streq (p1, "single-session"))
     {
       options->single_session = true;
+    }
+  else if (streq (p1, "disable-occ"))
+    {
+      options->disable_occ = true;
     }
   else if (streq (p1, "tls-cipher") && p2)
     {
