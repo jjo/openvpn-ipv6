@@ -5,7 +5,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "1 July 2002"
+.TH openvpn 8 "20 October 2002"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -105,6 +105,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-cd\fR\ \fIdir\fR\ ]
 [\ \fB\-\-chroot\fR\ \fIdir\fR\ ]
 [\ \fB\-\-daemon\fR\ ]
+[\ \fB\-\-inetd\fR\ ]
 [\ \fB\-\-writepid\fR\ \fIfile\fR\ ]
 [\ \fB\-\-nice\fR\ \fIn\fR\ ]
 [\ \fB\-\-nice\-work\fR\ \fIn\fR\ ]
@@ -925,6 +926,19 @@ including special files such
 .TP
 .B --daemon
 Become a daemon and write all messages to the syslog file (such as /var/log/messages).
+.TP
+.B --inetd
+Use this option when OpenVPN is being run from the inetd or
+.BR xinetd(8)
+server.
+This option precludes the use of
+.B --daemon, --local,
+or
+.B --remote.
+Note that each OpenVPN tunnel requires a separate UDP port and
+a separate inetd or xinetd entry.  See the OpenVPN HOWTO for an example
+on using OpenVPN with xinetd:
+.I http://openvpn.sourceforge.net/howto.html
 .TP
 .B --writepid file
 Write OpenVPN's main process ID to

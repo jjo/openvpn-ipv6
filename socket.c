@@ -35,6 +35,8 @@
 
 #include "memdbg.h"
 
+#define INETD_SOCKET_DESCRIPTOR 0
+
 static const char*
 h_errno_msg(int h_errno_err)
 {
@@ -100,6 +102,7 @@ udp_socket_init (struct udp_socket *sock,
 		 int remote_port,
 		 bool bind_local,
 		 bool remote_float,
+		 bool inetd,
 		 struct udp_socket_addr *usa,
 		 const char *ipchange_command,
 		 int resolve_retry_seconds)
@@ -110,25 +113,33 @@ udp_socket_init (struct udp_socket *sock,
   sock->addr = usa;
   sock->ipchange_command = ipchange_command;
 
-  /* create socket */
-  if ((sock->sd = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-    msg (M_ERR, "Cannot create socket");
-
-  /* resolve local address if undefined */
-  if (!addr_defined (&usa->local))
+  /* were we started by inetd or xinetd? */
+  if (inetd)
     {
-      usa->local.sin_family = AF_INET;
-      usa->local.sin_addr.s_addr =
-	(local_host ? getaddr (local_host, resolve_retry_seconds) : htonl (INADDR_ANY));
-      usa->local.sin_port = htons (local_port);
+      sock->sd = INETD_SOCKET_DESCRIPTOR;
     }
-
-  /* bind to local address/port */
-  if (bind_local)
+  else
     {
-      if (bind (sock->sd, (struct sockaddr *) &usa->local, sizeof (usa->local)))
-	msg (M_ERR, "Socket bind failed on local address: %s",
-	     print_sockaddr (&usa->local));
+      /* create socket */
+      if ((sock->sd = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+	msg (M_ERR, "Cannot create socket");
+
+      /* resolve local address if undefined */
+      if (!addr_defined (&usa->local))
+	{
+	  usa->local.sin_family = AF_INET;
+	  usa->local.sin_addr.s_addr =
+	    (local_host ? getaddr (local_host, resolve_retry_seconds) : htonl (INADDR_ANY));
+	  usa->local.sin_port = htons (local_port);
+	}
+
+      /* bind to local address/port */
+      if (bind_local)
+	{
+	  if (bind (sock->sd, (struct sockaddr *) &usa->local, sizeof (usa->local)))
+	    msg (M_ERR, "Socket bind failed on local address: %s",
+		 print_sockaddr (&usa->local));
+	}
     }
 
   /* resolve remote address if undefined */
@@ -150,8 +161,11 @@ udp_socket_init (struct udp_socket *sock,
   set_nonblock (sock->sd);
 
   /* print local and active remote address */
-  msg (M_INFO, "UDP link local%s: %s", (bind_local ? " (bound)" : ""),
-       print_sockaddr_ex (&usa->local, bind_local, ":"));
+  if (sock->sd == INETD_SOCKET_DESCRIPTOR)
+    msg (M_INFO, "UDP link local: [inetd]");
+  else
+    msg (M_INFO, "UDP link local%s: %s", (bind_local ? " (bound)" : ""),
+	 print_sockaddr_ex (&usa->local, bind_local, ":"));
   msg (M_INFO, "UDP link remote: %s",
        print_sockaddr_ex (&usa->actual, addr_defined (&usa->actual), ":"));
 }
@@ -251,7 +265,7 @@ udp_socket_get_outgoing_addr (struct buffer *buf,
 void
 udp_socket_close (struct udp_socket *sock)
 {
-  if (sock->sd >= 0)
+  if (sock->sd >= 0 && sock->sd != INETD_SOCKET_DESCRIPTOR)
     {
       close (sock->sd);
       sock->sd = -1;

@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.10.19 -- Version 1.3.1.8
+2002.10.20 -- Version 1.3.1.9
 
 * Added SSL_CTX_set_client_CA_list call
   to follow the canonical form for TLS initialization
@@ -22,6 +22,10 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
 * Added --tun-ipv6 option and related infrastructure
   support for IPv6 over tun.
 * Added IPv6 over tun support for Linux (Aaron Sethman).
+* Added FreeBSD 4.1.1+ TUN/TAP driver notes to
+  INSTALL (Matthias Andree).
+* Added inetd/xinetd support (--inetd) including
+  documentation in the HOWTO.
 * Added "Important Note on the use of commercial certificate
   authorities (CAs) with OpenVPN" to HOWTO based on
   issues raised on the openvpn-users list.

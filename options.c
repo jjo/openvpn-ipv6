@@ -103,6 +103,7 @@ static const char usage_message[] =
   "--chroot dir    : Chroot to this directory before initialization.\n"
   "--cd dir        : Change to this directory before initialization.\n"
   "--daemon        : Become a daemon.\n"
+  "--inetd         : Run as an inetd or xinetd server.\n"
   "--writepid file : Write main process ID to file.\n"
   "--nice n        : Change process priority (>0 = lower, <0 = higher).\n"
 #ifdef USE_PTHREAD
@@ -316,6 +317,7 @@ show_settings (const struct options *o)
   SHOW_STR (up_script);
   SHOW_STR (down_script);
   SHOW_BOOL (daemon);
+  SHOW_BOOL (inetd);
   SHOW_INT (nice);
   SHOW_INT (verbosity);
   SHOW_INT (mute);
@@ -728,6 +730,14 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
   else if (streq (p1, "daemon"))
     {
       options->daemon = true;
+    }
+  else if (streq (p1, "inetd"))
+    {
+      if (!options->inetd)
+	{
+	  options->inetd = true;
+	  become_inetd_server ();
+	}
     }
   else if (streq (p1, "mlock"))
     {

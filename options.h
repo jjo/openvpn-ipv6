@@ -88,6 +88,7 @@ struct options
   const char *up_script;
   const char *down_script;
   bool daemon;
+  bool inetd;
   int nice;
 #ifdef USE_PTHREAD
   int nice_work;

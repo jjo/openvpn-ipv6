@@ -340,6 +340,7 @@ openvpn (const struct options *options,
     udp_socket_init (&udp_socket, options->local, options->remote,
 		     options->local_port, options->remote_port,
 		     options->bind_local, options->remote_float,
+		     options->inetd,
 		     udp_socket_addr, options->ipchange,
 		     options->resolve_retry_seconds);
 
@@ -1528,6 +1529,25 @@ main (int argc, char *argv[])
 #endif
 	notnull (options.dev, "tun/tap device (--dev)");
 
+      /*
+       * Sanity check on daemon/inetd modes
+       */
+
+      if (options.daemon && options.inetd)
+	{
+	  msg (M_WARN, "Options error: only one of --daemon or --inetd may be specified");
+	  usage_small ();
+	}
+
+      if (options.inetd && (options.local || options.remote))
+	{
+	  msg (M_WARN, "Options error: --local or --remote cannot be used with --inetd");
+	  usage_small ();
+	}
+
+      /*
+       * Sanity check on MTU parameters
+       */
       if (options.tun_mtu_defined && options.udp_mtu_defined)
 	{
 	  msg (M_WARN, "Options error: only one of --tun-mtu or --udp-mtu may be defined (note that --ifconfig implies --udp-mtu %d)", DEFAULT_UDP_MTU);
@@ -1625,7 +1645,13 @@ main (int argc, char *argv[])
 
       /* Become a daemon if requested */
       if (first_time)
-	become_daemon (options.daemon, options.cd_dir);
+	{
+	  if (options.daemon)
+	    {
+	      ASSERT (!options.inetd);
+	      become_daemon (options.cd_dir);
+	    }
+	}
 
       /* show all option settings */
       show_settings (&options);

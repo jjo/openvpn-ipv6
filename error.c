@@ -38,7 +38,7 @@
 #include "memdbg.h"
 
 /* Globals */
-bool _is_daemon;
+bool _use_syslog;
 int _debug_level;
 int _cs_info_level;
 int _cs_verbose_level;
@@ -63,7 +63,7 @@ set_mute_cutoff (int cutoff)
 void
 error_reset ()
 {
-  _is_daemon = false;
+  _use_syslog = false;
   _debug_level = 1;
   _cs_info_level = 0;
   _cs_verbose_level = 0;
@@ -172,7 +172,7 @@ _msg (unsigned int flags, const char *format, ...)
   else
     level = LOG_NOTICE;
 
-  if (_is_daemon)
+  if (_use_syslog)
     {
 #if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
       syslog (level, "%s", m1);
@@ -206,19 +206,27 @@ assert_failed (const char *filename, int line)
 }
 
 void
-become_daemon (bool daemon_flag, const char *cd)
+become_daemon (const char *cd)
 {
-  if (daemon_flag)
-    {
 #if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
-      if (daemon (cd != NULL, 0) < 0)
-	msg (M_ERR, "daemon() failed");
-      openlog ("openvpn", LOG_PID, LOG_DAEMON);
+  if (daemon (cd != NULL, 0) < 0)
+    msg (M_ERR, "daemon() failed");
+  openlog ("openvpn", LOG_PID, LOG_DAEMON);
 #else
-      msg (M_WARN, "Warning: this operating system lacks daemon logging features, therefore when I become a daemon, I won't be able to log status or error messages");
-      if (daemon (cd != NULL, 0) < 0)
-	msg (M_ERR, "daemon() failed");
+  msg (M_WARN, "Warning on use of --daemon: this operating system lacks daemon logging features, therefore when I become a daemon, I won't be able to log status or error messages");
+  if (daemon (cd != NULL, 0) < 0)
+    msg (M_ERR, "daemon() failed");
 #endif
-      _is_daemon = true;
-    }
+  _use_syslog = true;
+}
+
+void
+become_inetd_server ()
+{
+#if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
+  openlog ("openvpn", LOG_PID, LOG_DAEMON);
+#else
+  msg (M_WARN, "Warning on use of --inetd: this operating system lacks syslog logging features, therefore I won't be able to log status or error messages as an inetd server");
+#endif
+  _use_syslog = true;
 }

@@ -53,6 +53,7 @@ udp_socket_init (struct udp_socket *sock,
 		 int remote_port,
 		 bool bind_local,
 		 bool remote_float,
+		 bool inetd,
 		 struct udp_socket_addr *addr,
 		 const char *ipchange_command,
 		 int resolve_retry_seconds);

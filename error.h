@@ -34,7 +34,7 @@
  * These globals should not be accessed directly,
  * but rather through macros or inline functions defined below.
  */
-extern bool _is_daemon;
+extern bool _use_syslog;
 extern int _debug_level;
 extern int _cs_info_level;
 extern int _cs_verbose_level;
@@ -109,13 +109,8 @@ check_status (int status, const char *description)
     msg (_cs_info_level | M_ERRNO, "%s", description);
 }
 
-static inline bool
-is_daemon ()
-{
-  return _is_daemon;
-}
-
-void become_daemon (bool daemon_flag, const char *cd);
+void become_daemon (const char *cd);
+void become_inetd_server ();
 
 #include "errlevel.h"
 
