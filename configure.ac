@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.2.13], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.2.14], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -147,45 +147,20 @@ AC_TYPE_PID_T
 AC_TYPE_SIZE_T
 AC_TYPE_UID_T
 AC_HEADER_TIME
-VARARG_MACRO_SUPPORT_GCC
-VARARG_MACRO_SUPPORT_ISO
+AX_CPP_VARARG_MACRO_ISO
+AX_CPP_VARARG_MACRO_GCC
 
 dnl Check for more header files.
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS(sys/time.h)
-AC_CHECK_HEADERS(sys/socket.h)
-AC_CHECK_HEADERS(sys/ioctl.h)
-AC_CHECK_HEADERS(sys/stat.h)
-AC_CHECK_HEADERS(sys/mman.h)
-AC_CHECK_HEADERS(fcntl.h)
-AC_CHECK_HEADERS(sys/file.h)
-AC_CHECK_HEADERS(stdlib.h)
-AC_CHECK_HEADERS(stdint.h)
-AC_CHECK_HEADERS(stdarg.h)
-AC_CHECK_HEADERS(unistd.h)
-AC_CHECK_HEADERS(signal.h)
-AC_CHECK_HEADERS(stdio.h)
-AC_CHECK_HEADERS(string.h)
-AC_CHECK_HEADERS(strings.h)
-AC_CHECK_HEADERS(ctype.h)
-AC_CHECK_HEADERS(errno.h)
-AC_CHECK_HEADERS(syslog.h)
-AC_CHECK_HEADERS(pwd.h)
-AC_CHECK_HEADERS(grp.h)
-AC_CHECK_HEADERS(net/if_tun.h)
-AC_CHECK_HEADERS(net/if.h)
-AC_CHECK_HEADERS(stropts.h)
-AC_CHECK_HEADERS(sys/sockio.h)
-AC_CHECK_HEADERS(netinet/in.h)
-AC_CHECK_HEADERS(netinet/in_systm.h)
-AC_CHECK_HEADERS(netinet/ip.h)
-AC_CHECK_HEADERS(netinet/if_ether.h)
-AC_CHECK_HEADERS(netinet/tcp.h)
-AC_CHECK_HEADERS(resolv.h)
-AC_CHECK_HEADERS(arpa/inet.h)
-AC_CHECK_HEADERS(netdb.h)
-AC_CHECK_HEADERS(sys/uio.h)
-AC_CHECK_HEADERS(linux/if_tun.h)
+AC_CHECK_HEADERS(sys/time.h sys/socket.h sys/ioctl.h sys/stat.h dnl
+		 sys/mman.h fcntl.h sys/file.h stdlib.h stdint.h dnl
+		 stdarg.h unistd.h signal.h stdio.h string.h dnl
+		 strings.h ctype.h errno.h syslog.h pwd.h grp.h dnl
+		 net/if_tun.h net/if.h stropts.h sys/sockio.h dnl
+		 netinet/in.h netinet/in_systm.h netinet/ip.h dnl
+		 netinet/if_ether.h netinet/tcp.h resolv.h arpa/inet.h dnl
+		 netdb.h sys/uio.h linux/if_tun.h)
+AC_CACHE_SAVE
 
 dnl check that in_addr_t is defined
 AC_CHECK_TYPE(
@@ -222,6 +197,7 @@ AC_CHECK_TYPE(
 	[AC_DEFINE(HAVE_IOVEC, 1, [struct iovec needed for IPv6 support])],
 	[],
 	[#include "syshead.h"])
+AC_CACHE_SAVE
 
 dnl check for other types
 TYPE_SOCKLEN_T
@@ -238,28 +214,11 @@ AC_SEARCH_LIBS(gethostbyname, resolv nsl)
 
 dnl optional library functions
 AC_FUNC_FORK
-AC_CHECK_FUNCS(daemon)
-AC_CHECK_FUNCS(chroot)
-AC_CHECK_FUNCS(getpwnam)
-AC_CHECK_FUNCS(setuid)
-AC_CHECK_FUNCS(nice)
-AC_CHECK_FUNCS(system)
-AC_CHECK_FUNCS(getpid)
-AC_CHECK_FUNCS(dup2)
-AC_CHECK_FUNCS(getpass)
-AC_CHECK_FUNCS(strerror)
-AC_CHECK_FUNCS(syslog)
-AC_CHECK_FUNCS(openlog)
-AC_CHECK_FUNCS(mlockall)
-AC_CHECK_FUNCS(getgrnam)
-AC_CHECK_FUNCS(setgid)
-AC_CHECK_FUNCS(setgroups)
-AC_CHECK_FUNCS(stat)
-AC_CHECK_FUNCS(flock)
-AC_CHECK_FUNCS(readv)
-AC_CHECK_FUNCS(writev)
-AC_CHECK_FUNCS(setsockopt)
-AC_CHECK_FUNCS(getsockopt)
+AC_CHECK_FUNCS(daemon chroot getpwnam setuid nice system getpid dup2 dnl
+	       getpass strerror syslog openlog mlockall getgrnam setgid dnl
+	       setgroups stat flock readv writev setsockopt getsockopt)
+AC_REPLACE_FUNCS(inet_aton)
+AC_CACHE_SAVE
 
 dnl Required library functions
 AC_FUNC_MEMCMP

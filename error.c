@@ -113,11 +113,7 @@ msg_fp()
 
 int msg_line_num;
 
-#ifdef HAVE_VARARG_MACROS
 void x_msg (unsigned int flags, const char *format, ...)
-#else
-void msg (unsigned int flags, const char *format, ...)
-#endif
 {
   va_list arglist;
   int level;
@@ -129,6 +125,7 @@ void msg (unsigned int flags, const char *format, ...)
   int e;
 
 #ifndef HAVE_VARARG_MACROS
+  /* the macro has checked this otherwise */
   if (!MSG_TEST(flags))
     return;
 #endif

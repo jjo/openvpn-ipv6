@@ -5,42 +5,48 @@ AC_DEFUN(OPENVPN_ADD_LIBS, [
   LIBS="$1 $LIBS"
 ])
 
+dnl @synopsis AX_CPP_VARARG_MACRO_GCC
 dnl
-dnl Test if the preprocessor understands gcc vararg macros
+dnl Test if the preprocessor understands GNU GCC-style vararg macros.
+dnl If it does, defines HAVE_CPP_VARARG_MACRO_GCC to 1.
 dnl
-AC_DEFUN(VARARG_MACRO_SUPPORT_GCC, [
-	AC_MSG_CHECKING([for gcc vararg macro support])
-	AC_COMPILE_IFELSE(
-	[
-		#define macro(a, b...) func(a, b)
-		int func(int a, int b, int c);
-		int test() { return macro(1, 2, 3); }
-	],
-	[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_VARARG_MACROS_GCC, , [Define if your cpp has gcc vararg macros])
-	],
-	[
-		AC_MSG_RESULT(no)
-	])
+dnl @version
+dnl @author James Yonan <jim@yonan.net>, Matthias Andree <matthias.andree@web.de>
+AC_DEFUN(AX_CPP_VARARG_MACRO_GCC, [dnl
+    AS_VAR_PUSHDEF([VAR],[ax_cv_cpp_vararg_macro_gcc])dnl
+    AC_CACHE_CHECK([for GNU GCC vararg macro support], VAR, [dnl
+      AC_COMPILE_IFELSE([
+	#define macro(a, b...) func(a, b)
+	int func(int a, int b, int c);
+	int test() { return macro(1, 2, 3); }
+	], [ VAR=yes ], [VAR=no])])
+    if test $VAR = yes ; then
+    AC_DEFINE([HAVE_CPP_VARARG_MACRO_GCC], 1, 
+      [Define to 1 if your compiler supports GNU GCC-style variadic macros])
+    fi
+    AS_VAR_POPDEF([VAR])dnl
 ])
 
+dnl @synopsis AX_CPP_VARARG_MACRO_ISO
 dnl
-dnl Test if the preprocessor understands ISO C 1999 vararg macros
+dnl Test if the preprocessor understands ISO C 1999 vararg macros.
+dnl If it does, defines HAVE_CPP_VARARG_MACRO_ISO to 1.
 dnl
-AC_DEFUN(VARARG_MACRO_SUPPORT_ISO, [
-	AC_MSG_CHECKING([for ISO C 1999 vararg macro support])
-	AC_COMPILE_IFELSE(
-	[
-		#define macro(a, ...) func(a, __VA_ARGS__)
-		int func(int a, int b, int c);
-		int test() { return macro(1, 2, 3); }
-	],
-	[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_VARARG_MACROS_ISO, , [Define if your cpp has ISO C 1999 vararg macros])
-	],
-	[AC_MSG_RESULT(no)])
+dnl @version
+dnl @author James Yonan <jim@yonan.net>, Matthias Andree <matthias.andree@web.de>
+AC_DEFUN(AX_CPP_VARARG_MACRO_ISO, [dnl
+    AS_VAR_PUSHDEF([VAR],[ax_cv_cpp_vararg_macro_iso])dnl
+    AC_CACHE_CHECK([for ISO C 1999 vararg macro support], VAR, [dnl
+      AC_COMPILE_IFELSE([
+#define macro(a, ...) func(a, __VA_ARGS__)
+	int func(int a, int b, int c);
+	int test() { return macro(1, 2, 3); }
+	], [ VAR=yes ], [VAR=no])])
+    if test $VAR = yes ; then
+    AC_DEFINE([HAVE_CPP_VARARG_MACRO_ISO], 1, 
+      [Define to 1 if your compiler supports ISO C99 variadic macros])
+    fi
+    AS_VAR_POPDEF([VAR])dnl
 ])
 
 dnl -- The following is taken from curl's acinclude.m4 --

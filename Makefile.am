@@ -23,6 +23,10 @@
 #  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
+# This option prevents autoreconf from overriding our COPYING and
+# INSTALL targets:
+AUTOMAKE_OPTIONS = foreign
+
 sbin_PROGRAMS = openvpn
 nodist_openvpn_SOURCES = config.h
 openvpn_SOURCES = basic.h buffer.c buffer.h circ_list.h common.h \
@@ -33,6 +37,7 @@ openvpn_SOURCES = basic.h buffer.c buffer.h circ_list.h common.h \
 		  packet_id.h reliable.c reliable.h session_id.c \
 		  session_id.h shaper.c shaper.h socket.c socket.h \
 		  ssl.c ssl.h syshead.h thread.c thread.h tun.c tun.h
+LDADD = @LIBOBJS@
 
 man_MANS = openvpn.8
 EXTRA_DIST = $(man_MANS) \

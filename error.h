@@ -83,19 +83,17 @@ extern int msg_line_num;
 
 #define MSG_TEST(flags) (((flags) & M_DEBUG_LEVEL) < x_debug_level || ((flags) & M_FATAL))
 
-#if defined(HAVE_VARARG_MACROS_ISO)
+#if defined(HAVE_CPP_VARARG_MACRO_ISO)
 #define HAVE_VARARG_MACROS
 #define msg(flags, ...) do { if (MSG_TEST(flags)) x_msg((flags), __VA_ARGS__); } while (false)
-#elif defined(HAVE_VARARG_MACROS_GCC)
+#elif defined(HAVE_CPP_VARARG_MACRO_CPP)
 #define HAVE_VARARG_MACROS
 #define msg(flags, args...) do { if (MSG_TEST(flags)) x_msg((flags), args); } while (false)
+#else
+#define msg x_msg
 #endif
 
-#ifdef HAVE_VARARG_MACROS
 void x_msg (unsigned int flags, const char *format, ...); /* should be called via msg above */
-#else
-void msg (unsigned int flags, const char *format, ...);
-#endif
 
 /*
  * Function prototypes
