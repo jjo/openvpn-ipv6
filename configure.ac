@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.1.5], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.1.6], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 
 AC_ARG_ENABLE(lzo,
@@ -169,6 +169,7 @@ AC_CHECK_HEADERS(sys/sockio.h)
 AC_CHECK_HEADERS(netinet/in.h)
 AC_CHECK_HEADERS(netinet/in_systm.h)
 AC_CHECK_HEADERS(netinet/ip.h)
+AC_CHECK_HEADERS(netinet/if_ether.h)
 AC_CHECK_HEADERS(netinet/tcp.h)
 AC_CHECK_HEADERS(resolv.h)
 AC_CHECK_HEADERS(arpa/inet.h)
@@ -244,7 +245,7 @@ if test "$PTHREAD" = "yes"; then
 	[
 	    case "$target" in
 	    *openbsd*)
-		AC_MSG_RESULT([WARNING: pthread support on OpenBSD is still unstable!])
+		AC_MSG_RESULT([WARNING: pthread support on OpenBSD is unstable!])
 		CFLAGS="$CFLAGS -pthread"
 		;;
 	    esac

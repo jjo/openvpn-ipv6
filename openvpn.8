@@ -81,6 +81,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-rport\fR\ \fIport\fR\ ]
 [\ \fB\-\-nobind\fR\ ]
 [\ \fB\-\-dev\fR\ \fItunX\ |\ tapX\ |\ null\fR\ ]
+[\ \fB\-\-tun\-ipv6\fR\ ]
 [\ \fB\-\-dev\-type\fR\ \fIdevice\-type\fR\ ]
 [\ \fB\-\-dev\-node\fR\ \fInode\fR\ ]
 [\ \fB\-\-ifconfig\fR\ \fIl\ r\fR\ ]
@@ -470,6 +471,15 @@ does not begin with
 .B tun
 or
 .B tap.
+.TP
+.B --tun-ipv6
+Build a tun link capable of forwarding IPv6 traffic.
+Should be used in conjunction with
+.B --dev tun
+or
+.B --dev tunX.
+A warning will be displayed
+if no specific IPv6 tun support for your OS has been compiled into OpenVPN.
 .TP
 .B --dev-node node
 Explicitly set the device node rather than using

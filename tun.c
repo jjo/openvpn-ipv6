@@ -84,6 +84,33 @@ dev_component_in_dev_node (const char *dev_node)
   return NULL;
 }
 
+/*
+ * Called by the open_tun function of OSes to check if we
+ * explicitly support IPv6.
+ *
+ * In this context, explicit means that the OS expects us to
+ * do something special to the tun socket in order to support
+ * IPv6, i.e. it is not transparent.
+ *
+ * ipv6_explicitly_supported should be set to false if we don't
+ * have any explicit IPv6 code in the tun device handler.
+ *
+ * If ipv6_explicitly_supported is true, then we have explicit
+ * OS-specific tun dev code for handling IPv6.  If so, tt->ipv6
+ * is set according to the --tun-ipv6 command line option.
+ */
+static void
+ipv6_support (bool ipv6, bool ipv6_explicitly_supported, struct tuntap* tt)
+{
+  if (ipv6_explicitly_supported)
+    tt->ipv6 = ipv6;
+  else if (ipv6)
+    {
+      tt->ipv6 = false;
+      msg (M_WARN, "NOTE: explicit support for IPv6 tun devices is not provided for this OS");
+    }
+}
+
 /* do ifconfig */
 void
 do_ifconfig (const char *dev, const char *dev_type,
@@ -211,6 +238,7 @@ clear_tuntap (struct tuntap *tuntap)
 #ifdef TARGET_SOLARIS
   tuntap->ip_fd = -1;
 #endif
+  tuntap->ipv6 = false;
   CLEAR (tuntap->actual);
 }
 
@@ -222,11 +250,15 @@ open_null (struct tuntap *tt)
 }
 
 static void
-open_tun_generic (const char *dev, const char *dev_node, struct tuntap *tt)
+open_tun_generic (const char *dev, const char *dev_node,
+		  bool ipv6, bool ipv6_explicitly_supported,
+		  struct tuntap *tt)
 {
   char tunname[64];
 
   clear_tuntap (tt);
+
+  ipv6_support (ipv6, ipv6_explicitly_supported, tt);
 
   if (!strcmp(dev, "null"))
     {
@@ -258,12 +290,21 @@ close_tun_generic (struct tuntap *tt)
 
 #ifdef HAVE_LINUX_IF_TUN_H	/* New driver support */
 
+#if defined(HAVE_NETINET_IF_ETHER_H) && defined(HAVE_NETINET_IP_H) && defined(ETH_P_IPV6)
+#define LINUX_IPV6 1
+#else
+#define LINUX_IPV6 0
+#endif
+
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
+	  struct tuntap *tt)
 {
   struct ifreq ifr;
 
   clear_tuntap (tt);
+
+  ipv6_support (ipv6, LINUX_IPV6, tt);
 
   if (!strcmp(dev, "null"))
     {
@@ -277,7 +318,8 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, struct tu
 	msg (M_ERR, "Cannot open tun/tap dev %s", dev_node);
 
       CLEAR (ifr);
-      ifr.ifr_flags = IFF_NO_PI;
+      if (!tt->ipv6)
+	ifr.ifr_flags = IFF_NO_PI;
 
       if (is_dev_type (dev, dev_type, "tun"))
 	{
@@ -307,11 +349,11 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, struct tu
 #ifdef TUNSETPERSIST
 
 void
-tuncfg (const char *dev, const char *dev_type, const char *dev_node, int persist_mode)
+tuncfg (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, int persist_mode)
 {
   struct tuntap tt;
 
-  open_tun (dev, dev_type, dev_node, &tt);
+  open_tun (dev, dev_type, dev_node, ipv6, &tt);
   if (ioctl (tt.fd, TUNSETPERSIST, persist_mode) < 0)
     msg (M_ERR, "Cannot ioctl TUNSETPERSIST(%d) %s", persist_mode, dev);
   close_tun (&tt);
@@ -323,9 +365,10 @@ tuncfg (const char *dev, const char *dev_type, const char *dev_node, int persist
 #else
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
+	  struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, tt);
+  open_tun_generic (dev, dev_node, ipv6, false, tt);
 }
 
 #endif /* HAVE_LINUX_IF_TUN_H */
@@ -339,19 +382,64 @@ close_tun (struct tuntap *tt)
 int
 write_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
-  return write (tt->fd, buf, len);
+#if LINUX_IPV6
+  if (tt->ipv6)
+    {
+      struct tun_pi pi;
+      struct iphdr *iph;
+      struct iovec vect[2];
+      int ret;
+
+      iph = (struct iphdr *)buf;
+
+      pi.flags = 0;
+
+      if(iph->version == 6)
+	pi.proto = htons(ETH_P_IPV6);
+      else
+	pi.proto = htons(ETH_P_IP);
+
+      vect[0].iov_len = sizeof(pi);
+      vect[0].iov_base = &pi;
+      vect[1].iov_len = len;
+      vect[1].iov_base = buf;
+
+      ret = writev(tt->fd, vect, 2);
+      return(ret - sizeof(pi));
+    }
+  else
+#endif
+    return write (tt->fd, buf, len);
 }
 
 int
 read_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
-  return read (tt->fd, buf, len);
+#if LINUX_IPV6
+  if (tt->ipv6)
+    {
+      struct iovec vect[2];
+      struct tun_pi pi;
+      int ret;
+
+      vect[0].iov_len = sizeof(pi);
+      vect[0].iov_base = &pi;
+      vect[1].iov_len = len;
+      vect[1].iov_base = buf;
+
+      ret = readv(tt->fd, vect, 2);
+      return(ret - sizeof(pi));
+    }
+  else
+#endif
+    return read (tt->fd, buf, len);
 }
 
 #elif defined(TARGET_SOLARIS)
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
+	  struct tuntap *tt)
 {
   int if_fd, muxid, ppa = -1;
   struct ifreq ifr;
@@ -362,6 +450,8 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, struct tu
   bool is_tun;
 
   clear_tuntap (tt);
+
+  ipv6_support (ipv6, false, tt);
 
   if (!strcmp(dev, "null"))
     {
@@ -493,9 +583,10 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #elif defined(TARGET_OPENBSD)
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
+	  struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, tt);
+  open_tun_generic (dev, dev_node, ipv6, false, tt);
 }
 
 void
@@ -544,9 +635,10 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #elif defined(TARGET_FREEBSD)
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
+	  struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, tt);
+  open_tun_generic (dev, dev_node, ipv6, false, tt);
 
   if (tt->fd >= 0)
     {
@@ -579,9 +671,10 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #else /* generic */
 
 void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, struct tuntap *tt)
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6,
+	  struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, tt);
+  open_tun_generic (dev, dev_node, ipv6, false, tt);
 }
 
 void

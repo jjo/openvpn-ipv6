@@ -141,8 +141,16 @@
 
 #ifdef TARGET_LINUX
 
+#ifdef HAVE_NETINET_IF_ETHER_H
+#include <netinet/if_ether.h>
+#endif
+
 #ifdef HAVE_LINUX_IF_TUN_H
 #include <linux/if_tun.h>
+#endif
+
+#ifdef HAVE_NETINET_IP_H
+#include <netinet/ip.h>
 #endif
 
 #endif /* TARGET_LINUX */

@@ -67,6 +67,7 @@ static const char usage_message[] =
   "                  does not begin with \"tun\" or \"tap\".\n"
   "--dev-node node : Explicitly set the device node rather than using\n"
   "                  /dev/net/tun, /dev/tun, /dev/tap, etc.\n"
+  "--tun-ipv6      : Build tun link capable of forwarding IPv6 traffic.\n"
   "--ifconfig l r  : Configure tun device to use IP address l as a local\n"
   "                  endpoint and r as a remote endpoint.  l & r should be\n"
   "                  swapped on the other peer.  l & r must be private\n"
@@ -285,6 +286,7 @@ show_settings (const struct options *o)
   SHOW_STR (dev);
   SHOW_STR (dev_type);
   SHOW_STR (dev_node);
+  SHOW_BOOL (tun_ipv6);
   SHOW_STR (ifconfig_local);
   SHOW_STR (ifconfig_remote);
   SHOW_INT (shaper);
@@ -646,6 +648,10 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       ++i;
       options->dev_node = p2;
+    }
+  else if (streq (p1, "tun-ipv6"))
+    {
+      options->tun_ipv6 = true;
     }
   else if (streq (p1, "ifconfig") && p2 && p3)
     {
