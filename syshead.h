@@ -223,6 +223,10 @@
 
 #ifdef TARGET_FREEBSD
 
+#ifdef HAVE_SYS_UIO_H
+#include <sys/uio.h>
+#endif
+
 #ifdef HAVE_NETINET_IN_SYSTM_H
 #include <netinet/in_systm.h>
 #endif

@@ -230,18 +230,18 @@ Section "TAP-Win32 Virtual Ethernet Adapter" SecTAP
 
   SetOverwrite on
   SetOutPath "$INSTDIR\bin"
-  File "${BIN}\devcon.exe"
+  File "${BIN}\ti2600.1106\tapinstall.exe"
 
   FileOpen $R0 "$INSTDIR\bin\addtap.bat" w
   FileWrite $R0 "rem Add a new TAP-Win32 virtual ethernet adapter$\r$\n"
-  FileWrite $R0 '"$INSTDIR\bin\devcon.exe" install "$INSTDIR\driver\OemWin2k.inf" TAP$\r$\n'
+  FileWrite $R0 '"$INSTDIR\bin\tapinstall.exe" install "$INSTDIR\driver\OemWin2k.inf" TAP$\r$\n'
   FileWrite $R0 "pause$\r$\n"
   FileClose $R0
 
   FileOpen $R0 "$INSTDIR\bin\deltapall.bat" w
   FileWrite $R0 "echo WARNING: this script will delete ALL TAP-Win32 virtual adapters (use the device manager to delete adapters one at a time)$\r$\n"
   FileWrite $R0 "pause$\r$\n"
-  FileWrite $R0 '"$INSTDIR\bin\devcon.exe" remove TAP$\r$\n'
+  FileWrite $R0 '"$INSTDIR\bin\tapinstall.exe" remove TAP$\r$\n'
   FileWrite $R0 "pause$\r$\n"
   FileClose $R0
 
@@ -287,48 +287,51 @@ SectionEnd
 
 Section -post
 
+  ; delete old devcon.exe
+  Delete "$INSTDIR\bin\devcon.exe"
+
   ;
-  ; install/upgrade TAP-Win32 driver if selected, using devcon.exe
+  ; install/upgrade TAP-Win32 driver if selected, using tapinstall.exe
   ;
   SectionGetFlags ${SecTAP} $R0
   IntOp $R0 $R0 & ${SF_SELECTED}
   IntCmp $R0 ${SF_SELECTED} "" notap notap
     ; TAP install/update was selected.
     ; Should we install or update?
-    ; If devcon error occurred, $5 will
+    ; If tapinstall error occurred, $5 will
     ; be nonzero.
     IntOp $5 0 & 0
-    nsExec::ExecToStack '"$INSTDIR\bin\devcon.exe" hwids TAP'
+    nsExec::ExecToStack '"$INSTDIR\bin\tapinstall.exe" hwids TAP'
     Pop $R0 # return value/error/timeout
     IntOp $5 $5 | $R0
-    DetailPrint "devcon hwids returned: $R0"
+    DetailPrint "tapinstall hwids returned: $R0"
 
-    ; If devcon output string contains "TAP" we assume
+    ; If tapinstall output string contains "TAP" we assume
     ; that TAP device has been previously installed,
     ; therefore we will update, not install.
     Push "TAP"
     Call StrStr
     Pop $R0
 
-    IntCmp $5 0 +1 devcon_check_error devcon_check_error
+    IntCmp $5 0 +1 tapinstall_check_error tapinstall_check_error
     IntCmp $R0 -1 tapinstall
 
  ;tapupdate:
     DetailPrint "TAP-Win32 UPDATE"
-    nsExec::ExecToLog '"$INSTDIR\bin\devcon.exe" update "$INSTDIR\driver\OemWin2k.inf" TAP'
+    nsExec::ExecToLog '"$INSTDIR\bin\tapinstall.exe" update "$INSTDIR\driver\OemWin2k.inf" TAP'
     Pop $R0 # return value/error/timeout
     IntOp $5 $5 | $R0
-    DetailPrint "devcon update returned: $R0"
-    Goto devcon_check_error
+    DetailPrint "tapinstall update returned: $R0"
+    Goto tapinstall_check_error
 
  tapinstall:
     DetailPrint "TAP-Win32 INSTALL"
-    nsExec::ExecToLog '"$INSTDIR\bin\devcon.exe" install "$INSTDIR\driver\OemWin2k.inf" TAP'
+    nsExec::ExecToLog '"$INSTDIR\bin\tapinstall.exe" install "$INSTDIR\driver\OemWin2k.inf" TAP'
     Pop $R0 # return value/error/timeout
     IntOp $5 $5 | $R0
-    DetailPrint "devcon install returned: $R0"
+    DetailPrint "tapinstall install returned: $R0"
 
- devcon_check_error:
+ tapinstall_check_error:
     IntCmp $5 +1 notap
     MessageBox MB_OK "An error occurred installing the TAP-Win32 device driver."
 
@@ -461,9 +464,9 @@ Section "Uninstall"
   Sleep 2000
 
   DetailPrint "TAP-Win32 REMOVE"
-  nsExec::ExecToLog '"$INSTDIR\bin\devcon.exe" remove TAP'
+  nsExec::ExecToLog '"$INSTDIR\bin\tapinstall.exe" remove TAP'
   Pop $R0 # return value/error/timeout
-  DetailPrint "devcon remove returned: $R0"
+  DetailPrint "tapinstall remove returned: $R0"
 
   Push "$INSTDIR\bin"
   Call un.RemoveFromPath
@@ -474,7 +477,7 @@ Section "Uninstall"
   Delete "$INSTDIR\bin\openvpnserv.exe"
   Delete "$INSTDIR\bin\libeay32.dll"
   Delete "$INSTDIR\bin\libssl32.dll"
-  Delete "$INSTDIR\bin\devcon.exe"
+  Delete "$INSTDIR\bin\tapinstall.exe"
   Delete "$INSTDIR\bin\addtap.bat"
   Delete "$INSTDIR\bin\deltapall.bat"
 

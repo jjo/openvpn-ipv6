@@ -17,10 +17,8 @@ This document is also available in HTML:
 
 http://openvpn.sourceforge.net/INSTALL-win32.html
 
-What's new in the 1.6 beta series
+What's new in 1.6.0
 ---------------------------------
-
-THIS IS A BETA RELEASE.
 
 This release is primarily focused on bug fixes and minor
 feature improvements over 1.5.

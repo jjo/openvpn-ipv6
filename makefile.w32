@@ -16,12 +16,12 @@
 # Change these to point to your OpenSSL and LZO top-level
 # directories.
 
-# To build openssl-0.9.7c, remember to edit ms\mw.bat
+# To build openssl-0.9.7x, remember to edit ms\mw.bat
 # adding '--win32' flag to make command:
 #
-#   make --win32 -f ms/mingw32.mak
+#   make --win32 -f ms/mingw32a.mak
 
-OPENSSL = /c/src/openssl-0.9.7c
+OPENSSL = /c/src/openssl-0.9.7d
 
 LZO = /c/src/lzo-1.08
 
