@@ -3,7 +3,7 @@ Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
 
 $Id$
 
-Upcoming version 1.3.3
+Upcoming version 1.4.0
 
 * Added --replay-persist feature to allow replay
   protection across sessions.
@@ -50,6 +50,21 @@ Upcoming version 1.3.3
   through unit numbers until it finds a free
   unit (based on code from Thomas Gielfeldt
   and VTun).
+* Added dynamic MTU and fragmenting infrastructure
+  (Experimental).  Rebuild with FRAGMENT_ENABLE
+  defined to enable.
+* Minor changes to SSL/TLS negotiation, use
+  exponential backoff on retransmits, and use
+  a smaller MTU size (note that no protocol
+  changes have been made which would break
+  compatibility with 1.3.x).
+* Added --enable-strict-options flag
+  to ./configure.  This option will cause
+  a more strict check for options compatibility
+  between peers when SSL/TLS negotiation is used,
+  but should only be used when both OpenVPN peers
+  are of the same version.
+* Reorganization of debugging levels >= 5.
 
 2002.10.23 -- Version 1.3.2
 

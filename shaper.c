@@ -25,17 +25,41 @@
 
 #include "config.h"
 #include "syshead.h"
-#include "common.h"
 #include "error.h"
 #include "shaper.h"
 #include "memdbg.h"
 
+static inline bool
+tv_defined (const struct timeval *tv)
+{
+  return tv->tv_sec > 0;
+}
+
+/* return tv1 - tv2 in usec, constrained by MAX_TIMEOUT */
+static inline int
+tv_subtract (const struct timeval *tv1, const struct timeval *tv2)
+{
+  const int sec_diff = constrain_int (tv1->tv_sec - tv2->tv_sec,
+				      -(MAX_TIMEOUT+10),
+				      (MAX_TIMEOUT+10));
+
+  return constrain_int (sec_diff * 1000000 + (tv1->tv_usec - tv2->tv_usec),
+			-(MAX_TIMEOUT*1000000),
+			(MAX_TIMEOUT*1000000));
+}
+
 void
 shaper_init (struct shaper *s, int bytes_per_second)
 {
-  s->bytes_per_second = bytes_per_second;
+  shaper_reset (s, bytes_per_second);
   CLEAR (s->wakeup);
-  msg (M_INFO, "Output Traffic Shaping initialized at %d bytes per second", bytes_per_second);
+}
+
+void
+shaper_msg (struct shaper *s)
+{
+  msg (M_INFO, "Output Traffic Shaping initialized at %d bytes per second",
+       s->bytes_per_second);
 }
 
 /*
@@ -48,30 +72,13 @@ shaper_delay (struct shaper* s)
   struct timeval tv;
   int delay = 0;
 
-  if (s->wakeup.tv_sec || s->wakeup.tv_usec)
+  if (tv_defined (&s->wakeup))
     {
-      if (gettimeofday (&tv, NULL))
-	msg (M_ERR, "call to gettimeofday for traffic shaping failed");
-      if (s->wakeup.tv_sec < tv.tv_sec)
-	{
-	  s->wakeup.tv_sec = 0;
-	  s->wakeup.tv_usec = 0;
-	}
-      else if (s->wakeup.tv_sec <= tv.tv_sec + (MAX_TIMEOUT * 1000000))
-	{
-	  const int secdiff = (int) s->wakeup.tv_sec - tv.tv_sec;
-	  delay = (int) s->wakeup.tv_usec - tv.tv_usec;
-	  if (secdiff == 1)
-	    delay += 1000000;
-	  else if (secdiff > 1)
-	    delay += secdiff * 1000000;
-	}
-      else
-	{
-	  delay = MAX_TIMEOUT * 1000000;
-	}
-      msg (D_SHAPER, "shaper_delay delay=%d", delay);
+      ASSERT (!gettimeofday (&tv, NULL));
+      delay = tv_subtract (&s->wakeup, &tv);
     }
+
+  msg (D_SHAPER_DEBUG, "SHAPER shaper_delay delay=%d", delay);
   return delay > 0 ? delay : 0;
 }
 
@@ -105,7 +112,7 @@ shaper_soonest_event (struct timeval *tv, int delay)
 	    }
 	}
     }
-  msg (D_SHAPER, "shaper_soonest_event sec=%d usec=%d",
+  msg (D_SHAPER_DEBUG, "SHAPER shaper_soonest_event sec=%d usec=%d",
        tv->tv_sec, tv->tv_usec);
 }
 
@@ -118,16 +125,33 @@ shaper_soonest_event (struct timeval *tv, int delay)
 void
 shaper_wrote_bytes (struct shaper* s, int nbytes)
 {
-  const int delay = (1000000 / s->bytes_per_second) * nbytes; /* delay in microseconds */
+  /* delay in microseconds */
+  const int delay = s->bytes_per_second
+    ? min_int (((1000000 / s->bytes_per_second) * nbytes), (MAX_TIMEOUT*1000000))
+    : 0;
   
-  if (gettimeofday (&s->wakeup, NULL))
-    msg (M_ERR, "call to gettimeofday for traffic shaping failed");
+  ASSERT (!gettimeofday (&s->wakeup, NULL));
   s->wakeup.tv_usec += delay;
   while (s->wakeup.tv_usec >= 1000000)
     {
       ++s->wakeup.tv_sec;
       s->wakeup.tv_usec -= 1000000;
     }
-  msg (D_SHAPER, "shaper_wrote_bytes bytes=%d delay=%d sec=%d usec=%d",
+  msg (D_SHAPER_DEBUG, "SHAPER shaper_wrote_bytes bytes=%d delay=%d sec=%d usec=%d",
        nbytes, delay, s->wakeup.tv_sec, s->wakeup.tv_usec);
+}
+
+/*
+ * Increase/Decrease bandwidth by a percentage.
+ *
+ * Return true if bandwidth changed.
+ */
+bool
+shaper_change_pct (struct shaper *s, int pct)
+{
+  const int orig_bandwidth = s->bytes_per_second;
+  const int new_bandwidth = orig_bandwidth + (orig_bandwidth * pct / 100);
+  ASSERT (s->bytes_per_second);
+  shaper_reset (s, new_bandwidth);
+  return s->bytes_per_second != orig_bandwidth;
 }

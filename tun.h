@@ -57,9 +57,10 @@ void do_ifconfig (const char *dev, const char *dev_type,
 		  const char *ifconfig_local, const char *ifconfig_remote,
 		  int tun_mtu);
 
-const char *dev_component_in_dev_node(const char *dev_node);
+const char *dev_component_in_dev_node (const char *dev_node);
 
-const char *dev_type_string(const char *dev, const char *dev_type);
+bool is_dev_type (const char *dev, const char *dev_type, const char *match_type);
+const char *dev_type_string (const char *dev, const char *dev_type);
 
 /*
  * Inline functions
@@ -74,7 +75,7 @@ tuntap_defined (const struct tuntap* tt)
 static inline void
 tun_adjust_frame_parameters (struct frame* frame, int size)
 {
-  frame->extra_tun += size;
+  frame_add_to_extra_tun (frame, size);
 }
 
 /*

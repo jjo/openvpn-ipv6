@@ -23,7 +23,11 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifndef SHAPER_H
+#define SHAPER_H
+
 #include "basic.h"
+#include "common.h"
 
 /*
  * A simple traffic shaper for
@@ -42,6 +46,26 @@ struct shaper
 };
 
 void shaper_init (struct shaper *s, int bytes_per_second);
+void shaper_msg (struct shaper *s);
 int shaper_delay (struct shaper* s);
 void shaper_soonest_event (struct timeval *tv, int delay);
 void shaper_wrote_bytes (struct shaper* s, int nbytes);
+bool shaper_change_pct (struct shaper *s, int pct);
+
+/*
+ * inline functions
+ */
+
+static inline void
+shaper_reset (struct shaper *s, int bytes_per_second)
+{
+  s->bytes_per_second = bytes_per_second ? constrain_int (bytes_per_second, SHAPER_MIN, SHAPER_MAX) : 0;
+}
+
+static inline int
+shaper_current_bandwidth (struct shaper *s)
+{
+  return s->bytes_per_second;
+}
+
+#endif

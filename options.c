@@ -31,6 +31,7 @@
 #include "error.h"
 #include "openvpn.h"
 #include "common.h"
+#include "tun.h"
 #include "mtu.h"
 #include "shaper.h"
 #include "crypto.h"
@@ -101,6 +102,13 @@ static const char usage_message[] =
   "                  'no'    -- Never send DF (Don't Fragment) frames\n"
   "                  'maybe' -- Use per-route hints\n"
   "                  'yes'   -- Always DF (Don't Fragment)\n"
+#ifdef FRAGMENT_ENABLE
+  "--mtu-dynamic [min] [max] : Enable advanced MTU negotiation and datagram\n"
+  "                  fragmentation, automatic MTU size negotiation between min\n"
+  "                  and max, adds 4 octets of overhead per datagram.\n"
+  "--mtu-noicmp    : Don't automatically generate 'Fragmentation needed but\n"
+  "                  DF set' IPv4 ICMP messages.\n" 
+#endif
   "--mlock         : Disable Paging -- ensures key material and tunnel\n"
   "                  data will never be written to disk.\n"
   "--up cmd        : Shell cmd to execute after successful tun device open.\n"
@@ -244,9 +252,12 @@ init_options (struct options *o)
   o->local_port = o->remote_port = 5000;
   o->verbosity = 1;
   o->bind_local = true;
-  o->tun_mtu = DEFAULT_TUN_MTU;
-  o->udp_mtu = DEFAULT_UDP_MTU;
+  o->tun_mtu = TUN_MTU_DEFAULT;
+  o->udp_mtu = UDP_MTU_DEFAULT;
   o->mtu_discover_type = -1;
+#ifdef FRAGMENT_ENABLE
+  o->mtu_icmp = true;
+#endif
 #ifdef USE_LZO
   o->comp_lzo_adaptive = true;
 #endif
@@ -258,7 +269,7 @@ init_options (struct options *o)
   o->packet_id = true;
   o->iv = true;
 #ifdef USE_SSL
-  o->tls_timeout = 5;
+  o->tls_timeout = 2;
   o->renegotiate_seconds = 3600;
   o->handshake_window = 60;
   o->transition_window = 3600;
@@ -312,6 +323,14 @@ show_settings (const struct options *o)
   SHOW_INT (udp_mtu);
   SHOW_BOOL (udp_mtu_defined);
   SHOW_INT (tun_mtu_extra);
+#ifdef FRAGMENT_ENABLE
+  SHOW_BOOL (mtu_dynamic);
+  SHOW_INT (mtu_min);
+  SHOW_BOOL (mtu_min_defined);
+  SHOW_INT (mtu_max);
+  SHOW_BOOL (mtu_max_defined);
+  SHOW_BOOL (mtu_icmp);
+#endif
   SHOW_INT (mtu_discover_type);
   SHOW_BOOL (mlock);
   SHOW_INT (inactivity_timeout);
@@ -400,14 +419,21 @@ show_settings (const struct options *o)
  * Build an options string to represent data channel encryption options.
  * This string must match exactly between peers.  The keysize is checked
  * separately by read_key().
- *
- * TODO: add --dev-type tun|tap|null to TLS negotiation string using dev_type_string()
  */
 char *
 options_string (const struct options *o)
 {
   struct buffer out = alloc_buf (256);
   buf_printf (&out, "V1");
+#ifdef STRICT_OPTIONS_CHECK
+  buf_printf (&out, " --dev-type %s", dev_type_string (o->dev, o->dev_type));
+  if (o->udp_mtu_defined)
+    buf_printf (&out, " --udp-mtu %d", o->udp_mtu);
+  if (o->tun_mtu_defined)
+    buf_printf (&out, " --tun-mtu %d", o->tun_mtu);
+  if (o->tun_ipv6)
+    buf_printf (&out, " --tun-ipv6");
+#endif
   if (o->ciphername_defined)
     buf_printf (&out, " --cipher %s", o->ciphername);
   if (o->authname_defined)
@@ -421,10 +447,30 @@ options_string (const struct options *o)
   if (o->comp_lzo)
     buf_printf (&out, " --comp-lzo");
 #endif
-  return out.data;
+#ifdef FRAGMENT_ENABLE
+  if (o->mtu_dynamic)
+    buf_printf (&out, " --mtu-dynamic");
+#endif
+  return BSTR (&out);
 }
 
 #endif
+
+/*
+ * Compare option strings for equality.
+ * If the first two chars of the strings differ, it means that
+ * we are looking at different versions of the options string,
+ * therefore don't compare them and return true.
+ */
+bool options_cmp_equal (const char *s1, const char *s2, size_t n)
+{
+#ifndef STRICT_OPTIONS_CHECK
+  if (strncmp (s1, s2, 2))
+    return true;
+  else
+#endif
+    return !strncmp (s1, s2, n);
+}
 
 static char *
 comma_to_space (const char *src)
@@ -802,6 +848,28 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
       ++i;
       options->tun_mtu_extra = positive (atoi (p2));
     }
+#ifdef FRAGMENT_ENABLE
+  else if (streq (p1, "mtu-dynamic"))
+    {
+      options->mtu_dynamic = true;
+      if (p2)
+	{
+	  if ((options->mtu_min = positive (atoi (p2))))
+	    options->mtu_min_defined = true;
+	  ++i;
+	}
+      if (p3)
+	{
+	  if ((options->mtu_max = positive (atoi (p3))))
+	    options->mtu_max_defined = true;
+	  ++i;
+	}
+    }
+  else if (streq (p1, "mtu-noicmp"))
+    {
+      options->mtu_icmp = false;
+    }
+#endif
   else if (streq (p1, "mtu-disc") && p2)
     {
       ++i;
@@ -1146,7 +1214,7 @@ parse_argv (struct options* options, int argc, char *argv[])
 	  if (!strncmp (p2, "--", 2))
 	    p2 = NULL;
 	}
-      if (i + 2 < argc)
+      if (i + 2 < argc && p2)
 	{
 	  p3 = argv[i + 2];
 	  if (!strncmp (p3, "--", 2))

@@ -62,7 +62,18 @@ struct options
   int udp_mtu;          /* MTU of device over which tunnel packets pass via UDP */
   bool tun_mtu_defined; /* true if user overriding parm with command line option */
   bool udp_mtu_defined; /* true if user overriding parm with command line option */
-  int mtu_discover_type;
+
+  /* Advanced MTU negotiation and datagram fragmentation options */
+  int mtu_discover_type; /* used if OS supports setting Path MTU discovery options on socket */
+#ifdef FRAGMENT_ENABLE
+  bool mtu_dynamic;             /* should we fragment and reassemble packets? */
+  int mtu_min;
+  bool mtu_min_defined;
+  int mtu_max;
+  bool mtu_max_defined;
+  bool mtu_icmp;         /* if fragment=true, bounce back "fragmentation needed but DF set" ICMPs */
+#endif
+
   bool mlock;
   int inactivity_timeout;
   int ping_send_timeout;        /* Send a UDP ping to remote every n seconds */
@@ -173,3 +184,5 @@ char *options_string (const struct options *o);
 void parse_argv (struct options* options, int argc, char *argv[]);
 
 bool string_defined_equal (const char *s1, const char *s2);
+
+int options_cmp_equal (const char *s1, const char *s2, size_t n);

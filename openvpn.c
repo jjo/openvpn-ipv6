@@ -41,6 +41,7 @@
 #include "shaper.h"
 #include "thread.h"
 #include "interval.h"
+#include "fragment.h"
 #include "openvpn.h"
 
 #include "memdbg.h"
@@ -70,8 +71,9 @@ signal_handler_exit (int signum)
  */
 #if defined(USE_CRYPTO) && defined(USE_SSL)
 #define TLS_MODE (tls_multi != NULL)
+#define PROTO_DUMP_FLAGS (check_debug_level (D_UDP_RW_VERBOSE) ? (PD_SHOW_DATA|PD_VERBOSE) : 0)
 #define PROTO_DUMP(buf) protocol_dump(buf, \
-				      PD_SHOW_DATA | \
+				      PROTO_DUMP_FLAGS | \
 				      (tls_multi ? PD_TLS : 0) | \
 				      (options->tls_auth_file ? ks->key_type.hmac_length : 0) \
 				      )
@@ -79,42 +81,6 @@ signal_handler_exit (int signum)
 #define TLS_MODE (false)
 #define PROTO_DUMP(buf) format_hex (BPTR (buf), BLEN (buf), 80)
 #endif
-
-static void print_frame_parms(int level, const struct frame *frame, const char* prefix)
-{
-  msg (level, "%s: mtu=%d extra_frame=%d extra_buffer=%d extra_tun=%d",
-       prefix,
-       frame->mtu,
-       frame->extra_frame,
-       frame->extra_buffer,
-       frame->extra_tun);
-}
-
-/*
- * Finish initialization of the frame MTU parameters
- * based on command line options and buffering requirements.
- */
-static void
-frame_finalize(struct frame *frame, const struct options *options)
-{
-  if (options->tun_mtu_defined)
-    {
-      frame->mtu = options->tun_mtu;
-    }
-  else
-    {
-      ASSERT (options->udp_mtu_defined);
-      frame->mtu = options->udp_mtu - frame->extra_frame - options->tun_mtu_extra;
-    }
-
-  if (frame->mtu < MIN_TUN_MTU)
-    {
-      msg (M_WARN, "TUN MTU value must be at least %d", MIN_TUN_MTU);
-      print_frame_parms (M_FATAL, frame, "MTU is too small");
-    }
-
-  frame->extra_buffer += frame->extra_frame + frame->extra_tun;
-}
 
 #if defined(USE_PTHREAD) && defined(USE_CRYPTO)
 static void *test_crypto_thread (void *arg);
@@ -169,6 +135,32 @@ static inline void packet_id_persist_init (struct packet_id_persist *p) {}
 #endif
 
 /*
+ * Finalize MTU parameters based on command line or config file options.
+ */
+static void
+frame_finalize_options (struct frame *frame, const struct options *options)
+{
+
+  frame_finalize (frame,
+		  options->udp_mtu_defined,
+		  options->udp_mtu,
+		  options->tun_mtu_defined,
+		  options->tun_mtu,
+#ifdef FRAGMENT_ENABLE
+		  options->mtu_min_defined,
+		  options->mtu_min,
+		  options->mtu_max_defined,
+		  options->mtu_max
+#else
+		  false,
+		  0,
+		  false,
+		  0
+#endif
+		  );
+}
+
+/*
  * Do the work.  Initialize and enter main event loop.
  * Called after command line has been parsed.
  *
@@ -207,6 +199,7 @@ openvpn (const struct options *options,
   struct buffer to_tun = clear_buf ();
   struct buffer to_udp = clear_buf ();
   struct buffer buf = clear_buf ();
+  struct buffer ping_buf = clear_buf ();
   struct buffer nullbuf = clear_buf ();
 
   /* tells us to free to_udp buffer after it has been written to UDP port */
@@ -222,6 +215,13 @@ openvpn (const struct options *options,
 
   /* MTU frame parameters */
   struct frame frame;
+
+#ifdef FRAGMENT_ENABLE
+  /* Object to handle advanced MTU negotiation and datagram fragmentation */
+  struct fragment_master *fragment = NULL;
+  struct frame frame_fragment;
+  struct frame frame_fragment_omit;
+#endif
 
   /* Always set to current time. */
   time_t current;
@@ -320,6 +320,11 @@ openvpn (const struct options *options,
   struct buffer read_tun_buf = clear_buf ();
 
   /*
+   * IPv4 TUN device?
+   */
+  bool ipv4_tun = (!options->tun_ipv6 && is_dev_type (options->dev, options->dev_type, "tun"));
+
+  /*
    * Special handling if signal arrives before
    * we are properly initialized.
    */
@@ -334,6 +339,9 @@ openvpn (const struct options *options,
 
   CLEAR (udp_socket);
   CLEAR (frame);
+#ifdef FRAGMENT_ENABLE
+  CLEAR (frame_fragment_omit);
+#endif
 
   if (first_time)
     {
@@ -350,6 +358,14 @@ openvpn (const struct options *options,
       /* chroot if requested */
       do_chroot (options->chroot_dir);
     }
+
+  /*
+   * Initialize advanced MTU negotiation and datagram fragmentation
+   */
+#ifdef FRAGMENT_ENABLE
+  if (options->mtu_dynamic)
+    fragment = fragment_init (&frame);
+#endif
 
 #ifdef USE_CRYPTO
   /* load a persisted packet-id for cross-session replay-protection */
@@ -453,7 +469,8 @@ openvpn (const struct options *options,
 	  if (first_time)
 	    work_thread_create(test_crypto_thread, (struct options*) options);
 #endif
-	  frame_finalize (&frame, options);
+	  frame_finalize_options (&frame, options);
+
 	  test_crypto (&crypto_options, &frame);
 	  key_schedule_free (ks);
 	  signal_received = 0;
@@ -589,6 +606,9 @@ openvpn (const struct options *options,
     {
       lzo_compress_init (&lzo_compwork, options->comp_lzo_adaptive);
       lzo_adjust_frame_parameters (&frame);
+#ifdef FRAGMENT_ENABLE
+      lzo_adjust_frame_parameters (&frame_fragment_omit); /* omit LZO frame delta from final frame_fragment */
+#endif
     }
 #endif
 
@@ -601,9 +621,25 @@ openvpn (const struct options *options,
    * Fill in the blanks in the frame parameters structure,
    * make sure values are rational, etc.
    */
-  frame_finalize (&frame, options);
+  frame_finalize_options (&frame, options);
+
+  /*
+   * Set frame parameter for fragment code.  This is necessary because
+   * the fragmentation code deals with payloads which have already been
+   * passed through the compression code.
+   */
+#ifdef FRAGMENT_ENABLE
+  frame_fragment = frame;
+  frame_subtract_extra (&frame_fragment, &frame_fragment_omit);
+  frame_dynamic_finalize (&frame_fragment);
+#endif
+
   max_rw_size_udp = MAX_RW_SIZE_UDP (&frame);
-  print_frame_parms (D_SHOW_PARMS, &frame, "Data Channel MTU parms");
+  frame_print (&frame, D_SHOW_PARMS, "Data Channel MTU parms");
+#ifdef FRAGMENT_ENABLE
+  if (fragment)
+    frame_print (&frame_fragment, D_FRAG_DEBUG, "Fragmentation MTU parms");
+#endif
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
   if (tls_multi)
@@ -614,7 +650,7 @@ openvpn (const struct options *options,
       size = MAX_RW_SIZE_UDP (&tls_multi->opt.frame);
       if (size > max_rw_size_udp)
 	max_rw_size_udp = size;
-      print_frame_parms (D_SHOW_PARMS, &tls_multi->opt.frame, "Control Channel MTU parms");
+      frame_print (&tls_multi->opt.frame, D_SHOW_PARMS, "Control Channel MTU parms");
     }
 #endif
 
@@ -639,13 +675,19 @@ openvpn (const struct options *options,
     }
 #endif
 
+#ifdef FRAGMENT_ENABLE
+  /* fragmenting code has buffers to initialize once frame parameters are known */
+  if (fragment)
+    fragment_frame_init (fragment, &frame_fragment, (options->mtu_icmp && ipv4_tun));
+#endif
+
   if (!tuntap_defined (tuntap))
     {
       /* do ifconfig */
       if (ifconfig_order() == IFCONFIG_BEFORE_TUN_OPEN)
 	do_ifconfig (options->dev, options->dev_type,
 		     options->ifconfig_local, options->ifconfig_remote,
-		     MTU_SIZE (&frame));
+		     TUN_MTU_SIZE (&frame));
 
       /* open the tun device */
       open_tun (options->dev, options->dev_type, options->dev_node, options->dev_name, options->tun_ipv6, tuntap);
@@ -654,10 +696,10 @@ openvpn (const struct options *options,
       if (ifconfig_order() == IFCONFIG_AFTER_TUN_OPEN)
 	do_ifconfig (tuntap->actual, options->dev_type,
 		     options->ifconfig_local, options->ifconfig_remote,
-		     MTU_SIZE (&frame));
+		     TUN_MTU_SIZE (&frame));
 
       /* run the up script */
-      run_script (options->up_script, tuntap->actual, MTU_SIZE (&frame),
+      run_script (options->up_script, tuntap->actual, TUN_MTU_SIZE (&frame),
 		  max_rw_size_udp, options->ifconfig_local, options->ifconfig_remote);
     }
   else
@@ -667,7 +709,10 @@ openvpn (const struct options *options,
 
   /* initialize traffic shaper (i.e. transmit bandwidth limiter) */
   if (options->shaper)
-    shaper_init (&shaper, options->shaper);
+    {
+      shaper_init (&shaper, options->shaper);
+      shaper_msg (&shaper);
+    }
 
   /* drop privileges if requested */
   if (first_time)
@@ -719,7 +764,10 @@ openvpn (const struct options *options,
   /* initialize pings */
 
   if (options->ping_send_timeout)
-    event_timeout_init (&ping_send_interval, 0, options->ping_send_timeout);
+    {
+      ping_buf = alloc_buf (BUF_SIZE (&frame));
+      event_timeout_init (&ping_send_interval, 0, options->ping_send_timeout);
+    }
 
   if (options->ping_rec_timeout)
     event_timeout_init (&ping_rec_interval, current, options->ping_rec_timeout);
@@ -731,8 +779,7 @@ openvpn (const struct options *options,
 #else
   /* initialize tmp_int optimization that limits the number of times we call
      tls_multi_process in the main event loop */
-  CLEAR (tmp_int);
-  interval_trigger (&tmp_int, current);
+  interval_init (&tmp_int, TLS_MULTI_HORIZON, TLS_MULTI_REFRESH);
 #endif
 #endif
 
@@ -769,21 +816,28 @@ openvpn (const struct options *options,
        */
       if (tls_multi)
 	{
-	  time_t t = 0;
+	  interval_t wakeup = 0;
 
 	  if (interval_test (&tmp_int, current))
 	    {
-	      if (tls_multi_process (tls_multi, &to_udp, &to_udp_addr, &udp_socket, &t, current))
-		interval_trigger(&tmp_int, current);
-	    }
-	  interval_set_timeout (&tmp_int, current, &t);
+	      if (tls_multi_process (tls_multi, &to_udp, &to_udp_addr, &udp_socket, &wakeup, current))
+		interval_action (&tmp_int, current);
 
-	  tv = &timeval;
-	  timeval.tv_sec = t;
-	  timeval.tv_usec = 0;
-	  free_to_udp = false;
+	      interval_future_trigger (&tmp_int, wakeup, current);
+	      free_to_udp = false;
+	    }
+
+	  interval_schedule_wakeup (&tmp_int, current, &wakeup);
+
+	  if (wakeup)
+	    {
+	      timeval.tv_sec = wakeup;
+	      timeval.tv_usec = 0;
+	      tv = &timeval;
+	    }
 	}
 #endif
+
 
       current = time (NULL);
 
@@ -830,6 +884,67 @@ openvpn (const struct options *options,
 	  tv = &timeval;
 	}
 
+#ifdef FRAGMENT_ENABLE
+      /*
+       * Should we deliver a datagram fragment to remote?
+       */
+      if (fragment)
+	{
+	  /* OS MTU Hint? */
+	  if (ipv4_tun && udp_socket.mtu_changed)
+	    {
+	      frame_adjust_path_mtu (&frame_fragment, udp_socket.mtu);
+	      udp_socket.mtu_changed = false;
+	      fragment_received_os_mtu_hint (fragment, &frame_fragment);
+	    }
+	  if (!to_udp.len && fragment_ready_to_send (fragment, &buf, &frame_fragment, current))
+	    {
+#ifdef USE_CRYPTO
+#ifdef USE_SSL
+	      /*
+	       * If TLS mode, get the key we will use to encrypt
+	       * the packet.
+	       */
+	      mutex_lock (L_TLS);
+	      if (tls_multi)
+		tls_pre_encrypt (tls_multi, &buf, &crypto_options);
+#endif
+	      /*
+	       * Encrypt the packet and write an optional
+	       * HMAC authentication record.
+	       */
+	      openvpn_encrypt (&buf, encrypt_buf, &crypto_options, &frame, current);
+#endif
+	      /*
+	       * Get the address we will be sending the packet to.
+	       */
+	      udp_socket_get_outgoing_addr (&buf, &udp_socket,
+					    &to_udp_addr);
+#ifdef USE_CRYPTO
+#ifdef USE_SSL
+	      /*
+	       * In TLS mode, prepend the appropriate one-byte opcode
+	       * to the packet which identifies it as a data channel
+	       * packet and gives the low-permutation version of
+	       * the key-id to the recipient so it knows which
+	       * decrypt key to use.
+	       */
+	      if (tls_multi)
+		tls_post_encrypt (tls_multi, &buf);
+	      mutex_unlock (L_TLS);
+#endif
+#endif
+	      to_udp = buf;
+	      free_to_udp = false;
+	    }
+	  if (!to_tun.len && fragment_icmp (fragment, &buf, &frame_fragment, current))
+	    {
+	      to_tun = buf;
+	    }
+	  fragment_housekeeping (fragment, &frame_fragment, current, &timeval);
+	}
+#endif /* FRAGMENT_ENABLE */
+
       /*
        * Should we ping the remote?
        */
@@ -839,7 +954,7 @@ openvpn (const struct options *options,
 	    {
 	      if (event_timeout_trigger (&ping_send_interval, current))
 		{
-		  buf = read_tun_buf;
+		  buf = ping_buf;
 		  ASSERT (buf_init (&buf, EXTRA_FRAME (&frame)));
 		  ASSERT (buf_safe (&buf, MAX_RW_SIZE_TUN (&frame)));
 		  ASSERT (buf_write (&buf, ping_string, sizeof (ping_string)));
@@ -851,6 +966,10 @@ openvpn (const struct options *options,
 #ifdef USE_LZO
 		  if (options->comp_lzo)
 		    lzo_compress (&buf, lzo_compress_buf, &lzo_compwork, &frame, current);
+#endif
+#ifdef FRAGMENT_ENABLE
+		  if (fragment)
+		    fragment_outgoing (fragment, &buf, &frame_fragment, current);
 #endif
 #ifdef USE_CRYPTO
 #ifdef USE_SSL
@@ -891,30 +1010,38 @@ openvpn (const struct options *options,
 
       if (to_udp.len > 0)
 	{
+	  /*
+	   * If sending this packet would put us over our traffic shaping
+	   * quota, don't send -- instead compute the delay we must wait
+	   * until it will be OK to send the packet.
+	   */
+	  int delay = 0;
+
+#ifdef FRAGMENT_ENABLE
+	  /* fragmenting code needs an adaptive bandwidth throttle */
+	  if (fragment)
+	    delay = shaper_delay (&fragment->shaper);
+#endif
+
+	  /* set traffic shaping delay in microseconds */
 	  if (options->shaper)
+	    delay = max_int (delay, shaper_delay (&shaper));
+
+	  if (delay)
 	    {
-	      /*
-	       * If sending this packet would put us over our traffic shaping
-	       * quota, don't send -- instead compute the delay we must wait
-	       * until it will be OK to send the packet.
-	       */
-	      const int delay = shaper_delay (&shaper); /* traffic shaping delay in microseconds */
-	      if (delay)
-		{
-		  shaper_soonest_event (&timeval, delay);
-		  tv = &timeval;
-		}
-	      else
-		{
-		  FD_SET (udp_socket.sd, &writes);
-		}
+	      shaper_soonest_event (&timeval, delay);
+	      tv = &timeval;
 	    }
 	  else
 	    {
 	      FD_SET (udp_socket.sd, &writes);
 	    }
 	}
+#ifdef FRAGMENT_ENABLE
+      else if (!fragment || !fragment_outgoing_defined (fragment))
+#else
       else
+#endif
 	{
 	  if (tuntap->fd >= 0)
 	    FD_SET (tuntap->fd, &reads);
@@ -1035,8 +1162,8 @@ openvpn (const struct options *options,
 	      }
 
 	      /* log incoming packet */
-	      msg (D_PACKET_CONTENT, "UDP READ from %s: %s",
-		   print_sockaddr (&from), PROTO_DUMP (&buf));
+	      msg (D_UDP_RW, "UDP READ [%d] from %s: %s",
+		   BLEN (&buf), print_sockaddr (&from), PROTO_DUMP (&buf));
 
 	      /*
 	       * Good, non-zero length packet received.
@@ -1075,7 +1202,7 @@ openvpn (const struct options *options,
 			      break;
 			    }
 #else
-			  interval_trigger(&tmp_int, current);
+			  interval_action (&tmp_int, current);
 #endif /* USE_PTHREAD */
 			  /* reset packet received timer if TLS packet */
 			  if (options->ping_rec_timeout)
@@ -1087,8 +1214,12 @@ openvpn (const struct options *options,
 		  openvpn_decrypt (&buf, decrypt_buf, &crypto_options, &frame, current);
 #ifdef USE_SSL
 		  mutex_unlock (L_TLS);
-#endif
+#endif /* USE_SSL */
 #endif /* USE_CRYPTO */
+#ifdef FRAGMENT_ENABLE
+		  if (fragment)
+		    fragment_incoming (fragment, &buf, &frame_fragment, current);
+#endif
 #ifdef USE_LZO
 		  /* decompress the incoming packet */
 		  if (options->comp_lzo)
@@ -1199,6 +1330,10 @@ openvpn (const struct options *options,
 		  /* Compress the packet. */
 		  if (options->comp_lzo)
 		    lzo_compress (&buf, lzo_compress_buf, &lzo_compwork, &frame, current);
+#endif
+#ifdef FRAGMENT_ENABLE
+		  if (fragment)
+		    fragment_outgoing (fragment, &buf, &frame_fragment, current);
 #endif
 #ifdef USE_CRYPTO
 #ifdef USE_SSL
@@ -1320,6 +1455,10 @@ openvpn (const struct options *options,
 		       */
 		      if (options->shaper)
 			shaper_wrote_bytes (&shaper, BLEN (&to_udp));
+#ifdef FRAGMENT_ENABLE
+		      if (fragment)
+			fragment_post_send (fragment, BLEN (&to_udp));
+#endif
 
 		      /*
 		       * Let the pinger know that we sent a packet.
@@ -1358,8 +1497,8 @@ openvpn (const struct options *options,
 		    }
 
 		  /* Log packet send */
-		  msg (D_PACKET_CONTENT, "UDP WRITE to %s: %s",
-		       print_sockaddr (&to_udp_addr), PROTO_DUMP (&to_udp));
+		  msg (D_UDP_RW, "UDP WRITE [%d] to %s: %s",
+		       BLEN (&to_udp), print_sockaddr (&to_udp_addr), PROTO_DUMP (&to_udp));
 		}
 	      else
 		{
@@ -1398,6 +1537,7 @@ openvpn (const struct options *options,
 
   free_buf (&read_udp_buf);
   free_buf (&read_tun_buf);
+  free_buf (&ping_buf);
 
 #ifdef USE_LZO
   if (options->comp_lzo)
@@ -1454,7 +1594,7 @@ openvpn (const struct options *options,
 
       /* Run the down script -- note that it will run at reduced
 	 privilege if, for example, "--user nobody" was used. */
-      run_script (options->down_script, tuntap_actual, MTU_SIZE (&frame),
+      run_script (options->down_script, tuntap_actual, TUN_MTU_SIZE (&frame),
 		  max_rw_size_udp, options->ifconfig_local, options->ifconfig_remote);
     }
 
@@ -1465,6 +1605,14 @@ openvpn (const struct options *options,
   packet_id_persist_save (pid_persist);
   if ( !(signal_received == SIGUSR1) )
     packet_id_persist_close (pid_persist);
+#endif
+
+  /*
+   * Close fragmentation handler.
+   */
+#ifdef FRAGMENT_ENABLE
+  if (fragment)
+    fragment_free (fragment);
 #endif
 
  done:
@@ -1486,8 +1634,10 @@ main (int argc, char *argv[])
   bool first_time = true;
   int sig;
 
-  error_reset ();                /* initialize error.c */
-  reset_check_status ();         /* initialize status check code in socket.c */
+  init_random_seed();                  /* init random() function, only used as
+					  source for weak random numbers */
+  error_reset ();                      /* initialize error.c */
+  reset_check_status ();               /* initialize status check code in socket.c */
 
 #ifdef OPENVPN_DEBUG_COMMAND_LINE
   {
@@ -1620,7 +1770,7 @@ main (int argc, char *argv[])
        */
       if (options.tun_mtu_defined && options.udp_mtu_defined)
 	{
-	  msg (M_WARN, "Options error: only one of --tun-mtu or --udp-mtu may be defined (note that --ifconfig implies --udp-mtu %d)", DEFAULT_UDP_MTU);
+	  msg (M_WARN, "Options error: only one of --tun-mtu or --udp-mtu may be defined (note that --ifconfig implies --udp-mtu %d)", UDP_MTU_DEFAULT);
 	  usage_small ();
 	}
 
@@ -1763,6 +1913,11 @@ main (int argc, char *argv[])
 #endif
 
  exit:
+
+#if defined(MEASURE_TLS_HANDSHAKE_STATS) && defined(USE_CRYPTO) && defined(USE_SSL)
+  show_tls_performance_stats();
+#endif
+
   /* pop our garbage collection level */
   gc_free_level (gc_level);
 

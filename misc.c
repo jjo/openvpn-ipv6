@@ -32,6 +32,7 @@
 #include "tun.h"
 #include "error.h"
 #include "openvpn.h"
+#include "thread.h"
 
 #include "memdbg.h"
 
@@ -291,10 +292,54 @@ system_error_message (int stat)
 /*
  * Run system(), exiting on error.
  */
-void
+bool
 system_check (const char* command, const char* error_message, bool fatal)
 {
   const int stat = openvpn_system (command);
-  if (error_message && !system_ok (stat))
-    msg ((fatal ? M_FATAL : M_WARN), "%s: %s", error_message, system_error_message (stat));
+  if (system_ok (stat))
+    return true;
+  else
+    {
+      if (error_message)
+	msg ((fatal ? M_FATAL : M_WARN), "%s: %s", error_message, system_error_message (stat));
+      return false;
+    }
+}
+
+/*
+ * Initialize random number seed.  random() is only used when "weak" random numbers
+ * are acceptable.  OpenSSL routines are always used when cryptographically strong
+ * random numbers are required.
+ */
+
+void
+init_random_seed()
+{
+#ifndef USE_CRYPTO
+  struct timeval tv;
+
+  if (!gettimeofday (&tv, NULL))
+    {
+      const unsigned int seed = (unsigned int) tv.tv_sec ^ tv.tv_usec;
+      srandom (seed);
+    }
+#endif
+}
+
+/* format a time_t as ascii, or use current time if 0 */
+
+const char*
+time_string (time_t t)
+{
+  struct buffer out = alloc_buf_gc (64);
+
+  if (!t)
+    t = time (NULL);
+
+  mutex_lock (L_CTIME);
+  buf_printf (&out, "%s", ctime (&t));
+  mutex_unlock (L_CTIME);
+  buf_chomp (&out);
+
+  return BSTR (&out);
 }

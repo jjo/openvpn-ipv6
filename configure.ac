@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.2.20], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.2.21], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -57,6 +57,12 @@ AC_ARG_ENABLE(strict,
    [  --enable-strict         Enable strict compiler warnings],
    [STRICT="$enableval"],
    [STRICT="no"]
+)
+
+AC_ARG_ENABLE(strict-options,
+   [  --enable-strict-options Enable strict options check between peers],
+   [STRICT_OPTIONS="$enableval"],
+   [STRICT_OPTIONS="no"]
 )
 
 AC_ARG_WITH(ssl-headers,
@@ -159,8 +165,8 @@ AC_CHECK_HEADERS(sys/time.h sys/socket.h sys/ioctl.h sys/stat.h dnl
 		 net/if_tun.h net/if.h stropts.h sys/sockio.h dnl
 		 netinet/in.h netinet/in_systm.h netinet/ip.h dnl
 		 netinet/if_ether.h netinet/tcp.h resolv.h arpa/inet.h dnl
-		 netdb.h sys/uio.h linux/if_tun.h dnl
-		 linux/types.h linux/sockios.h linux/errqueue.h
+		 netdb.h sys/uio.h linux/if_tun.h linux/sockios.h dnl
+		 linux/types.h linux/errqueue.h
 )
 AC_CACHE_SAVE
 
@@ -199,7 +205,6 @@ AC_CHECK_TYPE(
 	[AC_DEFINE(HAVE_IOVEC, 1, [struct iovec needed for IPv6 support])],
 	[],
 	[#include "syshead.h"])
-AC_CACHE_SAVE
 
 dnl check for extended socket error types
 AC_CHECK_TYPE(
@@ -382,6 +387,11 @@ fi
 dnl enable strict compiler warnings
 if test "$STRICT" = "yes"; then
    CFLAGS="$CFLAGS -Wall -W -Wpointer-arith -Wsign-compare -Winline"
+fi
+
+dnl enable strict options check between peers
+if test "$STRICT_OPTIONS" = "yes"; then
+   AC_DEFINE(STRICT_OPTIONS_CHECK, 1, [Enable strict options check between peers])
 fi
 
 AC_OUTPUT(Makefile openvpn.spec)

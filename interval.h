@@ -32,62 +32,118 @@
  * of a trigger.
  *
  * If we are optimizing, we will call routine at least once
- * per I_INTERVAL seconds.
+ * per I_REFRESH seconds.
  */
 
-/* TLS time constants */
+#ifndef INTERVAL_H
+#define INTERVAL_H
 
-#define TLS_MULTI_REFRESH 15    /* seconds */
-#define TLS_MULTI_HORIZON 60    /* seconds */
+#include "error.h"
+#include "common.h"
 
 /*
- * Interval test is true at least once per n seconds.
+ * Used to determine in how many seconds we should be
+ * called again.
  */
-#define I_INTERVAL TLS_MULTI_REFRESH
+static inline void
+interval_earliest_wakeup (interval_t *wakeup, time_t at, time_t current) {
+  if (at > current)
+    {
+      const interval_t delta = at - current;
+      if (!*wakeup || delta < *wakeup)
+	*wakeup = delta;
+    }
+}
 
 /*
- * Seconds after last trigger or before next timeout,
+ * Designed to limit calls to expensive functions that need to be called
+ * regularly.
  */
-#define I_HORIZON  TLS_MULTI_HORIZON
 
 struct interval
 {
-  time_t last_trigger;
-  time_t last_call;
-  bool select_timeout;
+  interval_t refresh;
+  interval_t horizon;
+  time_t future_trigger;
+  time_t last_action;
+  time_t last_test_true;
 };
+
+static inline void
+interval_init (struct interval *top, int horizon, int refresh)
+{
+  CLEAR (*top);
+  top->refresh = refresh;
+  top->horizon = horizon;
+}
+
+/*
+ * IF
+ *   last_action less than horizon seconds ago
+ *   OR last_test_true more than refresh seconds ago
+ *   OR hit future_trigger
+ * THEN
+ *   return true
+ * ELSE
+ *   set wakeup to the number of seconds until a true return
+ *   return false
+ */
 
 static inline bool
 interval_test (struct interval* top, time_t current)
 {
-  if (top->last_trigger + I_HORIZON < current &&
-      !(top->select_timeout || top->last_call + I_INTERVAL < current))
-    return false;
+  bool trigger = false;
 
-  msg (D_TLS_DEBUG, "INTERVAL TEST SUCCEEDED");
-  top->select_timeout = false;
-  top->last_call = current;
-  return true;
+
+  if (top->future_trigger && current >= top->future_trigger)
+    {
+      trigger = true;
+      top->future_trigger = 0;
+    }
+
+  if (top->last_action + top->horizon > current ||
+      top->last_test_true + top->refresh <= current ||
+      trigger)
+    {
+      top->last_test_true = current;
+      msg (D_INTERVAL, "INTERVAL interval_test true");
+      return true;
+    }
+  else
+    {
+      return false;
+    }
 }
 
 static inline void
-interval_trigger (struct interval* top, time_t at) {
-  msg (D_TLS_DEBUG, "INTERVAL TRIGGER");
-  top->last_trigger = at;
+interval_schedule_wakeup (struct interval* top, time_t current, interval_t *wakeup)
+{
+  interval_earliest_wakeup (wakeup, top->last_test_true + top->refresh, current);
+  interval_earliest_wakeup (wakeup, top->future_trigger, current);
+  msg (D_INTERVAL, "INTERVAL interval_schedule wakeup=%d", (int)*wakeup);
 }
 
+/*
+ * In wakeup seconds, interval_test will return true once.
+ */
 static inline void
-interval_select_timeout (struct interval* top) {
-  top->select_timeout = true;
+interval_future_trigger (struct interval* top, interval_t wakeup, time_t current) {
+  if (wakeup)
+    {
+      msg (D_INTERVAL, "INTERVAL interval_future_trigger %d", (int)wakeup);
+      top->future_trigger = current + wakeup;
+    }
 }
 
+/*
+ * Once an action is triggered, interval_test will remain true for
+ * horizon seconds.
+ */
 static inline void
-interval_set_timeout (struct interval* top, time_t current, time_t* timeout) {
-  const int to = *timeout;
-  if (to && to < I_HORIZON)
-    interval_trigger (top, current + to);
-  if (!to || to > I_INTERVAL)
-    *timeout = I_INTERVAL;
+interval_action (struct interval* top, time_t current)
+{
+  msg (D_INTERVAL, "INTERVAL action");
+  top->last_action = current;
 }
 
 /*
@@ -96,12 +152,12 @@ interval_set_timeout (struct interval* top, time_t current, time_t* timeout) {
 
 struct event_timeout
 {
-  int n;
+  interval_t n;
   time_t last; /* time of last event */
 };
 
 static inline void
-event_timeout_init (struct event_timeout* et, time_t current, int n)
+event_timeout_init (struct event_timeout* et, time_t current, interval_t n)
 {
   et->n = n;
   et->last = current;
@@ -118,7 +174,7 @@ event_timeout_trigger (struct event_timeout* et, time_t current)
 {
   if (et->n && et->last + et->n <= current)
     {
-      msg (D_TLS_DEBUG, "ELAPSED TRIGGER (%d)", et->n);
+      msg (D_INTERVAL, "EVENT event_timeout_trigger (%d)", et->n);
       et->last = current;
       return true;
     }
@@ -133,8 +189,10 @@ event_timeout_wakeup (struct event_timeout* et, time_t current, struct timeval* 
       const int wakeup = et->last + et->n - current;
       if (wakeup > 0 && (!tv->tv_sec || wakeup < tv->tv_sec))
 	{
-	  msg (D_TLS_DEBUG, "ELAPSED SOONEST (%d/%d)", wakeup, et->n);
+	  msg (D_INTERVAL, "EVENT event_timeout_wakeup (%d/%d)", wakeup, et->n);
 	  tv->tv_sec = wakeup;
 	}
     }
 }
+
+#endif /* INTERVAL_H */

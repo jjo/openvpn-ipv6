@@ -105,6 +105,7 @@
 #define S_SENT_KEY        4	/* client does S_SENT_KEY -> S_GOT_KEY */
 #define S_GOT_KEY         5	/* server does S_GOT_KEY -> S_SENT_KEY */
 #define S_ACTIVE          6	/* ready to exchange data channel packets */
+#define S_NORMAL          7	/* normal operations */
 
 /*
  * Are we ready to receive data channel packets?
@@ -123,12 +124,40 @@
   ((op) == P_CONTROL_HARD_RESET_CLIENT_V1 \
   || (op) == P_CONTROL_HARD_RESET_SERVER_V1)
 
+/* Should we aggregate TLS acknowledgements, and tack them onto control packets? */
+/* #define TLS_AGGREGATE_ACK */
+
 /*
- * Max number of acknowledgments that
+ * If TLS_AGGREGATE_ACK, set the
+ * max number of acknowledgments that
  * can "hitch a ride" on an outgoing
  * non-P_ACK_V1 control packet.
  */
 #define CONTROL_SEND_ACK_MAX 4
+
+/*
+ * Define number of buffers for send and receive in the reliability layer.
+ */
+#define TLS_RELIABLE_N_SEND_BUFFERS  4
+#define TLS_RELIABLE_N_REC_BUFFERS   8
+
+/*
+ * Various timeouts
+ */
+ 
+#define TLS_MULTI_REFRESH 15    /* call tls_multi_process once every n seconds */
+#define TLS_MULTI_HORIZON 2     /* call tls_multi_process frequently for n seconds after
+				   every packet sent/received action */
+/*
+ * Buffer sizes (also see mtu.h).
+ */
+
+#define PLAINTEXT_BUFFER_SIZE 1024
+
+/*
+ * Measure success rate of TLS handshakes, for debugging only
+ */
+/* #define MEASURE_TLS_HANDSHAKE_STATS */
 
 /*
  * Represents a single instantiation of a TLS negotiation and
@@ -198,10 +227,10 @@ struct tls_options
   bool disable_occ;
   int transition_window;
   int handshake_window;
-  int packet_timeout;
+  interval_t packet_timeout;
   int renegotiate_bytes;
   int renegotiate_packets;
-  int renegotiate_seconds;
+  interval_t renegotiate_seconds;
 
   /* use 32 bit or 64 bit packet-id? */
   bool packet_id_long_form;
@@ -321,7 +350,7 @@ bool tls_multi_process (struct tls_multi *multi,
 			struct buffer *to_udp,
 			struct sockaddr_in *to_udp_addr,
 			struct udp_socket *to_udp_socket,
-			time_t * wakeup,
+			interval_t *wakeup,
 			time_t current);
 
 void tls_multi_free (struct tls_multi *multi, bool clear);
@@ -392,7 +421,17 @@ int tls_thread_rec_buf (int sd, struct tt_ret* ttr, bool do_check_status);
 #define PD_TLS_AUTH_HMAC_SIZE_MASK 0xFF
 #define PD_SHOW_DATA               (1<<8)
 #define PD_TLS                     (1<<9)
+#define PD_VERBOSE                 (1<<10)
 
 const char *protocol_dump (struct buffer *buffer, unsigned int flags);
+
+/*
+ * debugging code
+ */
+
+#ifdef MEASURE_TLS_HANDSHAKE_STATS
+void show_tls_performance_stats();
+#endif
+
 
 #endif /* USE_CRYPTO && USE_SSL */

@@ -44,6 +44,7 @@ struct udp_socket
   struct udp_socket_addr *addr;
   const char *ipchange_command;
   int mtu;                      /* OS discovered MTU, or 0 if unknown */
+  int mtu_changed;              /* Set to true when mtu value is changed */
   int sd;			/* file descriptor for socket */
 };
 
@@ -115,7 +116,7 @@ void x_check_status (int status, const char *description, struct udp_socket *soc
 static inline void
 check_status (int status, const char *description, struct udp_socket *sock)
 {
-  if ((status < 0 && errno != EAGAIN) || check_debug_level (x_cs_verbose_level))
+  if ((status < 0 /*&& errno != EAGAIN*/) || check_debug_level (x_cs_verbose_level))
     x_check_status (status, description, sock);
 }
 

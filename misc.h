@@ -23,6 +23,9 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifndef MISC_H
+#define MISC_H
+
 #include "basic.h"
 
 void set_user (const char *username);
@@ -51,5 +54,21 @@ int openvpn_system (const char *command);
 bool system_ok(int stat);
 const char *system_error_message (int stat);
 
-/* run system() with error check */
-void system_check (const char* command, const char* error_message, bool fatal);
+/* run system() with error check, return true if success,
+   false if error, exit if error and fatal==true */
+bool system_check (const char* command, const char* error_message, bool fatal);
+
+/* format a time_t as ascii, or use current time if 0 */
+const char* time_string (time_t t);
+
+/* init random() function, only used as source for weak random numbers, when !USE_CRYPTO */
+void init_random_seed();
+
+/* an analogue to the random() function, but use OpenSSL functions if available */
+#ifdef USE_CRYPTO
+long int get_random();
+#else
+#define get_random random
+#endif
+
+#endif

@@ -35,7 +35,7 @@
 #include "memdbg.h"
 
 static bool
-lzo_adaptive_compress_test(struct lzo_adaptive_compress *ac, const time_t time)
+lzo_adaptive_compress_test (struct lzo_adaptive_compress *ac, const time_t time)
 {
   const bool save = ac->compress_state;
 
@@ -77,7 +77,7 @@ lzo_adaptive_compress_test(struct lzo_adaptive_compress *ac, const time_t time)
 }
 
 inline static void
-lzo_adaptive_compress_data(struct lzo_adaptive_compress *ac, int n_total, int n_comp)
+lzo_adaptive_compress_data (struct lzo_adaptive_compress *ac, int n_total, int n_comp)
 {
   if (ac->enabled)
     {
@@ -86,14 +86,14 @@ lzo_adaptive_compress_data(struct lzo_adaptive_compress *ac, int n_total, int n_
     }
 }
 
-void lzo_adjust_frame_parameters(struct frame *frame)
+void lzo_adjust_frame_parameters (struct frame *frame)
 {
   /* Leave room for our one-byte compressed/didn't-compress flag. */
-  ++frame->extra_frame;
+  frame_add_to_extra_frame (frame, 1);
 
   /* Leave room for compression buffer to expand in worst case scenario
      where data is totally uncompressible */
-  frame->extra_buffer += LZO_EXTRA_BUFFER (EXPANDED_SIZE(frame));
+  frame_add_to_extra_buffer (frame, LZO_EXTRA_BUFFER (EXPANDED_SIZE(frame)));
 }
 
 void

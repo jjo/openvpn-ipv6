@@ -39,6 +39,8 @@
 #include "syshead.h"
 
 #include "packet_id.h"
+#include "misc.h"
+
 #include "memdbg.h"
 
 void
@@ -109,22 +111,16 @@ packet_id_test (const struct packet_id_rec *p, const struct packet_id_net *pin)
 }
 
 const char*
-packet_id_net_print (const struct packet_id_net *pin)
+packet_id_net_print (const struct packet_id_net *pin, bool print_timestamp)
 {
   struct buffer out = alloc_buf_gc (256);
   
   buf_printf (&out, "[ #" packet_id_format, pin->id);
-  if (pin->time)
-    {
-      mutex_lock (L_CTIME);
-      buf_printf (&out, " / time = (" packet_id_format ") %s", pin->time, ctime (&pin->time));
-      mutex_unlock (L_CTIME);
-      if (*BLAST (&out) =='\n')
-	--out.len;
-    }
+  if (print_timestamp && pin->time)
+      buf_printf (&out, " / time = (" packet_id_format ") %s", pin->time, time_string (pin->time));
 
   buf_printf (&out, " ]");
-  return (char *)out.data;
+  return BSTR (&out);
 }
 
 /* initialize the packet_id_persist structure in a disabled state */
@@ -255,13 +251,7 @@ packet_id_persist_print (const struct packet_id_persist *p)
     {
       buf_printf (&out, " #" packet_id_format, p->id);
       if (p->time)
-	{
-	  mutex_lock (L_CTIME);
-	  buf_printf (&out, " / time = (" packet_id_format ") %s", p->time, ctime (&p->time));
-	  mutex_unlock (L_CTIME);
-	  if (*BLAST (&out) =='\n')
-	    --out.len;
-	}
+	buf_printf (&out, " / time = (" packet_id_format ") %s", p->time, time_string (p->time));
     }
 
   buf_printf (&out, " ]");

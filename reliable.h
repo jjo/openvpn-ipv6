@@ -54,37 +54,35 @@ reliable_ack_empty (struct reliable_ack *ack)
   return !ack->len;
 }
 
-/*
- * Add the packet ID of buf to ack, advance buf ptr, place packet ID in *pid.
- * Return true if we were successful, false if ack is full.
- */
-bool
-reliable_ack_read_packet_id (struct reliable_ack *ack, struct buffer *buf, packet_id_type *pid);
+/* get a packet_id from buf */
+bool reliable_ack_read_packet_id (struct buffer *buf, packet_id_type *pid);
+
+/* acknowledge a packet_id by adding it to a struct reliable_ack */
+bool reliable_ack_acknowledge_packet_id (struct reliable_ack *ack, packet_id_type pid);
 
 /* read a packet ID acknowledgement record from buf */
-bool
-reliable_ack_read (struct reliable_ack *ack,
-		   struct buffer *buf, const struct session_id *sid);
+bool reliable_ack_read (struct reliable_ack *ack,
+			struct buffer *buf, const struct session_id *sid);
 
 /* write a packet ID acknowledgement record to buf */
-bool
-reliable_ack_write (struct reliable_ack *ack,
-		    struct buffer *buf,
-		    const struct session_id *sid, int max, bool prepend);
+bool reliable_ack_write (struct reliable_ack *ack,
+			 struct buffer *buf,
+			 const struct session_id *sid, int max, bool prepend);
 
 /* print a reliable ACK record coming off the wire */
-const char *reliable_ack_print(struct buffer* buf);
+const char *reliable_ack_print(struct buffer* buf, bool verbose);
 
 /* add to extra_frame the maximum number of bytes we will need for reliable_ack_write */
 void reliable_ack_adjust_frame_parameters (struct frame* frame, int max);
 
 void reliable_ack_debug_print (const struct reliable_ack *ack, char *desc);
 
-#define RELIABLE_SIZE 8
+#define RELIABLE_CAPACITY 8
 
 struct reliable_entry
 {
   bool active;
+  interval_t timeout;
   time_t next_try;
   packet_id_type packet_id;
   int opcode;
@@ -93,22 +91,23 @@ struct reliable_entry
 
 struct reliable
 {
-  int timeout;
+  int size;
+  interval_t initial_timeout;
   packet_id_type packet_id;
   int offset;
-  struct reliable_entry array[RELIABLE_SIZE];
+  struct reliable_entry array[RELIABLE_CAPACITY];
 };
 
 void reliable_debug_print (const struct reliable *rel, char *desc);
 
 /* set sending timeout (after this time we send again until ACK) */
 static inline void
-reliable_set_timeout (struct reliable *rel, int timeout)
+reliable_set_timeout (struct reliable *rel, interval_t timeout)
 {
-  rel->timeout = timeout;
+  rel->initial_timeout = timeout;
 }
 
-void reliable_init (struct reliable *rel, int size, int offset);
+void reliable_init (struct reliable *rel, int buf_size, int offset, int array_size);
 
 void reliable_free (struct reliable *rel);
 
@@ -116,7 +115,7 @@ void reliable_free (struct reliable *rel);
 bool reliable_empty (const struct reliable *rel);
 
 /* in how many seconds should we wake up to check for timeout */
-int reliable_send_timeout (const struct reliable *rel, time_t current);
+interval_t reliable_send_timeout (const struct reliable *rel, time_t current);
 
 /* del acknowledged items from send buf */
 void reliable_send_purge (struct reliable *rel, struct reliable_ack *ack);
@@ -124,8 +123,17 @@ void reliable_send_purge (struct reliable *rel, struct reliable_ack *ack);
 /* true if at least one free buffer available */
 bool reliable_can_get (const struct reliable *rel);
 
+/* make sure that incoming packet ID isn't a replay */
+bool reliable_not_replay (const struct reliable *rel, packet_id_type id);
+
+/* make sure that incoming packet ID won't deadlock the receive buffer */
+bool reliable_wont_break_sequentiality (const struct reliable *rel, packet_id_type id);
+
 /* grab a free buffer */
 struct buffer *reliable_get_buf (struct reliable *rel);
+
+/* grab a free buffer, fail if buffer clogged by unacknowledged low packet IDs */
+struct buffer *reliable_get_buf_output_sequenced (struct reliable *rel);
 
 /* get active buffer for next sequentially increasing key ID */
 struct buffer *reliable_get_buf_sequenced (struct reliable *rel);

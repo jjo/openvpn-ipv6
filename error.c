@@ -208,9 +208,9 @@ void x_msg (unsigned int flags, const char *format, ...)
     {
       FILE *fp = msg_fp();
 #ifdef USE_PTHREAD
-      fprintf (fp, "%d[%d]: %s\n", msg_line_num, thread_number (), m1);
+      fprintf (fp, "%s %d[%d]: %s\n", time_string (0), msg_line_num, thread_number (), m1);
 #else
-      fprintf (fp, "%d: %s\n", msg_line_num, m1);
+      fprintf (fp, "%s %d: %s\n", time_string (0), msg_line_num, m1);
 #endif
       fflush(fp);
       ++msg_line_num;

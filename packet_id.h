@@ -246,7 +246,7 @@ packet_id_persist_flush (struct packet_id_persist *p, time_t current, int n)
     }
 }
 
-const char* packet_id_net_print(const struct packet_id_net *pin);
+const char* packet_id_net_print(const struct packet_id_net *pin, bool print_timestamp);
 
 #ifdef PID_TEST
 void packet_id_interactive_test();

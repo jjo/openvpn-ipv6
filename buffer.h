@@ -42,6 +42,7 @@ struct buffer
 #define BLAST(buf) ((buf)->len ? BPTR(buf) + (buf)->len - 1 : NULL)
 #define BLEN(buf)  ((buf)->len)
 #define BDEF(buf)  ((buf)->data != NULL)
+#define BSTR(buf)  (char *)BPTR(buf)
 
 struct buffer alloc_buf (size_t size);
 struct buffer clone_buf (const struct buffer* buf);
@@ -57,6 +58,12 @@ buf_init (struct buffer *buf, int offset)
   buf->len = 0;
   buf->offset = offset;
   return true;
+}
+
+static inline bool
+buf_defined (struct buffer *buf)
+{
+  return buf->data != NULL;
 }
 
 static inline void
@@ -110,6 +117,20 @@ has_digit (const char* src)
  * printf append to a buffer with overflow check
  */
 void buf_printf (struct buffer *buf, char *format, ...);
+
+/*
+ * remove trailing newline
+ */
+static inline void
+buf_chomp (struct buffer *buf)
+{
+  uint8_t *cp = BLAST(buf);
+  if (cp && *cp == '\n')
+    {
+      *cp = '\0'; 
+      --buf->len;
+    }
+}
 
 /*
  * write a string to the end of a buffer that was
@@ -258,6 +279,34 @@ static inline bool
 buf_copy (struct buffer *dest, const struct buffer *src)
 {
   return buf_write (dest, BPTR (src), BLEN (src));
+}
+
+static inline bool
+buf_copy_n (struct buffer *dest, struct buffer *src, int n)
+{
+  uint8_t *cp = buf_read_alloc (src, n);
+  if (!cp)
+    return false;
+  return buf_write (dest, cp, n);
+}
+
+static inline bool
+buf_copy_range (struct buffer *dest,
+		int dest_index,
+		const struct buffer *src,
+		int src_index,
+		int src_len)
+{
+  if (src_index < 0
+      || src_len < 0
+      || src_index + src_len > src->len
+      || dest_index < 0
+      || dest->offset + dest_index + src_len > dest->capacity)
+    return false;
+  memcpy (dest->data + dest->offset + dest_index, src->data + src->offset + src_index, src_len);
+  if (dest_index + src_len > dest->len)
+    dest->len = dest_index + src_len;
+  return true;
 }
 
 static inline bool

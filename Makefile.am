@@ -31,7 +31,7 @@ sbin_PROGRAMS = openvpn
 nodist_openvpn_SOURCES = config.h
 openvpn_SOURCES = basic.h buffer.c buffer.h circ_list.h common.h \
 		  crypto.c crypto.h errlevel.h error.c error.h \
-		  fdmisc.c fdmisc.h gremlin.c gremlin.h interval.h \
+		  fdmisc.c fdmisc.h fragment.c fragment.h gremlin.c gremlin.h interval.h \
 		  lzo.c lzo.h memdbg.h misc.c misc.h mtu.c mtu.h openvpn.c \
 		  openvpn.h options.c options.h packet_id.c \
 		  packet_id.h reliable.c reliable.h session_id.c \
@@ -46,4 +46,4 @@ EXTRA_DIST = $(man_MANS) \
 	     sample-scripts openvpn.spec.in
 
 dist-hook:
-	cd $(distdir) && for i in $(EXTRA_DIST) ; do find $$i -name CVS -type d -prune -exec rm -r '{}' ';' ; rm -f `find $$i -type f | egrep '(^|\/)\.?\#|\~$$'` ; done
+	cd $(distdir) && for i in $(EXTRA_DIST) ; do find $$i -name CVS -type d -prune -exec rm -r '{}' ';' ; rm -f `find $$i -type f | grep -E '(^|\/)\.?\#|\~$$'` ; done

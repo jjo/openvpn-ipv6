@@ -113,6 +113,8 @@ OPTIONS for ./configure:
 
   --enable-strict           Enable strict compiler warnings
 
+  --enable-strict-options   Enable strict options check between peers.
+
 *************************************************************************
 
 BUILDING ON LINUX 2.4+ FROM RPM
