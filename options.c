@@ -63,6 +63,8 @@ static const char usage_message[] =
   "--dev-type dt   : Which device type are we using? (dt = tun or tap) Use\n"
   "                  this option only if the tun/tap device used with --dev\n"
   "                  does not begin with \"tun\" or \"tap\".\n"
+  "--dev-node node : Explicitly set the device node rather than using\n"
+  "                  /dev/net/tun, /dev/tun, /dev/tap, etc.\n"
   "--ifconfig l r  : Configure tun device to use IP address l as a local\n"
   "                  endpoint and r as a remote endpoint.  l & r should be\n"
   "                  swapped on the other peer.  l & r must be private\n"
@@ -275,6 +277,7 @@ show_settings (const struct options *o)
   SHOW_BOOL (bind_local);
   SHOW_STR (dev);
   SHOW_STR (dev_type);
+  SHOW_STR (dev_node);
   SHOW_STR (ifconfig_local);
   SHOW_STR (ifconfig_remote);
   SHOW_INT (shaper);
@@ -441,7 +444,7 @@ usage_version ()
 }
 
 void
-notnull (char *arg, char *description)
+notnull (const char *arg, const char *description)
 {
   if (!arg)
     {
@@ -618,6 +621,11 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       ++i;
       options->dev_type = p2;
+    }
+  else if (streq (p1, "dev-node") && p2)
+    {
+      ++i;
+      options->dev_node = p2;
     }
   else if (streq (p1, "ifconfig") && p2 && p3)
     {

@@ -623,7 +623,7 @@ openvpn (const struct options *options,
 		     MAX_RW_SIZE_TUN (&frame));
 
       /* open the tun device */
-      open_tun (options->dev, options->dev_type, tuntap);
+      open_tun (options->dev, options->dev_type, options->dev_node, tuntap);
 
       /* do ifconfig */  
       if (ifconfig_order() == IFCONFIG_AFTER_TUN_OPEN)
@@ -1460,6 +1460,14 @@ main (int argc, char *argv[])
       }
 
     /*
+     * Possibly set --dev based on --dev-node.
+     * For example, if --dev-node /tmp/foo/tun, and --dev undefined,
+     * set --dev to tun.
+     */
+    if (!options.dev)
+      options.dev = dev_component_in_dev_node (options.dev_node);
+
+    /*
      * Static pre-shared key generation mode?
      */
     if (options.genkey)
@@ -1495,7 +1503,7 @@ main (int argc, char *argv[])
 #endif
 	    )
 	  msg (M_FATAL, "Options --mktun or --rmtun should only be used together with --dev");
-	tuncfg (options.dev, options.dev_type, options.persist_mode);
+	tuncfg (options.dev, options.dev_type, options.dev_node, options.persist_mode);
 	goto exit;
       }
 #endif

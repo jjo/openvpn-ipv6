@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.2.1], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.2.1.2], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 
 AC_ARG_ENABLE(lzo,
@@ -153,6 +153,7 @@ AC_CHECK_HEADERS(unistd.h)
 AC_CHECK_HEADERS(signal.h)
 AC_CHECK_HEADERS(stdio.h)
 AC_CHECK_HEADERS(string.h)
+AC_CHECK_HEADERS(strings.h)
 AC_CHECK_HEADERS(ctype.h)
 AC_CHECK_HEADERS(errno.h)
 AC_CHECK_HEADERS(syslog.h)

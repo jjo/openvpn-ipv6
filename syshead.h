@@ -91,10 +91,6 @@
 #include <stdio.h>
 #endif
 
-#ifdef HAVE_STRING_H
-#include <string.h>
-#endif
-
 #ifdef HAVE_CTYPE_H
 #include <ctype.h>
 #endif
@@ -121,6 +117,16 @@
 
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
+#endif
+
+#ifdef TARGET_SOLARIS
+#ifdef HAVE_STRINGS_H
+#include <strings.h>
+#endif
+#else
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
 #endif
 
 #ifdef HAVE_ARPA_INET_H

@@ -1,6 +1,11 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
+2002.06.14 -- Version 1.2.1.2
+
+* Added --dev-node option to allow explicit
+  selection of tun/tap device node.
+
 2002.06.12 -- Version 1.2.1
 
 * Added --ping-restart option to restart

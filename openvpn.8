@@ -46,6 +46,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-rmtun\fR\ ]
 [\ \fB\-\-dev\fR\ \fItunX\ |\ tapX\fR\ ]
 [\ \fB\-\-dev\-type\fR\ \fIdevice\-type\fR\ ]
+[\ \fB\-\-dev\-node\fR\ \fInode\fR\ ]
 .in -4
 .ti +4
 .hy
@@ -81,6 +82,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-nobind\fR\ ]
 [\ \fB\-\-dev\fR\ \fItunX\ |\ tapX\ |\ null\fR\ ]
 [\ \fB\-\-dev\-type\fR\ \fIdevice\-type\fR\ ]
+[\ \fB\-\-dev\-node\fR\ \fInode\fR\ ]
 [\ \fB\-\-ifconfig\fR\ \fIl\ r\fR\ ]
 [\ \fB\-\-udp\-mtu\fR\ \fIn\fR\ ]
 [\ \fB\-\-tun\-mtu\fR\ \fIn\fR\ ]
@@ -460,6 +462,17 @@ does not begin with
 .B tun
 or
 .B tap.
+.TP
+.B --dev-node node
+Explicitly set the device node rather than using
+/dev/net/tun, /dev/tun, /dev/tap, etc.  If OpenVPN
+cannot figure out whether
+.B node
+is a tun or tap device based on the name, you should
+also specify
+.B --dev-type tun
+or
+.B --dev-type tap.
 .TP
 .B --ifconfig l r
 Configure the TUN device to use IP address

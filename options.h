@@ -43,17 +43,18 @@ struct options
 #endif
 
   /* Networking parms */
-  char *local;
-  char *remote;
+  const char *local;
+  const char *remote;
   int local_port;
   int remote_port;
   bool remote_float;
-  char *ipchange;
+  const char *ipchange;
   bool bind_local;
-  char *dev;
-  char *dev_type;
-  char *ifconfig_local;
-  char *ifconfig_remote;
+  const char *dev;
+  const char *dev_type;
+  const char *dev_node;
+  const char *ifconfig_local;
+  const char *ifconfig_remote;
   int shaper;
   int tun_mtu;          /* MTU of tun device */
   int udp_mtu;          /* MTU of device over which tunnel packets pass via UDP */
@@ -77,13 +78,13 @@ struct options
   int resolve_retry_seconds;    /* If hostname resolve fails, retry for n seconds */
 
   /* Misc parms */
-  char *username;
-  char *groupname;
-  char *chroot_dir;
-  char *cd_dir;
-  char *writepid;
-  char *up_script;
-  char *down_script;
+  const char *username;
+  const char *groupname;
+  const char *chroot_dir;
+  const char *cd_dir;
+  const char *writepid;
+  const char *up_script;
+  const char *down_script;
   bool daemon;
   int nice;
 #ifdef USE_PTHREAD
@@ -100,11 +101,11 @@ struct options
 
 #ifdef USE_CRYPTO
   /* Cipher parms */
-  char *shared_secret_file;
+  const char *shared_secret_file;
   bool ciphername_defined;
-  char *ciphername;
+  const char *ciphername;
   bool authname_defined;
-  char *authname;
+  const char *authname;
   int keysize;
   bool packet_id;
   bool iv;
@@ -114,12 +115,12 @@ struct options
   /* TLS (control channel) parms */
   bool tls_server;
   bool tls_client;
-  char *ca_file;
-  char *dh_file;
-  char *cert_file;
-  char *priv_key_file;
-  char *cipher_list;
-  char *tls_verify;
+  const char *ca_file;
+  const char *dh_file;
+  const char *cert_file;
+  const char *priv_key_file;
+  const char *cipher_list;
+  const char *tls_verify;
 
   /* Per-packet timeout on control channel */
   int tls_timeout;
@@ -137,14 +138,14 @@ struct options
   int transition_window;
 
   /* Special authentication MAC for TLS control channel */
-  char *tls_auth_file;		/* shared secret */
+  const char *tls_auth_file;		/* shared secret */
 #endif /* USE_SSL */
 #endif /* USE_CRYPTO */
 };
 
 #define streq(x, y) (!strcmp((x), (y)))
 
-void notnull (char *arg, char *description);
+void notnull (const char *arg, const char *description);
 
 void usage_small ();
 
