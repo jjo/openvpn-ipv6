@@ -288,10 +288,12 @@ close_tun_generic (struct tuntap *tt)
 
 #ifdef HAVE_LINUX_IF_TUN_H	/* New driver support */
 
-#if defined(HAVE_NETINET_IF_ETHER_H) && defined(HAVE_NETINET_IP_H) && defined(ETH_P_IPV6)
+#if defined(HAVE_TUN_PI) && defined(HAVE_IPHDR) && defined(HAVE_IOVEC) && defined(ETH_P_IPV6) && defined(ETH_P_IP) && defined(HAVE_READV) && defined(HAVE_WRITEV)
 #define LINUX_IPV6 1
+/* #warning IPv6 ON */
 #else
 #define LINUX_IPV6 0
+/* #warning IPv6 OFF */
 #endif
 
 void

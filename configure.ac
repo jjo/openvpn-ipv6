@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.2.2], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.2.3], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 
 AC_ARG_ENABLE(lzo,
@@ -197,6 +197,23 @@ AC_CHECK_TYPE(
 	[AC_DEFINE(uint32_t, unsigned long, [32-bit unsigned type])],
 	[#include "syshead.h"])
 
+dnl check for IPv6 types
+AC_CHECK_TYPE(
+	[struct tun_pi],
+	[AC_DEFINE(HAVE_TUN_PI, 1, [struct tun_pi needed for IPv6 support])],
+	[],
+	[#include "syshead.h"])
+AC_CHECK_TYPE(
+	[struct iphdr],
+	[AC_DEFINE(HAVE_IPHDR, 1, [struct iphdr needed for IPv6 support])],
+	[],
+	[#include "syshead.h"])
+AC_CHECK_TYPE(
+	[struct iovec],
+	[AC_DEFINE(HAVE_IOVEC, 1, [struct iovec needed for IPv6 support])],
+	[],
+	[#include "syshead.h"])
+
 dnl check for other types
 TYPE_SOCKLEN_T
 AC_TYPE_SIGNAL
@@ -230,6 +247,8 @@ AC_CHECK_FUNCS(setgid)
 AC_CHECK_FUNCS(setgroups)
 AC_CHECK_FUNCS(stat)
 AC_CHECK_FUNCS(flock)
+AC_CHECK_FUNCS(readv)
+AC_CHECK_FUNCS(writev)
 
 dnl Required library functions
 AC_FUNC_MEMCMP
@@ -239,6 +258,10 @@ AC_CHECK_FUNCS(gettimeofday select socket gethostbyname inet_ntoa memset vsnprin
 
 dnl
 dnl check libraries
+dnl
+
+dnl
+dnl check for pthread library
 dnl
 
 if test "$PTHREAD" = "yes"; then
@@ -262,6 +285,10 @@ if test "$PTHREAD" = "yes"; then
 	])
 fi
 
+dnl
+dnl check for dmalloc library
+dnl
+
 if test "$LEAK" = "dmalloc"; then
    AC_CHECKING([for dmalloc Library and Header files])
    AC_CHECK_HEADER(dmalloc.h, 
@@ -280,6 +307,10 @@ if test "$LEAK" = "dmalloc"; then
    )
 fi
 
+dnl
+dnl check for LZO library
+dnl
+
 if test "$LZO" = "yes"; then
    AC_CHECKING([for LZO Library and Header files])
    AC_CHECK_HEADER(lzo1x.h, 
@@ -297,6 +328,10 @@ if test "$LZO" = "yes"; then
 	]
    )
 fi
+
+dnl
+dnl check for OpenSSL-crypto library
+dnl
 
 if test "$CRYPTO" = "yes"; then
    AC_CHECKING([for OpenSSL Crypto Library and Header files])
@@ -323,6 +358,10 @@ if test "$CRYPTO" = "yes"; then
 	)],
 	[AC_MSG_ERROR([OpenSSL Crypto headers not found.])]
    )
+
+dnl
+dnl check for OpenSSL-SSL library
+dnl
 
    if test "$SSL" = "yes"; then
       AC_CHECKING([for OpenSSL SSL Library and Header files])

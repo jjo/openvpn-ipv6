@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.11.27 -- Version 1.3.2.2
+2002.12.04 -- Version 1.3.2.3
 
 * Added --replay-persist feature to allow replay
   protection across sessions.
@@ -10,6 +10,9 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
 * Added --tun-mtu-extra parameter to deal with
   the situation where a read on a TUN/TAP device
   returns more data than the device's MTU size.
+* Fixed bug where some IPv6 support code for
+  Linux was not being properly ifdefed out for
+  Linux 2.2, causing compile errors.
 
 2002.10.23 -- Version 1.3.2
 
