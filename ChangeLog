@@ -3,7 +3,12 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
-2004.02.xx -- Version 1.6-beta6
+2004.02.xx -- Version 1.6-beta7
+	
+* Allow scheduling priority increase (--nice) together
+  with UID/GID downgrade (--user/--group).
+
+2004.02.05 -- Version 1.6-beta6
 
 * UDP over Socks5 fix to accomodate Socks5 encapsulation
   overhead (Christof Meerwald).

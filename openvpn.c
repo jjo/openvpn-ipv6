@@ -1310,6 +1310,9 @@ openvpn (const struct options *options,
       if (options->mlock && did_we_daemonize)
 	do_mlockall (true); /* call again in case we daemonized */
 
+      /* should we change scheduling priority? */
+      set_nice (options->nice);
+
       /* set user and/or group that we want to setuid/setgid to */
       set_group (&group_state);
       set_user (&user_state);
@@ -1339,10 +1342,6 @@ openvpn (const struct options *options,
       thread_opened = true;
     }
 #endif
-
-  /* change scheduling priority if requested */
-  if (first_time)
-    set_nice (options->nice);
 
   /*
    * MAIN EVENT LOOP
