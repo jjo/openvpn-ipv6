@@ -2202,23 +2202,33 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
       if (tt->type == DEV_TYPE_TUN)
 	{
 	  ep[2] = htonl (tt->remote_netmask);
-	  if (tt->options.dhcp_masq_offset != 0)
+	  if (tt->options.dhcp_masq_custom_offset)
 	    msg (M_WARN, "WARNING: because you are using '--dev tun' mode, the '--ip-win32 dynamic [offset]' option is ignoring the offset parameter");
 	}
       else
 	{
 	  in_addr_t dsa; /* DHCP server addr */
-	  if (tt->options.dhcp_hioff)
-	    dsa = (tt->local | (~tt->adapter_netmask)) - tt->options.dhcp_masq_offset;
+
+	  ASSERT (tt->type == DEV_TYPE_TAP);
+
+	  if (tt->options.dhcp_masq_offset < 0)
+	    dsa = (tt->local | (~tt->adapter_netmask)) + tt->options.dhcp_masq_offset;
 	  else
 	    dsa = (tt->local & tt->adapter_netmask) + tt->options.dhcp_masq_offset;
+
+	  if (dsa == tt->local)
+	    msg (M_FATAL, "ERROR: There is a clash between the --ifconfig local address and the internal DHCP server address -- both are set to %s -- please use the --ip-win32 dynamic option to choose a different free address from the --ifconfig subnet for the internal DHCP server", print_in_addr_t (dsa, false));
+
 	  if ((tt->local & tt->adapter_netmask) != (dsa & tt->adapter_netmask))
 	    msg (M_FATAL, "ERROR: --tap-win32 dynamic [offset] : offset is outside of --ifconfig subnet");
+
 	  ep[2] = htonl (dsa);
 	}
 
       /* lease time in seconds */
       ep[3] = (uint32_t) tt->options.dhcp_lease_time;
+
+      ASSERT (ep[3] > 0);
 
       if (!DeviceIoControl (tt->hand, TAP_IOCTL_CONFIG_DHCP_MASQ,
 			    ep, sizeof (ep),

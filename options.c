@@ -379,11 +379,9 @@ init_options (struct options *o)
   o->comp_lzo_adaptive = true;
 #endif
 #ifdef WIN32
-#if 1
   o->tuntap_options.ip_win32_type = IPW32_SET_DHCP_MASQ;
-#else
-  o->tuntap_options.ip_win32_type = IPW32_SET_IPAPI;
-#endif
+  o->tuntap_options.dhcp_lease_time = 31536000; /* one year */
+  o->tuntap_options.dhcp_masq_offset = 0;       /* use network address as internal DHCP server address */
 #endif
 #ifdef USE_CRYPTO
   o->ciphername = "BF-CBC";
@@ -447,7 +445,6 @@ show_tuntap_options (const struct tuntap_options *o)
 {
   SHOW_BOOL (ip_win32_defined);
   SHOW_INT (ip_win32_type);
-  SHOW_BOOL (dhcp_hioff);
   SHOW_INT (dhcp_masq_offset);
   SHOW_INT (dhcp_lease_time);
   SHOW_INT (tap_sleep);
@@ -1620,13 +1617,10 @@ add_option (struct options *options, int i, char *p[],
   else if (streq (p[0], "ip-win32") && p[1])
     {
       const int index = ascii2ipset (p[1]);
+      struct tuntap_options *to = &options->tuntap_options;
       ++i;
 
-      options->tuntap_options.dhcp_hioff = false;
-      options->tuntap_options.dhcp_lease_time = 31536000; /* one year */
-      options->tuntap_options.dhcp_masq_offset = 0;
-
-      options->tuntap_options.ip_win32_defined = true;
+      to->ip_win32_defined = true;
  
       if (index < 0)
 	msg (M_USAGE,
@@ -1634,23 +1628,22 @@ add_option (struct options *options, int i, char *p[],
 	     p[1],
 	     ipset2ascii_all());
 
-      options->tuntap_options.ip_win32_type = index;
+      to->ip_win32_type = index;
 
-      if (options->tuntap_options.ip_win32_type == IPW32_SET_DHCP_MASQ)
+      if (to->ip_win32_type == IPW32_SET_DHCP_MASQ)
 	{
 	  if (p[2])
 	    {
 	      const int min_lease = 30;
 	      int offset = atoi (p[2]);
+
 	      ++i;
+	      to->dhcp_masq_custom_offset = true;
+
 	      if (!(offset > -256 && offset < 256))
 		msg (M_USAGE, "--ip-win32 dynamic [offset] [lease-time]: offset (%d) must be > -256 and < 256", offset);
-	      if (offset < 0)
-		{
-		  options->tuntap_options.dhcp_hioff = true;
-		  offset = -offset;
-		}
-	      options->tuntap_options.dhcp_masq_offset = offset;
+
+	      to->dhcp_masq_offset = offset;
 
 	      if (p[3])
 		{
@@ -1660,7 +1653,7 @@ add_option (struct options *options, int i, char *p[],
 		  lease_time = atoi (p[3]);
 		  if (lease_time < min_lease)
 		    msg (M_USAGE, "--ip-win32 dynamic [offset] [lease-time]: lease time parameter (%d) must be at least %d seconds", lease_time, min_lease);
-		  options->tuntap_options.dhcp_lease_time = lease_time;
+		  to->dhcp_lease_time = lease_time;
 		}
 	    }
 	}

@@ -51,7 +51,7 @@ struct tuntap_options {
   int ip_win32_type;
 
   /* --ip-win32 dynamic options */
-  bool dhcp_hioff;            /* if false, low offset; if true, high offset */
+  bool dhcp_masq_custom_offset;
   int dhcp_masq_offset;
   int dhcp_lease_time;
 

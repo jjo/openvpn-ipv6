@@ -3,13 +3,15 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
-2004.03.xx -- Version 1.6-rc2
+2004.03.04 -- Version 1.6-rc2
 
-* Fixed bug in Windows version where the node-type
-  dhcp option might have been passed even if it
-  was not specified.
-* Added some new --dhcp-option types for Windows
-  version.
+* Fixed bug in Windows version where the NetBIOS node-type
+  DHCP option might have been passed even if it was not
+  specified.
+* Fixed bug in Windows version introduced in 1.6-rc1, where
+  DHCP timeout would be set to 0 seconds if --ifconfig option
+  was used and --ip-win32 option was not explicitly specified.
+* Added some new --dhcp-option types for Windows version.
 
 2004.03.02 -- Version 1.6-rc1
 
