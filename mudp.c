@@ -31,7 +31,7 @@
 
 #include "syshead.h"
 
-#if P2MP
+#if P2MP_SERVER
 
 #include "multi.h"
 #include "forward-inline.h"
@@ -90,7 +90,7 @@ multi_get_create_instance_udp (struct multi_context *m)
 
       hash_bucket_unlock (bucket);
 
-#ifdef MULTI_DEBUG
+#ifdef ENABLE_DEBUG
       if (check_debug_level (D_MULTI_DEBUG))
 	{
 	  const char *status;
@@ -102,7 +102,7 @@ multi_get_create_instance_udp (struct multi_context *m)
 	  else
 	    status = "[failed]";
 	
-	  msg (D_MULTI_DEBUG, "GET INST BY REAL: %s %s",
+	  dmsg (D_MULTI_DEBUG, "GET INST BY REAL: %s %s",
 	       mroute_addr_print (&real, &gc),
 	       status);
 	}
@@ -354,7 +354,7 @@ multi_thread_udp_func (void *arg)
 
   multi_uninit (&multi);
 
-  msg (D_THREAD_DEBUG, "Thread exiting");
+  dmsg (D_THREAD_DEBUG, "Thread exiting");
 
   return NULL;
 }

@@ -25,32 +25,38 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [2.0_beta18], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [2.0_beta19], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
 AC_ARG_ENABLE(lzo,
-   [  --disable-lzo           Do not compile LZO compression support],
+   [  --disable-lzo           Disable LZO compression support],
    [LZO="$enableval"],
    [LZO="yes"]
 )
 
 AC_ARG_ENABLE(crypto,
-   [  --disable-crypto        Do not compile OpenSSL crypto support],
+   [  --disable-crypto        Disable OpenSSL crypto support],
    [CRYPTO="$enableval"],
    [CRYPTO="yes"]
 )
 
 AC_ARG_ENABLE(ssl,
-   [  --disable-ssl           Do not compile OpenSSL SSL support for TLS-based key exchange],
+   [  --disable-ssl           Disable OpenSSL SSL support for TLS-based key exchange],
    [SSL="$enableval"],
    [SSL="yes"]
 )
 
-AC_ARG_ENABLE(pthread,
-   [  --enable-pthread        Compile pthread support],
-   [PTHREAD="$enableval"],
-   [PTHREAD="no"]
+AC_ARG_ENABLE(multi,
+   [  --disable-multi         Disable client/server support (--mode server + client mode)],
+   [MULTI="$enableval"],
+   [MULTI="yes"]
+)
+
+AC_ARG_ENABLE(server,
+   [  --disable-server        Disable server support only (but retain client support)],
+   [MULTI_SERVER="$enableval"],
+   [MULTI_SERVER="yes"]
 )
 
 AC_ARG_ENABLE(plugins,
@@ -65,10 +71,40 @@ AC_ARG_ENABLE(management,
    [MANAGEMENT="yes"]
 )
 
-AC_ARG_ENABLE(multi,
-   [  --disable-multi         Do not compile multi-client server support (--mode server)],
-   [MULTI="$enableval"],
-   [MULTI="yes"]
+AC_ARG_ENABLE(socks,
+   [  --disable-socks         Disable Socks support],
+   [SOCKS="$enableval"],
+   [SOCKS="yes"]
+)
+
+AC_ARG_ENABLE(http,
+   [  --disable-http          Disable HTTP proxy support],
+   [HTTP_PROXY="$enableval"],
+   [HTTP_PROXY="yes"]
+)
+
+AC_ARG_ENABLE(fragment,
+   [  --disable-fragment      Disable internal fragmentation support (--fragment)],
+   [FRAGMENT="$enableval"],
+   [FRAGMENT="yes"]
+)
+
+AC_ARG_ENABLE(debug,
+   [  --disable-debug         Disable debugging support (disable gremlin and verb 7+ messages)],
+   [DEBUG="$enableval"],
+   [DEBUG="yes"]
+)
+
+AC_ARG_ENABLE(small,
+   [  --enable-small          Enable smaller executable size (disable OCC, usage message, and verb 4 parm list)],
+   [SMALL="$enableval"],
+   [SMALL="no"]
+)
+
+AC_ARG_ENABLE(pthread,
+   [  --enable-pthread        Enable pthread support],
+   [PTHREAD="$enableval"],
+   [PTHREAD="no"]
 )
 
 AC_ARG_ENABLE(strict,
@@ -496,12 +532,42 @@ fi
 
 dnl enable multi-client mode
 if test "$MULTI" = "yes"; then
-   AC_DEFINE(MULTICLIENT_SERVER_ENABLED, 1, [Enable multiclient server capability])
+   AC_DEFINE(ENABLE_CLIENT_SERVER, 1, [Enable client/server capability])
+fi
+
+dnl enable client mode only, not server
+if test "$MULTI_SERVER" = "no"; then
+   AC_DEFINE(ENABLE_CLIENT_ONLY, 1, [Enable client capability only])
 fi
 
 dnl enable management server capability
 if test "$MANAGEMENT" = "yes"; then
    AC_DEFINE(ENABLE_MANAGEMENT, 1, [Enable management server capability])
+fi
+
+dnl enable socks 
+if test "$SOCKS" = "yes"; then
+   AC_DEFINE(ENABLE_SOCKS, 1, [Enable Socks proxy support])
+fi
+
+dnl enable HTTP proxy
+if test "$HTTP_PROXY" = "yes"; then
+   AC_DEFINE(ENABLE_HTTP_PROXY, 1, [Enable HTTP proxy support])
+fi
+
+dnl enable debugging
+if test "$DEBUG" = "yes"; then
+   AC_DEFINE(ENABLE_DEBUG, 1, [Enable debugging support])
+fi
+
+dnl enable small size optimizations
+if test "$SMALL" = "yes"; then
+   AC_DEFINE(ENABLE_SMALL, 1, [Enable smaller executable size])
+fi
+
+dnl enable --fragment
+if test "$FRAGMENT" = "yes"; then
+   AC_DEFINE(ENABLE_FRAGMENT, 1, [Enable internal fragmentation support])
 fi
 
 dnl enable strict compiler warnings

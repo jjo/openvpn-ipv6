@@ -70,7 +70,10 @@ struct plugin_list {
 
 struct plugin_option_list *plugin_option_list_new (struct gc_arena *gc);
 bool plugin_option_list_add (struct plugin_option_list *list, const char *so_pathname, const char *args);
+
+#ifdef ENABLE_DEBUG
 void plugin_option_list_print (const struct plugin_option_list *list, int msglevel);
+#endif
 
 struct plugin_list *plugin_list_open (const struct plugin_option_list *list, const struct env_set *es);
 int plugin_call (const struct plugin_list *pl, const int type, const char *args, struct env_set *es);

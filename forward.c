@@ -46,6 +46,8 @@
 
 /* show event wait debugging info */
 
+#ifdef ENABLE_DEBUG
+
 const char *
 wait_status_string (struct context *c, struct gc_arena *gc)
 {
@@ -63,9 +65,11 @@ void
 show_wait_status (struct context *c)
 {
   struct gc_arena gc = gc_new ();
-  msg (D_EVENT_WAIT, "%s", wait_status_string (c, &gc));
+  dmsg (D_EVENT_WAIT, "%s", wait_status_string (c, &gc));
   gc_free (&gc);
 }
+
+#endif
 
 /*
  * In TLS mode, let TLS level respond to any control-channel
@@ -289,6 +293,7 @@ check_status_file_dowork (struct context *c)
     print_status (c, c->c1.status_output);
 }
 
+#ifdef ENABLE_FRAGMENT
 /*
  * Should we deliver a datagram fragment to remote?
  */
@@ -317,6 +322,7 @@ check_fragment_dowork (struct context *c)
 
   fragment_housekeeping (c->c2.fragment, &c->c2.frame_fragment, &c->c2.timeval);
 }
+#endif
 
 /*
  * Compress, fragment, encrypt and HMAC-sign an outgoing packet.
@@ -336,8 +342,10 @@ encrypt_sign (struct context *c, bool comp_frag)
       if (c->options.comp_lzo)
 	lzo_compress (&c->c2.buf, b->lzo_compress_buf, &c->c2.lzo_compwork, &c->c2.frame);
 #endif
+#ifdef ENABLE_FRAGMENT
       if (c->c2.fragment)
 	fragment_outgoing (c->c2.fragment, &c->c2.buf, &c->c2.frame_fragment);
+#endif
     }
 
 #ifdef USE_CRYPTO
@@ -429,15 +437,17 @@ process_coarse_timers (struct context *c)
   if (c->sig->signal_received)
     return;
 
+#ifdef ENABLE_OCC
   /* Should we send an OCC_REQUEST message? */
   check_send_occ_req (c);
 
   /* Should we send an MTU load test? */
   check_send_occ_load_test (c);
 
-  /* Show we send an OCC_EXIT message to remote? */
+  /* Should we send an OCC_EXIT message to remote? */
   if (c->c2.explicit_exit_notification_time_wait)
     process_explicit_exit_notification_timer_wakeup (c);
+#endif
 
   /* Should we ping the remote? */
   check_ping_send (c);
@@ -452,7 +462,7 @@ check_coarse_timers_dowork (struct context *c)
   process_coarse_timers (c);
   c->c2.coarse_timer_wakeup = now + c->c2.timeval.tv_sec; 
 
-  msg (D_INTERVAL, "TIMER: coarse timer wakeup %d seconds", (int) c->c2.timeval.tv_sec);
+  dmsg (D_INTERVAL, "TIMER: coarse timer wakeup %d seconds", (int) c->c2.timeval.tv_sec);
 
   /* Is the coarse timeout NOT the earliest one? */
   if (c->c2.timeval.tv_sec > save.tv_sec)
@@ -477,7 +487,7 @@ check_timeout_random_component_dowork (struct context *c)
   c->c2.timeout_random_component.tv_usec = (time_t) get_random () & 0x0003FFFF;
   c->c2.timeout_random_component.tv_sec = 0;
 
-  msg (D_INTERVAL, "RANDOM USEC=%d", (int) c->c2.timeout_random_component.tv_usec);
+  dmsg (D_INTERVAL, "RANDOM USEC=%d", (int) c->c2.timeout_random_component.tv_usec);
 }
 
 static inline void
@@ -488,6 +498,8 @@ check_timeout_random_component (struct context *c)
   if (c->c2.timeval.tv_sec >= 1)
     tv_add (&c->c2.timeval, &c->c2.timeout_random_component);
 }
+
+#ifdef ENABLE_SOCKS
 
 /*
  * Handle addition and removal of the 10-byte Socks5 header
@@ -526,6 +538,7 @@ link_socket_write_post_size_adjust (int *size,
 	*size = 0;
     }
 }
+#endif
 
 /*
  * Output: c->c2.buf
@@ -569,8 +582,10 @@ read_incoming_link (struct context *c)
   /* check recvfrom status */
   check_status (status, "read", c->c2.link_socket, NULL);
 
+#ifdef ENABLE_SOCKS
   /* Remove socks header if applicable */
   socks_postprocess_incoming_link (c);
+#endif
 
   perf_pop ();
 }
@@ -597,12 +612,14 @@ process_incoming_link (struct context *c)
   else
     c->c2.original_recv_size = 0;
 
+#ifdef ENABLE_DEBUG
   /* take action to corrupt packet if we are in gremlin test mode */
   if (c->options.gremlin) {
     if (!ask_gremlin (c->options.gremlin))
       c->c2.buf.len = 0;
     corrupt_gremlin (&c->c2.buf, c->options.gremlin);
   }
+#endif
 
   /* log incoming packet */
 #ifdef LOG_RW
@@ -674,8 +691,10 @@ process_incoming_link (struct context *c)
 
 #endif /* USE_CRYPTO */
 
+#ifdef ENABLE_FRAGMENT
       if (c->c2.fragment)
 	fragment_incoming (c->c2.fragment, &c->c2.buf, &c->c2.frame_fragment);
+#endif
 
 #ifdef USE_LZO
       /* decompress the incoming packet */
@@ -708,14 +727,16 @@ process_incoming_link (struct context *c)
       /* Did we just receive an openvpn ping packet? */
       if (is_ping_msg (&c->c2.buf))
 	{
-	  msg (D_PACKET_CONTENT, "RECEIVED PING PACKET");
+	  dmsg (D_PACKET_CONTENT, "RECEIVED PING PACKET");
 	  c->c2.buf.len = 0; /* drop packet */
 	}
 
+#ifdef ENABLE_OCC
       /* Did we just receive an OCC packet? */
       if (is_occ_msg (&c->c2.buf))
 	process_received_occ_msg (c);
-      
+#endif
+
       c->c2.to_tun = c->c2.buf;
 
       /* to_tun defined + unopened tuntap can cause deadlock */
@@ -791,7 +812,7 @@ process_incoming_tun (struct context *c)
 #endif
 
   /* Show packet content */
-  msg (D_TUN_RW, "TUN READ [%d]: %s md5=%s",
+  dmsg (D_TUN_RW, "TUN READ [%d]: %s md5=%s",
        BLEN (&c->c2.buf),
        format_hex (BPTR (&c->c2.buf), BLEN (&c->c2.buf), 80, &gc),
        MD5SUM (BPTR (&c->c2.buf), BLEN (&c->c2.buf), &gc));
@@ -869,11 +890,13 @@ process_outgoing_link (struct context *c)
        * Setup for call to send/sendto which will send
        * packet to remote over the TCP/UDP port.
        */
-      int size;
+      int size = 0;
       ASSERT (addr_defined (&c->c2.to_link_addr));
 
+#ifdef ENABLE_DEBUG
       /* In gremlin-test mode, we may choose to drop this packet */
       if (!c->options.gremlin || ask_gremlin (c->options.gremlin))
+#endif
 	{
 	  /*
 	   * Let the traffic shaper know how many bytes
@@ -909,16 +932,21 @@ process_outgoing_link (struct context *c)
 	  /* Packet send complexified by possible Socks5 usage */
 	  {
 	    struct sockaddr_in *to_addr = &c->c2.to_link_addr;
+#ifdef ENABLE_SOCKS
 	    int size_delta = 0;
+#endif
 
+#ifdef ENABLE_SOCKS
 	    /* If Socks5 over UDP, prepend header */
 	    socks_preprocess_outgoing_link (c, &to_addr, &size_delta);
-
+#endif
 	    /* Send packet */
 	    size = link_socket_write (c->c2.link_socket, &c->c2.to_link, to_addr);
 
+#ifdef ENABLE_SOCKS
 	    /* Undo effect of prepend */
 	    link_socket_write_post_size_adjust (&size, size_delta, &c->c2.to_link);
+#endif
 	  }
 
 	  if (size > 0)
@@ -927,8 +955,6 @@ process_outgoing_link (struct context *c)
 	      c->c2.link_write_bytes += size;
 	    }
 	}
-      else
-	size = 0;
 
       /* Check return status */
       check_status (size, "write", c->c2.link_socket, NULL);
@@ -993,7 +1019,7 @@ process_outgoing_tun (struct context *c)
       if (c->c2.log_rw)
 	fprintf (stderr, "w");
 #endif
-      msg (D_TUN_RW, "TUN WRITE [%d]: %s md5=%s",
+      dmsg (D_TUN_RW, "TUN WRITE [%d]: %s md5=%s",
 	   BLEN (&c->c2.to_tun),
 	   format_hex (BPTR (&c->c2.to_tun), BLEN (&c->c2.to_tun), 80, &gc),
 	   MD5SUM (BPTR (&c->c2.to_tun), BLEN (&c->c2.to_tun), &gc));
@@ -1082,11 +1108,15 @@ pre_select (struct context *c)
   /* check for incoming configuration info on the control channel */
   check_incoming_control_channel (c);
 
+#ifdef ENABLE_OCC
   /* Should we send an OCC message? */
   check_send_occ_msg (c);
+#endif
 
+#ifdef ENABLE_FRAGMENT
   /* Should we deliver a datagram fragment to remote? */
   check_fragment (c);
+#endif
 
   /* Update random component of timeout */
   check_timeout_random_component (c);
@@ -1224,8 +1254,10 @@ io_wait_dowork (struct context *c, const unsigned int flags)
 	{
 	  int status;
 
+#ifdef ENABLE_DEBUG
 	  if (check_debug_level (D_EVENT_WAIT))
 	    show_wait_status (c);
+#endif
 
 	  /*
 	   * Wait for something to happen.
@@ -1262,7 +1294,7 @@ io_wait_dowork (struct context *c, const unsigned int flags)
   if (c->c2.event_set_status & ES_ERROR)
     get_signal (&c->sig->signal_received);
 
-  msg (D_EVENT_WAIT, "I/O WAIT status=0x%04x", c->c2.event_set_status);
+  dmsg (D_EVENT_WAIT, "I/O WAIT status=0x%04x", c->c2.event_set_status);
 }
 
 void

@@ -119,6 +119,7 @@ context_init_1 (struct context *c)
     }
 #endif
 
+#ifdef ENABLE_HTTP_PROXY
   if (c->options.http_proxy_server)
     {
       /* Possible HTTP proxy user/pass input */
@@ -129,7 +130,9 @@ context_init_1 (struct context *c)
 					 c->options.http_proxy_auth_file,
 					 &c->gc);
     }
+#endif
 
+#ifdef ENABLE_SOCKS
   if (c->options.socks_proxy_server)
     {
       c->c1.socks_proxy = new_socks_proxy (c->options.socks_proxy_server,
@@ -137,6 +140,7 @@ context_init_1 (struct context *c)
 					   c->options.socks_proxy_retry,
 					   &c->gc);
     }
+#endif
 }
 
 void
@@ -334,8 +338,8 @@ do_persist_tuntap (const struct options *options)
 #endif
 #endif
 	)
-	msg (M_FATAL,
-	     "Options error: options --mktun or --rmtun should only be used together with --dev");
+	msg (M_FATAL|M_OPTERR,
+	     "options --mktun or --rmtun should only be used together with --dev");
       tuncfg (options->dev, options->dev_type, options->dev_node,
 	      options->tun_ipv6, options->persist_mode);
       return true;
@@ -472,6 +476,7 @@ do_init_timers (struct context *c, bool deferred)
       /* initialize connection establishment timer */
       event_timeout_init (&c->c2.wait_for_connect, 1, now);
 
+#ifdef ENABLE_OCC
       /* initialize occ timers */
 
       if (c->options.occ
@@ -481,6 +486,7 @@ do_init_timers (struct context *c, bool deferred)
 
       if (c->options.mtu_test)
 	event_timeout_init (&c->c2.occ_mtu_load_test_interval, OCC_MTU_LOAD_INTERVAL_SECONDS, now);
+#endif
 
       /* initialize packet_id persistence timer */
 #ifdef USE_CRYPTO
@@ -984,9 +990,17 @@ do_deferred_options (struct context *c, const unsigned int found)
 static void
 socket_restart_pause (const struct context *c)
 {
-  const bool proxy = (c->options.http_proxy_server != NULL || c->options.socks_proxy_server != NULL);
-
+  bool proxy = false;
   int sec = 2;
+
+#ifdef ENABLE_HTTP_PROXY
+  if (c->options.http_proxy_server)
+    proxy = true;
+#endif
+#ifdef ENABLE_SOCKS
+  if (c->options.socks_proxy_server)
+    proxy = true;
+#endif
 
   switch (c->options.proto)
     {
@@ -1002,8 +1016,10 @@ socket_restart_pause (const struct context *c)
       break;
     }
 
+#ifdef ENABLE_DEBUG
   if (GREMLIN_CONNECTION_FLOOD_LEVEL (c->options.gremlin))
     sec = 0;
+#endif
 
   if (sec)
     {
@@ -1231,16 +1247,24 @@ do_init_crypto_tls (struct context *c, const unsigned int flags)
   to.renegotiate_packets = options->renegotiate_packets;
   to.renegotiate_seconds = options->renegotiate_seconds;
   to.single_session = options->single_session;
+
+#ifdef ENABLE_OCC
   to.disable_occ = !options->occ;
+#endif
+
   to.verify_command = options->tls_verify;
   to.verify_x509name = options->tls_remote;
   to.crl_file = options->crl_file;
   to.ns_cert_type = options->ns_cert_type;
   to.es = c->c2.es;
+
+#ifdef ENABLE_DEBUG
   to.gremlin = c->options.gremlin;
+#endif
+
   to.plugins = c->c1.plugins;
 
-#if P2MP
+#if P2MP_SERVER
   to.auth_user_pass_verify_script = options->auth_user_pass_verify_script;
   to.auth_user_pass_verify_script_via_file = options->auth_user_pass_verify_script_via_file;
   to.tmp_dir = options->tmp_dir;
@@ -1338,15 +1362,19 @@ do_init_frame (struct context *c)
   if (c->options.comp_lzo)
     {
       lzo_adjust_frame_parameters (&c->c2.frame);
+#ifdef ENABLE_FRAGMENT
       lzo_adjust_frame_parameters (&c->c2.frame_fragment_omit);	/* omit LZO frame delta from final frame_fragment */
+#endif
     }
 #endif
 
+#ifdef ENABLE_SOCKS
   /*
    * Adjust frame size for UDP Socks support.
    */
   if (c->options.socks_proxy_server)
     socks_adjust_frame_parameters (&c->c2.frame, c->options.proto);
+#endif
 
   /*
    * Adjust frame size based on the --tun-mtu-extra parameter.
@@ -1367,6 +1395,7 @@ do_init_frame (struct context *c)
    */
   frame_finalize_options (&c->c2.frame, &c->options);
 
+#ifdef ENABLE_FRAGMENT
   /*
    * Set frame parameter for fragment code.  This is necessary because
    * the fragmentation code deals with payloads which have already been
@@ -1374,20 +1403,24 @@ do_init_frame (struct context *c)
    */
   c->c2.frame_fragment = c->c2.frame;
   frame_subtract_extra (&c->c2.frame_fragment, &c->c2.frame_fragment_omit);
+#endif
 
+#if defined(ENABLE_FRAGMENT) && defined(ENABLE_OCC)
   /*
    * MTU advisories
    */
   if (c->options.fragment && c->options.mtu_test)
     msg (M_WARN,
 	 "WARNING: using --fragment and --mtu-test together may produce an inaccurate MTU test result");
+#endif
 
+#ifdef ENABLE_FRAGMENT
   if ((c->options.mssfix || c->options.fragment)
       && TUN_MTU_SIZE (&c->c2.frame_fragment) != ETHERNET_MTU)
     msg (M_WARN,
 	 "WARNING: normally if you use --mssfix and/or --fragment, you should also set --tun-mtu %d (currently it is %d)",
 	 ETHERNET_MTU, TUN_MTU_SIZE (&c->c2.frame_fragment));
-
+#endif
 }
 
 static void
@@ -1411,11 +1444,13 @@ do_option_warnings (struct context *c)
   if (o->pull && o->ifconfig_local && c->first_time)
     msg (M_WARN, "WARNING: using --pull/--client and --ifconfig together is probably not what you want");
 
+#if P2MP_SERVER
   if (o->mode == MODE_SERVER)
     {
       if (o->duplicate_cn && o->client_config_dir)
 	msg (M_WARN, "WARNING: using --duplicate-cn and --client-config-dir together is probably not what you want");
     }
+#endif
 #endif
 
 #ifdef USE_CRYPTO
@@ -1493,6 +1528,7 @@ do_init_buffers (struct context *c)
   c->c2.buffers_owned = true;
 }
 
+#ifdef ENABLE_FRAGMENT
 /*
  * Fragmenting code has buffers to initialize
  * once frame parameters are known.
@@ -1505,6 +1541,7 @@ do_init_fragment (struct context *c)
 			 c->options.fragment, SET_MTU_UPPER_BOUND);
   fragment_frame_init (c->c2.fragment, &c->c2.frame_fragment);
 }
+#endif
 
 /*
  * Set the --mssfix option.
@@ -1543,8 +1580,15 @@ do_init_socket_1 (struct context *c, int mode)
 			   c->options.proto,
 			   mode,
 			   c->c2.accept_from,
+#ifdef ENABLE_HTTP_PROXY
 			   c->c1.http_proxy,
+#endif
+#ifdef ENABLE_SOCKS
 			   c->c1.socks_proxy,
+#endif
+#ifdef ENABLE_DEBUG
+			   c->options.gremlin,
+#endif
 			   c->options.bind_local,
 			   c->options.remote_float,
 			   c->options.inetd,
@@ -1555,8 +1599,7 @@ do_init_socket_1 (struct context *c, int mode)
 			   c->options.connect_retry_seconds,
 			   c->options.mtu_discover_type,
 			   c->options.rcvbuf,
-			   c->options.sndbuf,
-			   c->options.gremlin);
+			   c->options.sndbuf);
 }
 
 /*
@@ -1576,11 +1619,14 @@ static void
 do_print_data_channel_mtu_parms (struct context *c)
 {
   frame_print (&c->c2.frame, D_MTU_INFO, "Data Channel MTU parms");
+#ifdef ENABLE_FRAGMENT
   if (c->c2.fragment)
     frame_print (&c->c2.frame_fragment, D_MTU_INFO,
 		 "Fragmentation MTU parms");
+#endif
 }
 
+#ifdef ENABLE_OCC
 /*
  * Get local and remote options compatibility strings.
  */
@@ -1618,6 +1664,7 @@ do_compute_occ_strings (struct context *c)
 
   gc_free (&gc);
 }
+#endif
 
 /*
  * These things can only be executed once per program instantiation.
@@ -1696,12 +1743,14 @@ do_close_tls (struct context *c)
       c->c2.tls_multi = NULL;
     }
 
+#ifdef ENABLE_OCC
   /* free options compatibility strings */
   if (c->c2.options_string_local)
     free (c->c2.options_string_local);
   if (c->c2.options_string_remote)
     free (c->c2.options_string_remote);
   c->c2.options_string_local = c->c2.options_string_remote = NULL;
+#endif
 #endif
 }
 
@@ -1751,6 +1800,7 @@ do_close_packet_id (struct context *c)
 #endif
 }
 
+#ifdef ENABLE_FRAGMENT
 /*
  * Close fragmentation handler.
  */
@@ -1763,6 +1813,7 @@ do_close_fragment (struct context *c)
       c->c2.fragment = NULL;
     }
 }
+#endif
 
 static void
 do_close_syslog (struct context *c)
@@ -1841,7 +1892,7 @@ do_close_status_output (struct context *c)
 static void
 do_open_ifconfig_pool_persist (struct context *c)
 {
-#if P2MP
+#if P2MP_SERVER
   if (!c->c1.ifconfig_pool_persist && c->options.ifconfig_pool_persist_filename)
     {
       c->c1.ifconfig_pool_persist = ifconfig_pool_persist_init (c->options.ifconfig_pool_persist_filename,
@@ -1854,7 +1905,7 @@ do_open_ifconfig_pool_persist (struct context *c)
 static void
 do_close_ifconfig_pool_persist (struct context *c)
 {
-#if P2MP
+#if P2MP_SERVER
   if (!(c->sig->signal_received == SIGUSR1))
     {
       if (c->c1.ifconfig_pool_persist && c->c1.ifconfig_pool_persist_owned)
@@ -2119,9 +2170,11 @@ init_instance (struct context *c, const struct env_set *env, unsigned int flags)
   if (c->mode == CM_TOP)
     do_open_ifconfig_pool_persist (c);
 
+#ifdef ENABLE_OCC
   /* reset OCC state */
   if (c->mode == CM_P2P || child)
     c->c2.occ_op = occ_reset_op ();
+#endif
 
   /* our wait-for-i/o objects, different for posix vs. win32 */
   if (c->mode == CM_P2P)
@@ -2133,9 +2186,11 @@ init_instance (struct context *c, const struct env_set *env, unsigned int flags)
   if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_CHILD_TCP)
     do_link_socket_new (c);
 
+#ifdef ENABLE_FRAGMENT
   /* initialize internal fragmentation object */
   if (options->fragment && (c->mode == CM_P2P || child))
     c->c2.fragment = fragment_init (&c->c2.frame);
+#endif
 
   /* init crypto layer */
   {
@@ -2165,9 +2220,11 @@ init_instance (struct context *c, const struct env_set *env, unsigned int flags)
   if (c->mode == CM_P2P || c->mode == CM_CHILD_TCP)
     do_init_buffers (c);
 
+#ifdef ENABLE_FRAGMENT
   /* initialize internal fragmentation capability with known frame size */
   if (options->fragment && (c->mode == CM_P2P || child))
     do_init_fragment (c);
+#endif
 
   /* initialize dynamic MTU variable */
   do_init_mssfix (c);
@@ -2184,9 +2241,11 @@ init_instance (struct context *c, const struct env_set *env, unsigned int flags)
   /* print MTU info */
   do_print_data_channel_mtu_parms (c);
 
+#ifdef ENABLE_OCC
   /* get local and remote options compatibility strings */
   if (c->mode == CM_P2P || child)
     do_compute_occ_strings (c);
+#endif
 
   /* initialize output speed limiter */
   if (c->mode == CM_P2P)
@@ -2267,8 +2326,10 @@ close_instance (struct context *c)
 	/* close --status file */
 	do_close_status_output (c);
 
+#ifdef ENABLE_FRAGMENT
 	/* close fragmentation handler */
 	do_close_fragment (c);
+#endif
 
 	/* close --ifconfig-pool-persist obj */
 	do_close_ifconfig_pool_persist (c);
@@ -2388,7 +2449,7 @@ inherit_context_top (struct context *dest,
 
   dest->c1.tuntap_owned = false;
   dest->c1.status_output_owned = false;
-#if P2MP
+#if P2MP_SERVER
   dest->c1.ifconfig_pool_persist_owned = false;
 #endif
   dest->c2.event_set_owned = false;

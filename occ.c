@@ -31,6 +31,8 @@
 
 #include "syshead.h"
 
+#ifdef ENABLE_OCC
+
 #include "occ.h"
 
 #include "memdbg.h"
@@ -224,7 +226,7 @@ check_send_occ_msg_dowork (struct context *c)
     case OCC_REQUEST:
       if (!buf_write_u8 (&c->c2.buf, OCC_REQUEST))
 	break;
-      msg (D_PACKET_CONTENT, "SENT OCC_REQUEST");
+      dmsg (D_PACKET_CONTENT, "SENT OCC_REQUEST");
       doit = true;
       break;
 
@@ -236,14 +238,14 @@ check_send_occ_msg_dowork (struct context *c)
       if (!buf_write (&c->c2.buf, c->c2.options_string_local,
 		      strlen (c->c2.options_string_local) + 1))
 	break;
-      msg (D_PACKET_CONTENT, "SENT OCC_REPLY");
+      dmsg (D_PACKET_CONTENT, "SENT OCC_REPLY");
       doit = true;
       break;
 
     case OCC_MTU_REQUEST:
       if (!buf_write_u8 (&c->c2.buf, OCC_MTU_REQUEST))
 	break;
-      msg (D_PACKET_CONTENT, "SENT OCC_MTU_REQUEST");
+      dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_REQUEST");
       doit = true;
       break;
 
@@ -254,7 +256,7 @@ check_send_occ_msg_dowork (struct context *c)
 	break;
       if (!buf_write_u16 (&c->c2.buf, c->c2.max_send_size_local))
 	break;
-      msg (D_PACKET_CONTENT, "SENT OCC_MTU_REPLY");
+      dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_REPLY");
       doit = true;
       break;
 
@@ -263,7 +265,7 @@ check_send_occ_msg_dowork (struct context *c)
 	break;
       if (!buf_write_u16 (&c->c2.buf, c->c2.occ_mtu_load_size))
 	break;
-      msg (D_PACKET_CONTENT, "SENT OCC_MTU_LOAD_REQUEST");
+      dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_LOAD_REQUEST");
       doit = true;
       break;
 
@@ -287,7 +289,7 @@ check_send_occ_msg_dowork (struct context *c)
 	      break;
 	    --need_to_add;
 	  }
-	msg (D_PACKET_CONTENT, "SENT OCC_MTU_LOAD min_int(%d-%d-%d-%d,%d) size=%d",
+	dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_LOAD min_int(%d-%d-%d-%d,%d) size=%d",
 	     c->c2.occ_mtu_load_size,
 	     OCC_STRING_SIZE,
 	     sizeof (uint8_t),
@@ -301,7 +303,7 @@ check_send_occ_msg_dowork (struct context *c)
     case OCC_EXIT:
       if (!buf_write_u8 (&c->c2.buf, OCC_EXIT))
 	break;
-      msg (D_PACKET_CONTENT, "SENT OCC_EXIT");
+      dmsg (D_PACKET_CONTENT, "SENT OCC_EXIT");
       doit = true;
       break;
     }
@@ -325,24 +327,24 @@ process_received_occ_msg (struct context *c)
   switch (buf_read_u8 (&c->c2.buf))
     {
     case OCC_REQUEST:
-      msg (D_PACKET_CONTENT, "RECEIVED OCC_REQUEST");
+      dmsg (D_PACKET_CONTENT, "RECEIVED OCC_REQUEST");
       c->c2.occ_op = OCC_REPLY;
       break;
 
     case OCC_MTU_REQUEST:
-      msg (D_PACKET_CONTENT, "RECEIVED OCC_MTU_REQUEST");
+      dmsg (D_PACKET_CONTENT, "RECEIVED OCC_MTU_REQUEST");
       c->c2.occ_op = OCC_MTU_REPLY;
       break;
 
     case OCC_MTU_LOAD_REQUEST:
-      msg (D_PACKET_CONTENT, "RECEIVED OCC_MTU_LOAD_REQUEST");
+      dmsg (D_PACKET_CONTENT, "RECEIVED OCC_MTU_LOAD_REQUEST");
       c->c2.occ_mtu_load_size = buf_read_u16 (&c->c2.buf);
       if (c->c2.occ_mtu_load_size >= 0)
 	c->c2.occ_op = OCC_MTU_LOAD;
       break;
 
     case OCC_REPLY:
-      msg (D_PACKET_CONTENT, "RECEIVED OCC_REPLY");
+      dmsg (D_PACKET_CONTENT, "RECEIVED OCC_REPLY");
       if (c->options.occ && !TLS_MODE && c->c2.options_string_remote)
 	{
 	  if (!options_cmp_equal_safe (BPTR (&c->c2.buf),
@@ -358,7 +360,7 @@ process_received_occ_msg (struct context *c)
       break;
 
     case OCC_MTU_REPLY:
-      msg (D_PACKET_CONTENT, "RECEIVED OCC_MTU_REPLY");
+      dmsg (D_PACKET_CONTENT, "RECEIVED OCC_MTU_REPLY");
       c->c2.max_recv_size_remote = buf_read_u16 (&c->c2.buf);
       c->c2.max_send_size_remote = buf_read_u16 (&c->c2.buf);
       if (c->options.mtu_test
@@ -382,10 +384,14 @@ process_received_occ_msg (struct context *c)
       break;
 
     case OCC_EXIT:
-      msg (D_PACKET_CONTENT, "RECEIVED OCC_EXIT");
+      dmsg (D_PACKET_CONTENT, "RECEIVED OCC_EXIT");
       c->sig->signal_received = SIGTERM;
       c->sig->signal_text = "remote-exit";
       break;
     }
   c->c2.buf.len = 0; /* don't pass packet on */
 }
+
+#else
+static void dummy(void) {}
+#endif

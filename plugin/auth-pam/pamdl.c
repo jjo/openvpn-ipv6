@@ -1,6 +1,4 @@
 /*
- * $Id$
- *
  * If you want to dynamically load libpam using dlopen() or something,
  * then dlopen( ' this shared object ' ); It takes care of exporting
  * the right symbols to any modules loaded by libpam.

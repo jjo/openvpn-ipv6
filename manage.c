@@ -116,7 +116,7 @@ man_check_password (struct management *man, const char *line)
 static void
 man_update_io_state (struct management *man)
 {
-  if (man->connection.sd_cli >= 0)
+  if (socket_defined (man->connection.sd_cli))
     {
       if (output_list_defined (man->connection.out))
 	{
@@ -730,15 +730,15 @@ man_accept (struct management *man)
    * Accept the TCP client.
    */
   man->connection.sd_cli = socket_do_accept (man->connection.sd_top, &man->connection.remote, false);
-  if (man->connection.sd_cli >= 0)
+  if (socket_defined (man->connection.sd_cli))
     {
-      if (man->connection.sd_top >= 0)
+      if (socket_defined (man->connection.sd_top))
 	{
 #ifdef WIN32
 	  man_stop_ne32 (man);
 #endif
 	  openvpn_close_socket (man->connection.sd_top);
-	  man->connection.sd_top = -1;
+	  man->connection.sd_top = SOCKET_UNDEFINED;
 	}
 
       /*
@@ -786,7 +786,7 @@ man_listen (struct management *man)
   /*
    * Initialize socket
    */
-  man->connection.sd_cli = -1;
+  man->connection.sd_cli = SOCKET_UNDEFINED;
   man->connection.sd_top = create_socket_tcp ();
 
   /*
@@ -821,7 +821,7 @@ man_listen (struct management *man)
 static void
 man_reset_client_socket (struct management *man, const bool listen)
 {
-  if (man->connection.sd_cli >= 0)
+  if (socket_defined (man->connection.sd_cli))
     {
       msg (D_MANAGEMENT, "MANAGEMENT: Client disconnected");
 #ifdef WIN32
@@ -858,8 +858,8 @@ man_process_command (struct management *man, const char *line)
       else
 	msg (D_MANAGEMENT, "MANAGEMENT: CMD '%s'", line);
 
-#if 0
-      // DEBUGGING
+#if 1
+      // DEBUGGING -- print args JYFIXME
       {
 	int i;
 	for (i = 0; i < nparms; ++i)
@@ -997,8 +997,8 @@ man_connection_clear (struct man_connection *mc)
   mc->state = MS_INITIAL;
 
   /* clear socket descriptors */
-  mc->sd_top = -1;
-  mc->sd_cli = -1;
+  mc->sd_top = SOCKET_UNDEFINED;
+  mc->sd_cli = SOCKET_UNDEFINED;
 }
 
 static void
@@ -1155,9 +1155,9 @@ man_connection_close (struct man_connection *mc)
 #ifdef WIN32
   net_event_win32_close (&mc->ne32);
 #endif
-  if (mc->sd_top >= 0)
+  if (socket_defined (mc->sd_top))
     openvpn_close_socket (mc->sd_top);
-  if (mc->sd_cli >= 0)
+  if (socket_defined (mc->sd_cli))
     openvpn_close_socket (mc->sd_cli);
   if (mc->in)
     command_line_free (mc->in);

@@ -36,6 +36,8 @@
 #include "config.h"
 #endif
 
+#ifdef ENABLE_SOCKS
+
 #include "syshead.h"
 
 #include "common.h"
@@ -404,3 +406,7 @@ socks_process_outgoing_udp (struct buffer *buf,
 
   return 10;
 }
+
+#else
+static void dummy(void) {}
+#endif /* ENABLE_SOCKS */

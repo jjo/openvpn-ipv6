@@ -360,7 +360,7 @@ openvpn_chdir (const char* dir)
  *  dup inetd/xinetd socket descriptor and save
  */
 
-int inetd_socket_descriptor = -1; /* GLOBAL */
+int inetd_socket_descriptor = SOCKET_UNDEFINED; /* GLOBAL */
 
 void
 save_inetd_socket_descriptor (void)
@@ -399,7 +399,7 @@ openvpn_system (const char *command, const struct env_set *es, unsigned int flag
 
 
   /* debugging */
-  msg (D_SCRIPT, "SYSTEM[%u] '%s'", flags, command);
+  dmsg (D_SCRIPT, "SYSTEM[%u] '%s'", flags, command);
   if (flags & S_SCRIPT)
     env_set_print (D_SCRIPT, es);
 
@@ -409,7 +409,7 @@ openvpn_system (const char *command, const struct env_set *es, unsigned int flag
   ret = system (command);
 
   /* debugging */
-  msg (D_SCRIPT, "SYSTEM return=%u", ret);
+  dmsg (D_SCRIPT, "SYSTEM return=%u", ret);
 
   /*
    * remove env_set from environment
@@ -996,7 +996,7 @@ test_file (const char *filename)
 	}
     }
 
-  msg (D_TEST_FILE, "TEST FILE '%s' [%d]",
+  dmsg (D_TEST_FILE, "TEST FILE '%s' [%d]",
        filename ? filename : "UNDEF",
        ret);
 

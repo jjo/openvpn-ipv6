@@ -26,7 +26,7 @@
 #ifndef MROUTE_H
 #define MROUTE_H
 
-#if P2MP
+#if P2MP_SERVER
 
 #include "buffer.h"
 #include "list.h"
@@ -162,5 +162,5 @@ mroute_extract_in_addr_t (struct mroute_addr *dest, const in_addr_t src)
   *(in_addr_t*)dest->addr = htonl (src);
 }
 
-#endif /* P2MP */
+#endif /* P2MP_SERVER */
 #endif /* MROUTE_H */

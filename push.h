@@ -45,19 +45,22 @@ int process_incoming_push_msg (struct context *c,
 			       unsigned int permission_mask,
 			       int *option_types_found);
 
+bool send_push_request (struct context *c);
+
+void receive_auth_failed (struct context *c, const struct buffer *buffer);
+
+#if P2MP_SERVER
+
 void push_option (struct options *o, const char *opt, int msglevel);
 
 void push_reset (struct options *o);
 
-bool send_push_request (struct context *c);
 bool send_push_reply (struct context *c);
 
 void remove_iroutes_from_push_route_list (struct options *o);
 
-/* Auth username/password */
-
-void receive_auth_failed (struct context *c, const struct buffer *buffer);
 bool send_auth_failed (struct context *c);
 
+#endif
 #endif
 #endif

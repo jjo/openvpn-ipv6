@@ -3,6 +3,22 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.12.02 -- Version 2.0-beta19
+
+* Fixed bug in management interface line termination
+  where output lines incorrectly contained a \00 char
+  after the customary \0d \0a.
+* Fixed bug introduced in beta18 where Windows version
+  would segfault on options errors.
+* Fixed bug in management interface where an empty
+  quoted string ("") entered as a parameter would cause
+  a segfault.
+* Fixed bug where --resolv-retry was not working
+  properly with multiple --remote hosts.
+* Added additional ./configure options to reduce
+  executable size for embedded applications.
+  See ./configure --help.
+
 2004.11.28 -- Version 2.0-beta18
 
 * Added management interface.  See new --management-*

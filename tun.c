@@ -1569,7 +1569,7 @@ tun_read_queue (struct tuntap *tt, int maxsize)
 	  tt->reads.iostate = IOSTATE_IMMEDIATE_RETURN;
 	  tt->reads.status = 0;
 
-	  msg (D_WIN32_IO, "WIN32 I/O: TAP Read immediate return [%d,%d]",
+	  dmsg (D_WIN32_IO, "WIN32 I/O: TAP Read immediate return [%d,%d]",
 	       (int) len,
 	       (int) tt->reads.size);	       
 	}
@@ -1580,7 +1580,7 @@ tun_read_queue (struct tuntap *tt, int maxsize)
 	    {
 	      tt->reads.iostate = IOSTATE_QUEUED;
 	      tt->reads.status = err;
-	      msg (D_WIN32_IO, "WIN32 I/O: TAP Read queued [%d]",
+	      dmsg (D_WIN32_IO, "WIN32 I/O: TAP Read queued [%d]",
 		   (int) len);
 	    }
 	  else /* error occurred */
@@ -1589,7 +1589,7 @@ tun_read_queue (struct tuntap *tt, int maxsize)
 	      ASSERT (SetEvent (tt->reads.overlapped.hEvent));
 	      tt->reads.iostate = IOSTATE_IMMEDIATE_RETURN;
 	      tt->reads.status = err;
-	      msg (D_WIN32_IO, "WIN32 I/O: TAP Read error [%d] : %s",
+	      dmsg (D_WIN32_IO, "WIN32 I/O: TAP Read error [%d] : %s",
 		   (int) len,
 		   strerror_win32 (status, &gc));
 	      gc_free (&gc);
@@ -1632,7 +1632,7 @@ tun_write_queue (struct tuntap *tt, struct buffer *buf)
 
 	  tt->writes.status = 0;
 
-	  msg (D_WIN32_IO, "WIN32 I/O: TAP Write immediate return [%d,%d]",
+	  dmsg (D_WIN32_IO, "WIN32 I/O: TAP Write immediate return [%d,%d]",
 	       BLEN (&tt->writes.buf),
 	       (int) tt->writes.size);	       
 	}
@@ -1643,7 +1643,7 @@ tun_write_queue (struct tuntap *tt, struct buffer *buf)
 	    {
 	      tt->writes.iostate = IOSTATE_QUEUED;
 	      tt->writes.status = err;
-	      msg (D_WIN32_IO, "WIN32 I/O: TAP Write queued [%d]",
+	      dmsg (D_WIN32_IO, "WIN32 I/O: TAP Write queued [%d]",
 		   BLEN (&tt->writes.buf));
 	    }
 	  else /* error occurred */
@@ -1652,7 +1652,7 @@ tun_write_queue (struct tuntap *tt, struct buffer *buf)
 	      ASSERT (SetEvent (tt->writes.overlapped.hEvent));
 	      tt->writes.iostate = IOSTATE_IMMEDIATE_RETURN;
 	      tt->writes.status = err;
-	      msg (D_WIN32_IO, "WIN32 I/O: TAP Write error [%d] : %s",
+	      dmsg (D_WIN32_IO, "WIN32 I/O: TAP Write error [%d] : %s",
 		   BLEN (&tt->writes.buf),
 		   strerror_win32 (err, &gc));
 	      gc_free (&gc);
@@ -1688,7 +1688,7 @@ tun_finalize (
 	  ret = io->size;
 	  io->iostate = IOSTATE_INITIAL;
 	  ASSERT (ResetEvent (io->overlapped.hEvent));
-	  msg (D_WIN32_IO, "WIN32 I/O: TAP Completion success [%d]", ret);
+	  dmsg (D_WIN32_IO, "WIN32 I/O: TAP Completion success [%d]", ret);
 	}
       else
 	{
@@ -1721,14 +1721,14 @@ tun_finalize (
 	  if (buf)
 	    *buf = io->buf;
 	  ret = io->size;
-	  msg (D_WIN32_IO, "WIN32 I/O: TAP Completion non-queued success [%d]", ret);
+	  dmsg (D_WIN32_IO, "WIN32 I/O: TAP Completion non-queued success [%d]", ret);
 	}
       break;
 
     case IOSTATE_INITIAL: /* were we called without proper queueing? */
       SetLastError (ERROR_INVALID_FUNCTION);
       ret = -1;
-      msg (D_WIN32_IO, "WIN32 I/O: TAP Completion BAD STATE");
+      dmsg (D_WIN32_IO, "WIN32 I/O: TAP Completion BAD STATE");
       break;
 
     default:
@@ -1798,7 +1798,7 @@ get_tap_reg (struct gc_arena *gc)
 			    &unit_key);
 
       if (status != ERROR_SUCCESS)
-	msg (D_REGISTRY, "Error opening registry key: %s", unit_string);
+	dmsg (D_REGISTRY, "Error opening registry key: %s", unit_string);
       else
 	{
 	  len = sizeof (component_id);
@@ -1811,7 +1811,7 @@ get_tap_reg (struct gc_arena *gc)
 				   &len);
 
 	  if (status != ERROR_SUCCESS || data_type != REG_SZ)
-	    msg (D_REGISTRY, "Error opening registry key: %s\\%s",
+	    dmsg (D_REGISTRY, "Error opening registry key: %s\\%s",
 		 unit_string, component_id_string);
 	  else
 	    {	      
@@ -1907,7 +1907,7 @@ get_panel_reg (struct gc_arena *gc)
 			    &connection_key);
 
       if (status != ERROR_SUCCESS)
-	msg (D_REGISTRY, "Error opening registry key: %s", connection_string);
+	dmsg (D_REGISTRY, "Error opening registry key: %s", connection_string);
       else
 	{
 	  len = sizeof (name_data);
@@ -1920,7 +1920,7 @@ get_panel_reg (struct gc_arena *gc)
 				   &len);
 
 	  if (status != ERROR_SUCCESS || name_type != REG_SZ)
-	    msg (D_REGISTRY, "Error opening registry key: %s\\%s\\%s",
+	    dmsg (D_REGISTRY, "Error opening registry key: %s\\%s\\%s",
 		 NETWORK_CONNECTIONS_KEY, connection_string, name_string);
 	  else
 	    {
@@ -2553,7 +2553,7 @@ adapter_index_of_ip (const IP_ADAPTER_INFO *list, const in_addr_t ip, int *count
       list = list->Next;
     }
 
-  msg (D_ROUTE_DEBUG, "DEBUG: IP Locate: ip=%s nm=%s index=%d count=%d",
+  dmsg (D_ROUTE_DEBUG, "DEBUG: IP Locate: ip=%s nm=%s index=%d count=%d",
        print_in_addr_t (ip, 0, &gc),
        print_in_addr_t (highest_netmask, 0, &gc),
        (int)ret,
@@ -3243,20 +3243,20 @@ close_tun (struct tuntap *tt)
 
       if (tt->hand != NULL)
 	{
-	  msg (D_WIN32_IO_LOW, "Attempting CancelIO on TAP-Win32 adapter");
+	  dmsg (D_WIN32_IO_LOW, "Attempting CancelIO on TAP-Win32 adapter");
 	  if (!CancelIo (tt->hand))
 	    msg (M_WARN | M_ERRNO, "Warning: CancelIO failed on TAP-Win32 adapter");
 	}
 
-      msg (D_WIN32_IO_LOW, "Attempting close of overlapped read event on TAP-Win32 adapter");
+      dmsg (D_WIN32_IO_LOW, "Attempting close of overlapped read event on TAP-Win32 adapter");
       overlapped_io_close (&tt->reads);
 
-      msg (D_WIN32_IO_LOW, "Attempting close of overlapped write event on TAP-Win32 adapter");
+      dmsg (D_WIN32_IO_LOW, "Attempting close of overlapped write event on TAP-Win32 adapter");
       overlapped_io_close (&tt->writes);
 
       if (tt->hand != NULL)
 	{
-	  msg (D_WIN32_IO_LOW, "Attempting CloseHandle on TAP-Win32 adapter");
+	  dmsg (D_WIN32_IO_LOW, "Attempting CloseHandle on TAP-Win32 adapter");
 	  if (!CloseHandle (tt->hand))
 	    msg (M_WARN | M_ERRNO, "Warning: CloseHandle failed on TAP-Win32 adapter");
 	}

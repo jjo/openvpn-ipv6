@@ -236,6 +236,12 @@ void x_msg (const unsigned int flags, const char *format, ...)
     }
 #endif
 
+  if (flags & M_OPTERR)
+    {
+      openvpn_snprintf (m2, ERR_BUF_SIZE, "Options error: %s", m1);
+      SWAP;
+    }
+
 #if SYSLOG_CAPABILITY
   if (flags & (M_FATAL|M_NONFATAL|M_USAGE_SMALL))
     level = LOG_ERR;

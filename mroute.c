@@ -31,7 +31,7 @@
 
 #include "syshead.h"
 
-#if P2MP
+#if P2MP_SERVER
 
 #include "mroute.h"
 #include "proto.h"
@@ -306,6 +306,7 @@ mroute_helper_regenerate (struct mroute_helper *mh)
     }
   mh->n_net_len = j;
 
+#ifdef ENABLE_DEBUG
   if (check_debug_level (D_MULTI_DEBUG))
     {
       struct gc_arena gc = gc_new ();
@@ -315,9 +316,10 @@ mroute_helper_regenerate (struct mroute_helper *mh)
 	{
 	  buf_printf (&out, " /%d", mh->net_len[i]);
 	}
-      msg (D_MULTI_DEBUG, "%s", BSTR (&out));
+      dmsg (D_MULTI_DEBUG, "%s", BSTR (&out));
       gc_free (&gc);
     }
+#endif
 }
 
 void
@@ -360,4 +362,4 @@ mroute_helper_free (struct mroute_helper *mh)
 
 #else
 static void dummy(void) {}
-#endif /* P2MP */
+#endif /* P2MP_SERVER */

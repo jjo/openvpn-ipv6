@@ -84,8 +84,11 @@ frame_finalize (struct frame *frame,
 void
 frame_set_mtu_dynamic (struct frame *frame, int mtu, unsigned int flags)
 {
+
+#ifdef ENABLE_DEBUG
   const int orig_mtu = mtu;
   const int orig_link_mtu_dynamic = frame->link_mtu_dynamic;
+#endif
 
   ASSERT (mtu >= 0);
 
@@ -100,7 +103,7 @@ frame_set_mtu_dynamic (struct frame *frame, int mtu, unsigned int flags)
 	EXPANDED_SIZE (frame));
     }
 
-  msg (D_MTU_DEBUG, "MTU DYNAMIC mtu=%d, flags=%u, %d -> %d",
+  dmsg (D_MTU_DEBUG, "MTU DYNAMIC mtu=%d, flags=%u, %d -> %d",
        orig_mtu,
        flags,
        orig_link_mtu_dynamic,

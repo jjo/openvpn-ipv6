@@ -137,9 +137,9 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 
 	  /* set the IV pseudo-randomly */
 	  if (opt->flags & CO_USE_IV)
-	    msg (D_PACKET_CONTENT, "ENCRYPT IV: %s", format_hex (iv_buf, iv_size, 0, &gc));
+	    dmsg (D_PACKET_CONTENT, "ENCRYPT IV: %s", format_hex (iv_buf, iv_size, 0, &gc));
 
-	  msg (D_PACKET_CONTENT, "ENCRYPT FROM: %s",
+	  dmsg (D_PACKET_CONTENT, "ENCRYPT FROM: %s",
 	       format_hex (BPTR (buf), BLEN (buf), 80, &gc));
 
 	  /* cipher_ctx was already initialized with key & keylen */
@@ -176,7 +176,7 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 	      memcpy (output, iv_buf, iv_size);
 	    }
 
-	  msg (D_PACKET_CONTENT, "ENCRYPT TO: %s",
+	  dmsg (D_PACKET_CONTENT, "ENCRYPT TO: %s",
 	       format_hex (BPTR (&work), BLEN (&work), 80, &gc));
 	}
       else				/* No Encryption */
@@ -291,7 +291,7 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
 
 	  /* show the IV's initial state */
 	  if (opt->flags & CO_USE_IV)
-	    msg (D_PACKET_CONTENT, "DECRYPT IV: %s", format_hex (iv_buf, iv_size, 0, &gc));
+	    dmsg (D_PACKET_CONTENT, "DECRYPT IV: %s", format_hex (iv_buf, iv_size, 0, &gc));
 
 	  if (buf->len < 1)
 	    CRYPT_ERROR ("missing payload");
@@ -314,7 +314,7 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
 	    CRYPT_ERROR ("cipher final failed");
 	  work.len += outlen;
 
-	  msg (D_PACKET_CONTENT, "DECRYPT TO: %s",
+	  dmsg (D_PACKET_CONTENT, "DECRYPT TO: %s",
 	       format_hex (BPTR (&work), BLEN (&work), 80, &gc));
 
 	  /* Get packet ID from plaintext buffer or IV, depending on cipher mode */
@@ -462,9 +462,9 @@ init_cipher (EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
   /* make sure we used a big enough key */
   ASSERT (EVP_CIPHER_CTX_key_length (ctx) <= kt->cipher_length);
 
-  msg (D_SHOW_KEYS, "%s: CIPHER KEY: %s", prefix,
+  dmsg (D_SHOW_KEYS, "%s: CIPHER KEY: %s", prefix,
        format_hex (key->cipher, kt->cipher_length, 0, &gc));
-  msg (D_CRYPTO_DEBUG, "%s: CIPHER block_size=%d iv_size=%d",
+  dmsg (D_CRYPTO_DEBUG, "%s: CIPHER block_size=%d iv_size=%d",
        prefix,
        EVP_CIPHER_CTX_block_size (ctx),
        EVP_CIPHER_CTX_iv_length (ctx));
@@ -487,9 +487,9 @@ init_hmac (HMAC_CTX *ctx, const EVP_MD *digest,
   /* make sure we used a big enough key */
   ASSERT (HMAC_size (ctx) <= kt->hmac_length);
 
-  msg (D_SHOW_KEYS, "%s: HMAC KEY: %s", prefix,
+  dmsg (D_SHOW_KEYS, "%s: HMAC KEY: %s", prefix,
        format_hex (key->hmac, kt->hmac_length, 0, &gc));
-  msg (D_CRYPTO_DEBUG, "%s: HMAC size=%d block_size=%d",
+  dmsg (D_CRYPTO_DEBUG, "%s: HMAC size=%d block_size=%d",
        prefix,
        EVP_MD_size (digest),
        EVP_MD_block_size (digest));
@@ -520,7 +520,11 @@ init_key_type (struct key_type *kt, const char *ciphername,
 	      || (cfb_ofb_allowed && (mode == EVP_CIPH_CFB_MODE || mode == EVP_CIPH_OFB_MODE))
 #endif
 	      ))
+#ifdef ENABLE_SMALL
+	  msg (M_FATAL, "Cipher '%s' mode not supported", ciphername);
+#else
 	  msg (M_FATAL, "Cipher '%s' uses a mode not supported by " PACKAGE_NAME " in your current configuration.  CBC mode is always supported, while CFB and OFB modes are supported only when using SSL/TLS authentication and key exchange mode, and when " PACKAGE_NAME " has been built with ALLOW_NON_CBC_CIPHERS.", ciphername);
+#endif
       }
     }
   else
@@ -632,7 +636,7 @@ n_DES_cblocks (const struct key_type *kt)
 	  ret = 1;
 	}
     }
-  msg (D_CRYPTO_DEBUG, "CRYPTO INFO: n_DES_cblocks=%d", ret);
+  dmsg (D_CRYPTO_DEBUG, "CRYPTO INFO: n_DES_cblocks=%d", ret);
   return ret;
 }
 
@@ -738,19 +742,23 @@ fixup_key (struct key *key, const struct key_type *kt)
   struct gc_arena gc = gc_new ();
   if (kt->cipher)
     {
+#ifdef ENABLE_DEBUG
       const struct key orig = *key;
+#endif
       const int ndc = n_DES_cblocks (kt);
 
       if (ndc)
 	fixup_key_DES (key, kt, ndc);
 
+#ifdef ENABLE_DEBUG
       if (check_debug_level (D_CRYPTO_DEBUG))
 	{
 	  if (memcmp (orig.cipher, key->cipher, kt->cipher_length))
-	    msg (D_CRYPTO_DEBUG, "CRYPTO INFO: fixup_key: before=%s after=%s",
+	    dmsg (D_CRYPTO_DEBUG, "CRYPTO INFO: fixup_key: before=%s after=%s",
 		 format_hex (orig.cipher, kt->cipher_length, 0, &gc),
 		 format_hex (key->cipher, kt->cipher_length, 0, &gc));
 	}
+#endif
     }
   gc_free (&gc);
 }
@@ -798,8 +806,8 @@ generate_key_random (struct key *key, const struct key_type *kt)
 	|| !RAND_bytes (key->hmac, hmac_len))
       msg (M_FATAL, "ERROR: Random number generator cannot obtain entropy for key generation");
 
-    msg (D_SHOW_KEY_SOURCE, "Cipher source entropy: %s", format_hex (key->cipher, cipher_len, 0, &gc));
-    msg (D_SHOW_KEY_SOURCE, "HMAC source entropy: %s", format_hex (key->hmac, hmac_len, 0, &gc));
+    dmsg (D_SHOW_KEY_SOURCE, "Cipher source entropy: %s", format_hex (key->cipher, cipher_len, 0, &gc));
+    dmsg (D_SHOW_KEY_SOURCE, "HMAC source entropy: %s", format_hex (key->hmac, hmac_len, 0, &gc));
 
     if (kt)
       fixup_key (key, kt);
@@ -819,16 +827,16 @@ key2_print (const struct key2* k,
 {
   struct gc_arena gc = gc_new ();
   ASSERT (k->n == 2);
-  msg (D_SHOW_KEY_SOURCE, "%s (cipher): %s",
+  dmsg (D_SHOW_KEY_SOURCE, "%s (cipher): %s",
        prefix0,
        format_hex (k->keys[0].cipher, kt->cipher_length, 0, &gc));
-  msg (D_SHOW_KEY_SOURCE, "%s (hmac): %s",
+  dmsg (D_SHOW_KEY_SOURCE, "%s (hmac): %s",
        prefix0,
        format_hex (k->keys[0].hmac, kt->hmac_length, 0, &gc));
-  msg (D_SHOW_KEY_SOURCE, "%s (cipher): %s",
+  dmsg (D_SHOW_KEY_SOURCE, "%s (cipher): %s",
        prefix1,
        format_hex (k->keys[1].cipher, kt->cipher_length, 0, &gc));
-  msg (D_SHOW_KEY_SOURCE, "%s (hmac): %s",
+  dmsg (D_SHOW_KEY_SOURCE, "%s (hmac): %s",
        prefix1,
        format_hex (k->keys[1].hmac, kt->hmac_length, 0, &gc));
   gc_free (&gc);
@@ -1269,7 +1277,13 @@ void
 must_have_n_keys (const char *filename, const char *option, const struct key2 *key2, int n)
 {
   if (key2->n < n)
-    msg (M_FATAL, "Key file '%s' used in --%s contains insufficient key material [keys found=%d required=%d] -- try generating a new key file with '" PACKAGE " --genkey --secret [file]', or use the existing key file in bidirectional mode by specifying --%s without a key direction parameter", filename, option, key2->n, n, option);
+    {
+#ifdef ENABLE_SMALL
+      msg (M_FATAL, "Key file '%s' used in --%s contains insufficient key material [keys found=%d required=%d]", filename, option, key2->n, n);
+#else
+      msg (M_FATAL, "Key file '%s' used in --%s contains insufficient key material [keys found=%d required=%d] -- try generating a new key file with '" PACKAGE " --genkey --secret [file]', or use the existing key file in bidirectional mode by specifying --%s without a key direction parameter", filename, option, key2->n, n, option);
+#endif
+    }
 }
 
 int
@@ -1410,12 +1424,15 @@ show_available_ciphers ()
 {
   int nid;
 
+
+#ifndef ENABLE_SMALL
   printf ("The following ciphers and cipher modes are available\n"
 	  "for use with " PACKAGE_NAME ".  Each cipher shown below may be\n"
 	  "used as a parameter to the --cipher option.  The default\n"
 	  "key size is shown as well as whether or not it can be\n"
           "changed with the --keysize directive.  Using a CBC mode\n"
 	  "is recommended.\n\n");
+#endif
 
   for (nid = 0; nid < 10000; ++nid)	/* is there a better way to get the size of the nid list? */
     {
@@ -1443,11 +1460,13 @@ show_available_digests ()
 {
   int nid;
 
+#ifndef ENABLE_SMALL
   printf ("The following message digests are available for use with\n"
 	  PACKAGE_NAME ".  A message digest is used in conjunction with\n"
 	  "the HMAC function, to authenticate received packets.\n"
 	  "You can specify a message digest as parameter to\n"
 	  "the --auth option.\n\n");
+#endif
 
   for (nid = 0; nid < 10000; ++nid)
     {

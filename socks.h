@@ -31,6 +31,8 @@
 #ifndef SOCKS_H
 #define SOCKS_H
 
+#ifdef ENABLE_SOCKS
+
 #include "buffer.h"
 
 struct socks_proxy_info {
@@ -66,4 +68,5 @@ void socks_process_incoming_udp (struct buffer *buf,
 int socks_process_outgoing_udp (struct buffer *buf,
 				struct sockaddr_in *to);
 
+#endif
 #endif

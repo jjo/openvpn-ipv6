@@ -93,17 +93,17 @@ extern int x_msg_line_num;
 #define M_ERRNO           (1<<8)	 /* show errno description */
 #define M_ERRNO_SOCK      (1<<9)	 /* show socket errno description */
 #define M_SSL             (1<<10)	 /* show SSL error */
-#define M_NOLOCK          (1<<11)        /* don't lock/unlock mutex */      
-#define M_NOMUTE          (1<<12)        /* don't do mute processing */
-#define M_NOPREFIX        (1<<13)        /* don't show date/time prefix */
-#define M_USAGE_SMALL     (1<<14)        /* fatal options error, call usage_small */
-#define M_MSG_VIRT_OUT    (1<<15)        /* output message through msg_status_output callback */
+#define M_NOMUTE          (1<<11)        /* don't do mute processing */
+#define M_NOPREFIX        (1<<12)        /* don't show date/time prefix */
+#define M_USAGE_SMALL     (1<<13)        /* fatal options error, call usage_small */
+#define M_MSG_VIRT_OUT    (1<<14)        /* output message through msg_status_output callback */
+#define M_OPTERR          (1<<15)        /* print "Options error:" prefix */
 
 /* flag combinations which are frequently used */
 #define M_ERR     (M_FATAL | M_ERRNO)
 #define M_SOCKERR (M_FATAL | M_ERRNO_SOCK)
 #define M_SSLERR  (M_FATAL | M_SSL)
-#define M_USAGE   (M_USAGE_SMALL | M_NOPREFIX)
+#define M_USAGE   (M_USAGE_SMALL | M_NOPREFIX | M_OPTERR)
 #define M_CLIENT  (M_MSG_VIRT_OUT|M_NOMUTE)
 
 /*
@@ -135,16 +135,27 @@ bool dont_mute (unsigned int flags); /* check muting filter */
 #define MSG_TEST(flags) (((((unsigned int)flags) & M_DEBUG_LEVEL) <= x_debug_level) && dont_mute (flags))
 
 #if defined(HAVE_CPP_VARARG_MACRO_ISO) && !defined(__LCLINT__)
-#define HAVE_VARARG_MACROS
-#define msg(flags, ...) do { if (MSG_TEST(flags)) x_msg((flags), __VA_ARGS__); } while (false)
+# define HAVE_VARARG_MACROS
+# define msg(flags, ...) do { if (MSG_TEST(flags)) x_msg((flags), __VA_ARGS__); } while (false)
+# ifdef ENABLE_DEBUG
+#  define dmsg(flags, ...) do { if (MSG_TEST(flags)) x_msg((flags), __VA_ARGS__); } while (false)
+# else
+#  define dmsg(flags, ...)
+# endif
 #elif defined(HAVE_CPP_VARARG_MACRO_GCC) && !defined(__LCLINT__)
-#define HAVE_VARARG_MACROS
-#define msg(flags, args...) do { if (MSG_TEST(flags)) x_msg((flags), args); } while (false)
+# define HAVE_VARARG_MACROS
+# define msg(flags, args...) do { if (MSG_TEST(flags)) x_msg((flags), args); } while (false)
+# ifdef ENABLE_DEBUG
+#  define dmsg(flags, args...) do { if (MSG_TEST(flags)) x_msg((flags), args); } while (false)
+# else
+#  define dmsg(flags, args...)
+# endif
 #else
 # ifndef _MSC_VER	/* MSVC++ doesn't have #warning... */
-# warning this compiler appears to lack vararg macros which will cause a significant degradation in efficiency (you can ignore this warning if you are using LCLINT)
+#  warning this compiler appears to lack vararg macros which will cause a significant degradation in efficiency (you can ignore this warning if you are using LCLINT)
 # endif
-#define msg x_msg
+# define msg x_msg
+# define dmsg x_msg
 #endif
 
 void x_msg (const unsigned int flags, const char *format, ...)

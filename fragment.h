@@ -26,6 +26,8 @@
 #ifndef FRAGMENT_H
 #define FRAGMENT_H
 
+#ifdef ENABLE_FRAGMENT
+
 #include "common.h"
 #include "buffer.h"
 #include "interval.h"
@@ -183,4 +185,5 @@ fragment_outgoing_defined (struct fragment_master *f)
   return f->outgoing.len > 0;
 }
 
+#endif
 #endif

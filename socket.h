@@ -35,6 +35,7 @@
 #include "event.h"
 #include "proxy.h"
 #include "socks.h"
+#include "misc.h"
 
 /*
  * OpenVPN's default port number as assigned by IANA.
@@ -133,7 +134,10 @@ struct link_socket
   struct link_socket_info info;
 
   socket_descriptor_t sd;
+
+#ifdef ENABLE_SOCKS
   socket_descriptor_t ctrl_sd;  /* only used for UDP over Socks */
+#endif
 
 #ifdef WIN32
   struct overlapped_io reads;
@@ -181,16 +185,22 @@ struct link_socket
   struct buffer stream_buf_data;
   bool stream_reset;
 
+#ifdef ENABLE_HTTP_PROXY
   /* HTTP proxy */
   struct http_proxy_info *http_proxy;
+#endif
 
+#ifdef ENABLE_SOCKS
   /* Socks proxy */
   struct socks_proxy_info *socks_proxy;
   struct sockaddr_in socks_relay; /* Socks UDP relay address */
+#endif
 
+#if defined(ENABLE_HTTP_PROXY) || defined(ENABLE_SOCKS)
   /* The OpenVPN server we will use the proxy to connect to */
   const char *proxy_dest_host;
   int proxy_dest_port;
+#endif
 
 #if PASSTOS_CAPABILITY
   /* used to get/set TOS. */
@@ -198,7 +208,9 @@ struct link_socket
   bool ptos_defined;
 #endif
 
+#ifdef ENABLE_DEBUG
   int gremlin; /* --gremlin bits */
+#endif
 };
 
 /*
@@ -247,8 +259,15 @@ link_socket_init_phase1 (struct link_socket *sock,
 			 int proto,
 			 int mode,
 			 const struct link_socket *accept_from,
+#ifdef ENABLE_HTTP_PROXY
 			 struct http_proxy_info *http_proxy,
+#endif
+#ifdef ENABLE_SOCKS
 			 struct socks_proxy_info *socks_proxy,
+#endif
+#ifdef ENABLE_DEBUG
+			 int gremlin,
+#endif
 			 bool bind_local,
 			 bool remote_float,
 			 int inetd,
@@ -259,8 +278,7 @@ link_socket_init_phase1 (struct link_socket *sock,
 			 int connect_retry_seconds,
 			 int mtu_discover_type,
 			 int rcvbuf,
-			 int sndbuf,
-			 int gremlin);
+			 int sndbuf);
 
 void link_socket_init_phase2 (struct link_socket *sock,
 			      const struct frame *frame,

@@ -105,7 +105,7 @@ mss_fixup_dowork (struct buffer *buf, uint16_t maxmss)
           continue;
         mss = (uint16_t *)(opt + 2);
         if (ntohs_as (mss) > maxmss) {
-          msg (D_MSS, "MSS: %d -> %d",
+          dmsg (D_MSS, "MSS: %d -> %d",
                (int) ntohs_as (mss),
 	       (int) maxmss);
           accumulate = get_u16_as (mss);

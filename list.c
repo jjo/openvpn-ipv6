@@ -31,7 +31,7 @@
 
 #include "syshead.h"
 
-#if P2MP
+#if P2MP_SERVER
 
 #include "list.h"
 #include "misc.h"
@@ -662,4 +662,4 @@ hash_func (const uint8_t *k, uint32_t length, uint32_t initval)
 
 #else
 static void dummy(void) {}
-#endif /* P2MP */
+#endif /* P2MP_SERVER */

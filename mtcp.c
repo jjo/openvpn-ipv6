@@ -31,7 +31,7 @@
 
 #include "syshead.h"
 
-#if P2MP
+#if P2MP_SERVER
 
 #include "multi.h"
 #include "forward-inline.h"
@@ -136,11 +136,11 @@ multi_create_instance_tcp (struct multi_context *m)
       hash_bucket_unlock (bucket);
     }
 
-#ifdef MULTI_DEBUG
+#ifdef ENABLE_DEBUG
   if (mi)
-    msg (D_MULTI_DEBUG, "MULTI TCP: instance added: %s", mroute_addr_print (&mi->real, &gc));
+    dmsg (D_MULTI_DEBUG, "MULTI TCP: instance added: %s", mroute_addr_print (&mi->real, &gc));
   else
-    msg (D_MULTI_DEBUG, "MULTI TCP: new client instance failed");
+    dmsg (D_MULTI_DEBUG, "MULTI TCP: new client instance failed");
 #endif
 
   gc_free (&gc);
@@ -262,7 +262,7 @@ multi_tcp_process_outgoing_link_ready (struct multi_context *m, struct multi_ins
   /* extract from queue */
   if (mbuf_extract_item (mi->tcp_link_out_deferred, &item, true)) /* ciphertext IP packet */
     {
-      msg (D_MULTI_TCP, "MULTI TCP: transmitting previously deferred packet");
+      dmsg (D_MULTI_TCP, "MULTI TCP: transmitting previously deferred packet");
 
       ASSERT (mi == item.instance);
       mi->context.c2.to_link = item.buffer->buf;
@@ -292,7 +292,7 @@ multi_tcp_process_outgoing_link (struct multi_context *m, bool defer, const unsi
 	      struct mbuf_item item;
 
 	      set_prefix (mi);
-	      msg (D_MULTI_TCP, "MULTI TCP: queuing deferred packet");
+	      dmsg (D_MULTI_TCP, "MULTI TCP: queuing deferred packet");
 	      item.buffer = mb;
 	      item.instance = mi;
 	      mbuf_add_item (mi->tcp_link_out_deferred, &item);
@@ -320,7 +320,7 @@ multi_tcp_wait_lite (struct multi_context *m, struct multi_instance *mi, const i
   struct context *c = multi_tcp_context (m, mi);
   unsigned int looking_for = 0;
 
-  msg (D_MULTI_DEBUG, "MULTI TCP: multi_tcp_wait_lite a=%s mi=" ptr_format,
+  dmsg (D_MULTI_DEBUG, "MULTI TCP: multi_tcp_wait_lite a=%s mi=" ptr_format,
        pract(action),
        (ptr_type)mi);
 
@@ -374,7 +374,7 @@ multi_tcp_dispatch (struct multi_context *m, struct multi_instance *mi, const in
   struct multi_instance *touched = mi;
   m->mpp_touched = &touched;
 
-  msg (D_MULTI_DEBUG, "MULTI TCP: multi_tcp_dispatch a=%s mi=" ptr_format,
+  dmsg (D_MULTI_DEBUG, "MULTI TCP: multi_tcp_dispatch a=%s mi=" ptr_format,
        pract(action),
        (ptr_type)mi);
 
@@ -470,7 +470,7 @@ multi_tcp_post (struct multi_context *m, struct multi_instance *mi, const int ac
       }
     }
 
-  msg (D_MULTI_DEBUG, "MULTI TCP: multi_tcp_post %s -> %s",
+  dmsg (D_MULTI_DEBUG, "MULTI TCP: multi_tcp_post %s -> %s",
        pract(action),
        pract(newaction));
 
@@ -483,7 +483,7 @@ multi_tcp_action (struct multi_context *m, struct multi_instance *mi, int action
   bool tun_input_pending = false;
 
   do {
-    msg (D_MULTI_DEBUG, "MULTI TCP: multi_tcp_action a=%s p=%d",
+    dmsg (D_MULTI_DEBUG, "MULTI TCP: multi_tcp_action a=%s p=%d",
 	 pract(action),
 	 poll);
 

@@ -134,6 +134,7 @@ check_status_file (struct context *c)
     }
 }
 
+#ifdef ENABLE_FRAGMENT
 /*
  * Should we deliver a datagram fragment to remote?
  */
@@ -144,6 +145,7 @@ check_fragment (struct context *c)
   if (c->c2.fragment)
     check_fragment_dowork (c);
 }
+#endif
 
 #if P2MP
 

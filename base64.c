@@ -31,12 +31,19 @@
  * SUCH DAMAGE.
  */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
+#ifdef WIN32
+#include "config-win32.h"
+#else
+#include "config.h"
 #endif
-#include <stdlib.h>
-#include <string.h>
+
+#include "syshead.h"
+
+#if NTLM
+
 #include "base64.h"
+
+#include "memdbg.h"
 
 static char base64_chars[] = 
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -133,3 +140,7 @@ base64_decode(const char *str, void *data)
     }
     return q - (unsigned char *) data;
 }
+
+#else
+static void dummy(void) {}
+#endif

@@ -134,6 +134,7 @@ plugin_option_list_add (struct plugin_option_list *list, const char *so_pathname
     return false;
 }
 
+#ifdef ENABLE_DEBUG
 void
 plugin_option_list_print (const struct plugin_option_list *list, int msglevel)
 {
@@ -144,6 +145,7 @@ plugin_option_list_print (const struct plugin_option_list *list, int msglevel)
       msg (msglevel, "  plugin[%d] %s '%s'", i, o->so_pathname, o->args);
     }
 }
+#endif
 
 #if defined(USE_LIBDL)
 
@@ -191,7 +193,7 @@ plugin_init_item (struct plugin *p, const struct plugin_option *o, const char **
   dll_resolve_symbol (p->module, (void*)&p->close, "openvpn_plugin_close_v1", p->so_pathname);
 #endif
 
-  msg (D_PLUGIN_DEBUG, "PLUGIN_INIT: PRE");
+  dmsg (D_PLUGIN_DEBUG, "PLUGIN_INIT: PRE");
   plugin_show_args_env (D_PLUGIN_DEBUG, argv, envp);
 
   /*
@@ -227,7 +229,7 @@ plugin_call_item (const struct plugin *p, const int type, const char *args, cons
       struct gc_arena gc = gc_new ();
       const char **argv = make_arg_array (p->so_pathname, args, &gc);
 
-      msg (D_PLUGIN_DEBUG, "PLUGIN_CALL: PRE type=%s", plugin_type_name (type));
+      dmsg (D_PLUGIN_DEBUG, "PLUGIN_CALL: PRE type=%s", plugin_type_name (type));
       plugin_show_args_env (D_PLUGIN_DEBUG, argv, envp);
 
       /*

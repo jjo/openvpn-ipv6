@@ -41,7 +41,6 @@
 #include "base64.h"
 #include "memdbg.h"
 
-
 static void
 create_des_keys(const unsigned char *hash, unsigned char *key)
 {
@@ -184,4 +183,6 @@ ntlm_phase_3 (const struct http_proxy_info *p, const char *phase_2, struct gc_ar
   return (make_base64_string2 (phase3, buflen, gc));
 }
 
+#else
+static void dummy(void) {}
 #endif

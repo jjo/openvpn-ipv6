@@ -46,7 +46,7 @@ static struct sparse_mutex *ssl_mutex;  /* GLOBAL */
 static void
 ssl_pthreads_locking_callback (int mode, int type, char *file, int line)
 {
-  msg (D_OPENSSL_LOCK, "SSL LOCK thread=%4lu mode=%s lock=%s %s:%d",
+  dmsg (D_OPENSSL_LOCK, "SSL LOCK thread=%4lu mode=%s lock=%s %s:%d",
 	   CRYPTO_thread_id (),
 	   (mode & CRYPTO_LOCK) ? "l" : "u",
 	   (type & CRYPTO_READ) ? "r" : "w", file, line);
@@ -86,7 +86,7 @@ ssl_thread_cleanup (void)
 {
   int i;
 
-  msg (D_OPENSSL_LOCK, "SSL LOCK cleanup");
+  dmsg (D_OPENSSL_LOCK, "SSL LOCK cleanup");
   CRYPTO_set_locking_callback (NULL);
   for (i = 0; i < CRYPTO_num_locks (); i++)
     pthread_mutex_destroy (&ssl_mutex[i].mutex);
@@ -102,7 +102,7 @@ openvpn_thread_create (void *(*start_routine) (void *), void* arg)
   openvpn_thread_t ret;
   ASSERT (pthread_initialized);
   ASSERT (!pthread_create (&ret, NULL, start_routine, arg));
-  msg (D_THREAD_DEBUG, "CREATE THREAD ID=%lu", (unsigned long)ret);
+  dmsg (D_THREAD_DEBUG, "CREATE THREAD ID=%lu", (unsigned long)ret);
   return ret;
 }
 

@@ -26,7 +26,7 @@
 #ifndef MULTI_H
 #define MULTI_H
 
-#if P2MP
+#if P2MP_SERVER
 
 #include "init.h"
 #include "forward.h"
@@ -451,5 +451,5 @@ multi_release_io_lock (struct multi_context *m)
 
 #endif /* USE_PTHREAD */
 
-#endif /* P2MP */
+#endif /* P2MP_SERVER */
 #endif /* MULTI_H */

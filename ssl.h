@@ -291,16 +291,20 @@ struct tls_options
   /* true if we are a TLS server, client otherwise */
   bool server;
 
+#ifdef ENABLE_OCC
   /* local and remote options strings
      that must match between client and server */
   const char *local_options;
   const char *remote_options;
+#endif
 
   /* from command line */
   int key_method;
   bool replay;
   bool single_session;
+#ifdef ENABLE_OCC
   bool disable_occ;
+#endif
   int transition_window;
   int handshake_window;
   interval_t packet_timeout;

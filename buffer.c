@@ -441,11 +441,18 @@ string_alloc_buf (const char *str, struct gc_arena *gc)
 #endif
 {
   struct buffer buf;
+
+  ASSERT (str);
+
 #ifdef DMALLOC
   buf_set_read (&buf, string_alloc_debug (str, NULL, file, line), strlen (str) + 1);
 #else
   buf_set_read (&buf, string_alloc (str, NULL), strlen (str) + 1);
 #endif
+
+  if (buf.len > 0) /* Don't count trailing '\0' as part of length */
+    --buf.len;
+
   return buf;
 }
 

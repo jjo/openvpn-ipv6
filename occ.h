@@ -26,6 +26,8 @@
 #ifndef OCC_H
 #define OCC_H
 
+#ifdef ENABLE_OCC
+
 #include "forward.h"
 
 /* OCC_STRING_SIZE must be set to sizeof (occ_magic) */
@@ -90,4 +92,5 @@ is_occ_msg (const struct buffer* buf)
 
 void process_received_occ_msg (struct context *c);
 
+#endif
 #endif

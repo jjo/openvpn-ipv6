@@ -31,7 +31,7 @@
 
 #include "syshead.h"
 
-#if P2MP
+#if P2MP_SERVER
 
 #include "buffer.h"
 #include "misc.h"
@@ -54,24 +54,26 @@ static struct status z;
 
 #endif
 
+#ifdef ENABLE_DEBUG
 static void
 schedule_entry_debug_info (const char *caller, const struct schedule_entry *e)
 {
   struct gc_arena gc = gc_new ();
   if (e)
     {
-      msg (D_SCHEDULER, "SCHEDULE: %s wakeup=[%s] pri=%u",
+      dmsg (D_SCHEDULER, "SCHEDULE: %s wakeup=[%s] pri=%u",
 	   caller,
 	   tv_string_abs (&e->tv, &gc),
 	   e->pri);
     }
   else
     {
-      msg (D_SCHEDULER, "SCHEDULE: %s NULL",
+      dmsg (D_SCHEDULER, "SCHEDULE: %s NULL",
 	   caller);
     }
   gc_free (&gc);
 }
+#endif
 
 static inline void
 schedule_set_pri (struct schedule_entry *e)
@@ -309,8 +311,10 @@ schedule_insert (struct schedule *s, struct schedule_entry *e)
 void
 schedule_add_modify (struct schedule *s, struct schedule_entry *e)
 {
+#ifdef ENABLE_DEBUG
   if (check_debug_level (D_SCHEDULER))
     schedule_entry_debug_info ("schedule_add_modify", e);
+#endif
 
   /* already in tree, remove */
   if (IN_TREE (e))
@@ -348,8 +352,10 @@ schedule_find_least (struct schedule_entry *e)
 	}
     }
   
+#ifdef ENABLE_DEBUG
   if (check_debug_level (D_SCHEDULER))
     schedule_entry_debug_info ("schedule_find_least", e);
+#endif
 
   return e;
 }

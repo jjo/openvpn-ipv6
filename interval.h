@@ -82,7 +82,7 @@ interval_test (struct interval* top)
     {
       top->last_test_true = local_now;
 #if INTERVAL_DEBUG
-      msg (D_INTERVAL, "INTERVAL interval_test true");
+      dmsg (D_INTERVAL, "INTERVAL interval_test true");
 #endif
       return true;
     }
@@ -99,7 +99,7 @@ interval_schedule_wakeup (struct interval* top, interval_t *wakeup)
   interval_earliest_wakeup (wakeup, top->last_test_true + top->refresh, local_now);
   interval_earliest_wakeup (wakeup, top->future_trigger, local_now);
 #if INTERVAL_DEBUG
-  msg (D_INTERVAL, "INTERVAL interval_schedule wakeup=%d", (int)*wakeup);
+  dmsg (D_INTERVAL, "INTERVAL interval_schedule wakeup=%d", (int)*wakeup);
 #endif
 }
 
@@ -111,7 +111,7 @@ interval_future_trigger (struct interval* top, interval_t wakeup) {
   if (wakeup)
     {
 #if INTERVAL_DEBUG
-      msg (D_INTERVAL, "INTERVAL interval_future_trigger %d", (int)wakeup);
+      dmsg (D_INTERVAL, "INTERVAL interval_future_trigger %d", (int)wakeup);
 #endif
       top->future_trigger = now + wakeup;
     }
@@ -125,7 +125,7 @@ static inline void
 interval_action (struct interval* top)
 {
 #if INTERVAL_DEBUG
-  msg (D_INTERVAL, "INTERVAL action");
+  dmsg (D_INTERVAL, "INTERVAL action");
 #endif
   top->last_action = now;
 }

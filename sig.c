@@ -34,6 +34,7 @@
 #include "buffer.h"
 #include "error.h"
 #include "win32.h"
+#include "init.h"
 #include "status.h"
 #include "sig.h"
 #include "occ.h"
@@ -191,7 +192,7 @@ signal_handler (const int signum)
 static void
 signal_handler_exit (const int signum)
 {
-  msg (M_FATAL | M_NOLOCK,
+  msg (M_FATAL,
        "Signal %d (%s) received during initialization, exiting",
        signum, signal_description (signum, NULL));
 }
@@ -262,6 +263,7 @@ print_status (const struct context *c, struct status_output *so)
   gc_free (&gc);
 }
 
+#ifdef ENABLE_OCC
 /*
  * Handle the triggering and time-wait of explicit
  * exit notification.
@@ -298,6 +300,7 @@ process_explicit_exit_notification_timer_wakeup (struct context *c)
 	}
     }
 }
+#endif
 
 /*
  * Process signals
@@ -323,12 +326,14 @@ static bool
 process_sigterm (struct context *c)
 {
   bool ret = true;
+#ifdef ENABLE_OCC
   if (c->options.explicit_exit_notification
       && !c->c2.explicit_exit_notification_time_wait)
     {
       process_explicit_exit_notification_init (c);
       ret = false;
     }
+#endif
   return ret;
 }
 

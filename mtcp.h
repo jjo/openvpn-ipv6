@@ -30,7 +30,7 @@
 #ifndef MTCP_H
 #define MTCP_H
 
-#if P2MP
+#if P2MP_SERVER
 
 #include "event.h"
 

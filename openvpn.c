@@ -194,7 +194,7 @@ main (int argc, char *argv[])
 		case MODE_POINT_TO_POINT:
 		  tunnel_point_to_point (&c);
 		  break;
-#if P2MP
+#if P2MP_SERVER
 		case MODE_SERVER:
 		  tunnel_server (&c);
 		  break;

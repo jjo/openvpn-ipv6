@@ -58,7 +58,7 @@
 void
 packet_id_init (struct packet_id *p, int seq_backtrack, int time_backtrack)
 {
-  msg (D_PID_DEBUG_LOW, "PID packet_id_init seq_backtrack=%d time_backtrack=%d",
+  dmsg (D_PID_DEBUG_LOW, "PID packet_id_init seq_backtrack=%d time_backtrack=%d",
        seq_backtrack,
        time_backtrack);
 
@@ -81,7 +81,7 @@ packet_id_free (struct packet_id *p)
 {
   if (p)
     {
-      msg (D_PID_DEBUG_LOW, "PID packet_id_free");
+      dmsg (D_PID_DEBUG_LOW, "PID packet_id_free");
       if (p->rec.seq_list)
 	free (p->rec.seq_list);
       CLEAR (*p);
@@ -168,7 +168,7 @@ packet_id_test (const struct packet_id_rec *p,
   static int max_backtrack_stat;
   packet_id_type diff;
 
-  msg (D_PID_DEBUG,
+  dmsg (D_PID_DEBUG,
        "PID TEST " time_format ":" packet_id_format " " time_format ":" packet_id_format "",
        (time_type)p->time, (packet_id_print_type)p->id, (time_type)pin->time,
        (packet_id_print_type)pin->id);
@@ -354,7 +354,7 @@ packet_id_persist_load (struct packet_id_persist *p, const char *filename)
 	    {
 	      p->time = p->time_last_written = image.time;
 	      p->id = p->id_last_written = image.id;
-	      msg (D_PID_PERSIST_DEBUG, "PID Persist Read from %s: %s",
+	      dmsg (D_PID_PERSIST_DEBUG, "PID Persist Read from %s: %s",
 		   p->filename, packet_id_persist_print (p, &gc));
 	    }
 	  else if (n == -1)
@@ -390,7 +390,7 @@ packet_id_persist_save (struct packet_id_persist *p)
 	    {
 	      p->time_last_written = p->time;
 	      p->id_last_written = p->id;
-	      msg (D_PID_PERSIST_DEBUG, "PID Persist Write to %s: %s",
+	      dmsg (D_PID_PERSIST_DEBUG, "PID Persist Write to %s: %s",
 		   p->filename, packet_id_persist_print (p, &gc));
 	    }
 	  else

@@ -30,7 +30,7 @@
 #ifndef MUDP_H
 #define MUDP_H
 
-#if P2MP
+#if P2MP_SERVER
 
 struct context;
 struct multi_context;

@@ -337,19 +337,33 @@
  * Our socket descriptor type.
  */
 #ifdef WIN32
+#define SOCKET_UNDEFINED (INVALID_SOCKET)
 typedef SOCKET socket_descriptor_t;
 #else
+#define SOCKET_UNDEFINED (-1)
 typedef int socket_descriptor_t;
 #endif
+
+static inline int
+socket_defined (const socket_descriptor_t sd)
+{
+  return sd != SOCKET_UNDEFINED;
+}
 
 /*
  * Do we have point-to-multipoint capability?
  */
 
-#if defined(MULTICLIENT_SERVER_ENABLED) && defined(USE_CRYPTO) && defined(USE_SSL) && defined(HAVE_GETTIMEOFDAY)
+#if defined(ENABLE_CLIENT_SERVER) && defined(USE_CRYPTO) && defined(USE_SSL) && defined(HAVE_GETTIMEOFDAY)
 #define P2MP 1
 #else
 #define P2MP 0
+#endif
+
+#if P2MP && !defined(ENABLE_CLIENT_ONLY)
+#define P2MP_SERVER 1
+#else
+#define P2MP_SERVER 0
 #endif
 
 /*
@@ -378,9 +392,16 @@ typedef int socket_descriptor_t;
 #endif
 
 /*
+ * Should we include OCC (options consistency check) code?
+ */
+#ifndef ENABLE_SMALL
+#define ENABLE_OCC
+#endif
+
+/*
  * Should we include NTLM proxy functionality
  */
-#if defined(USE_CRYPTO)
+#if defined(USE_CRYPTO) && defined (ENABLE_HTTP_PROXY)
 #define NTLM 1
 #else
 #define NTLM 0

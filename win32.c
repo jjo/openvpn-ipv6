@@ -222,7 +222,7 @@ close_net_event_win32 (struct rw_handle *event, socket_descriptor_t sd, unsigned
 {
   if (event->read)
     {
-      if (sd >= 0)
+      if (socket_defined (sd))
 	{
 	  if (WSAEventSelect (sd, event->read, 0) != 0)
 	    msg (M_WARN | M_ERRNO_SOCK, "Warning: close_net_event_win32: WSAEventSelect call failed");
@@ -258,13 +258,13 @@ void
 net_event_win32_init (struct net_event_win32 *ne)
 {
   CLEAR (*ne);
-  ne->sd = -1;
+  ne->sd = SOCKET_UNDEFINED;
 }
 
 void
 net_event_win32_start (struct net_event_win32 *ne, long network_events, socket_descriptor_t sd)
 {
-  ASSERT (ne->sd == -1);
+  ASSERT (!socket_defined (ne->sd));
   ne->sd = sd;
   ne->event_mask = 0;
   init_net_event_win32 (&ne->handle, network_events, sd, NE32_PERSIST_EVENT|NE32_WRITE_EVENT);
@@ -293,7 +293,7 @@ net_event_win32_stop (struct net_event_win32 *ne)
 {
   if (net_event_win32_defined (ne))
     close_net_event_win32 (&ne->handle, ne->sd, NE32_PERSIST_EVENT);
-  ne->sd = -1;
+  ne->sd = SOCKET_UNDEFINED;
   ne->event_mask = 0;
 }
 
@@ -590,7 +590,7 @@ semaphore_open (struct semaphore *s, const char *name)
   if (s->hand == NULL)
     msg (M_WARN|M_ERRNO, "WARNING: Cannot create Win32 semaphore '%s'", name);
   else
-    msg (D_SEMAPHORE, "Created Win32 semaphore '%s'", s->name);
+    dmsg (D_SEMAPHORE, "Created Win32 semaphore '%s'", s->name);
 }
 
 bool
@@ -603,7 +603,7 @@ semaphore_lock (struct semaphore *s, int timeout_milliseconds)
       DWORD status;
       ASSERT (!s->locked);
 
-      msg (D_SEMAPHORE_LOW, "Attempting to lock Win32 semaphore '%s' prior to net shell command (timeout = %d sec)",
+      dmsg (D_SEMAPHORE_LOW, "Attempting to lock Win32 semaphore '%s' prior to net shell command (timeout = %d sec)",
 	   s->name,
 	   timeout_milliseconds / 1000);
       status = WaitForSingleObject (s->hand, timeout_milliseconds);
@@ -612,12 +612,12 @@ semaphore_lock (struct semaphore *s, int timeout_milliseconds)
       ret = (status == WAIT_TIMEOUT) ? false : true;
       if (ret)
 	{
-	  msg (D_SEMAPHORE, "Locked Win32 semaphore '%s'", s->name);
+	  dmsg (D_SEMAPHORE, "Locked Win32 semaphore '%s'", s->name);
 	  s->locked = true;
 	}
       else
 	{
-	  msg (D_SEMAPHORE, "Wait on Win32 semaphore '%s' timed out after %d milliseconds",
+	  dmsg (D_SEMAPHORE, "Wait on Win32 semaphore '%s' timed out after %d milliseconds",
 	       s->name,
 	       timeout_milliseconds);
 	}
@@ -631,7 +631,7 @@ semaphore_release (struct semaphore *s)
   if (s->hand)
     {
       ASSERT (s->locked);
-      msg (D_SEMAPHORE, "Releasing Win32 semaphore '%s'", s->name);
+      dmsg (D_SEMAPHORE, "Releasing Win32 semaphore '%s'", s->name);
       if (!ReleaseSemaphore(s->hand, 1, NULL))
 	msg (M_WARN | M_ERRNO, "ReleaseSemaphore failed on Win32 semaphore '%s'",
 	     s->name);
@@ -646,7 +646,7 @@ semaphore_close (struct semaphore *s)
     {
       if (s->locked)
 	semaphore_release (s);
-      msg (D_SEMAPHORE, "Closing Win32 semaphore '%s'", s->name);
+      dmsg (D_SEMAPHORE, "Closing Win32 semaphore '%s'", s->name);
       CloseHandle (s->hand);
       s->hand = NULL;
     }

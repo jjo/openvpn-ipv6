@@ -36,6 +36,8 @@
 
 #include "syshead.h"
 
+#ifdef ENABLE_DEBUG
+
 #include "error.h"
 #include "common.h"
 #include "misc.h"
@@ -162,7 +164,7 @@ ask_gremlin (int flags)
     {
       if (up && flip (drop_freq[drop_level-1]))
 	{
-	  msg (D_GREMLIN_VERBOSE, "GREMLIN: Random packet drop");
+	  dmsg (D_GREMLIN_VERBOSE, "GREMLIN: Random packet drop");
 	  return false;
 	}
     }
@@ -206,7 +208,7 @@ void corrupt_gremlin (struct buffer *buf, int flags) {
 		    buf->len -= roll (0, buf->len - 1);
 		    break;
 		  }
-		  msg (D_GREMLIN_VERBOSE, "GREMLIN: Packet Corruption, method=%d", method);
+		  dmsg (D_GREMLIN_VERBOSE, "GREMLIN: Packet Corruption, method=%d", method);
 		}
 	      else
 		break;
@@ -214,3 +216,7 @@ void corrupt_gremlin (struct buffer *buf, int flags) {
 	}
     }
 }
+
+#else
+static void dummy(void) {}
+#endif

@@ -221,7 +221,7 @@ we_ctl (struct event_set *es, event_t event, unsigned int rwflags, void *arg)
 {
   struct we_set *wes = (struct we_set *) es;
 
-  msg (D_EVENT_WAIT, "WE_CTL n=%d ev=0x%08x rwflags=0x%04x arg=" ptr_format,
+  dmsg (D_EVENT_WAIT, "WE_CTL n=%d ev=0x%08x rwflags=0x%04x arg=" ptr_format,
        wes->n_events,
        (unsigned int)event,
        rwflags,
@@ -345,18 +345,19 @@ we_wait (struct event_set *es, const struct timeval *tv, struct event_set_return
   const int timeout = tv_to_ms_timeout (tv);
   DWORD status;
 
-  msg (D_EVENT_WAIT, "WE_WAIT enter n=%d to=%d", wes->n_events, timeout);
+  dmsg (D_EVENT_WAIT, "WE_WAIT enter n=%d to=%d", wes->n_events, timeout);
 
-  /* for debugging only */
+#ifdef ENABLE_DEBUG
   if (check_debug_level (D_EVENT_WAIT)) {
     int i;
     for (i = 0; i < wes->n_events; ++i)
-      msg (D_EVENT_WAIT, "[%d] ev=0x%08x rwflags=0x%04x arg=" ptr_format,
+      dmsg (D_EVENT_WAIT, "[%d] ev=0x%08x rwflags=0x%04x arg=" ptr_format,
        i,
        (unsigned int)wes->events[i],
        wes->esr[i].rwflags,
        (ptr_type)wes->esr[i].arg);
   }
+#endif
 
   /*
    * First poll our event list with 0 timeout
@@ -383,7 +384,7 @@ we_wait (struct event_set *es, const struct timeval *tv, struct event_set_return
 	  if (WaitForSingleObject (wes->events[i], 0) == WAIT_OBJECT_0)
 	    {
 	      *out = wes->esr[i];
-	      msg (D_EVENT_WAIT, "WE_WAIT leave [%d,%d] rwflags=0x%04x arg=" ptr_format,
+	      dmsg (D_EVENT_WAIT, "WE_WAIT leave [%d,%d] rwflags=0x%04x arg=" ptr_format,
 		   i, j, out->rwflags, (ptr_type)out->arg);
 	      ++j;
 	      ++out;
@@ -413,7 +414,7 @@ we_wait (struct event_set *es, const struct timeval *tv, struct event_set_return
       if (outlen >= 1 && status >= WSA_WAIT_EVENT_0 && status < WSA_WAIT_EVENT_0 + (DWORD) wes->n_events)
 	{
 	  *out = wes->esr[status - WSA_WAIT_EVENT_0];
-	  msg (D_EVENT_WAIT, "WE_WAIT leave rwflags=0x%04x arg=" ptr_format,
+	  dmsg (D_EVENT_WAIT, "WE_WAIT leave rwflags=0x%04x arg=" ptr_format,
 	       out->rwflags, (ptr_type)out->arg);
 	  return 1;
 	}
@@ -429,7 +430,7 @@ we_init (int *maxevents, unsigned int flags)
 {
   struct we_set *wes;
 
-  msg (D_EVENT_WAIT, "WE_INIT maxevents=%d flags=0x%08x", *maxevents, flags);
+  dmsg (D_EVENT_WAIT, "WE_INIT maxevents=%d flags=0x%08x", *maxevents, flags);
 
   ALLOC_OBJ_CLEAR (wes, struct we_set);
 
@@ -455,7 +456,7 @@ we_init (int *maxevents, unsigned int flags)
   /* Allocate space for event_set_return objects */
   ALLOC_ARRAY_CLEAR (wes->esr, struct event_set_return, wes->capacity);
 
-  msg (D_EVENT_WAIT, "WE_INIT maxevents=%d capacity=%d",
+  dmsg (D_EVENT_WAIT, "WE_INIT maxevents=%d capacity=%d",
        *maxevents, wes->capacity);
 
   return (struct event_set *) wes;
@@ -516,7 +517,7 @@ ep_ctl (struct event_set *es, event_t event, unsigned int rwflags, void *arg)
   if (rwflags & EVENT_WRITE)
     ev.events |= EPOLLOUT;
 
-  msg (D_EVENT_WAIT, "EP_CTL fd=%d rwflags=0x%04x ev=0x%08x arg=" ptr_format,
+  dmsg (D_EVENT_WAIT, "EP_CTL fd=%d rwflags=0x%04x ev=0x%08x arg=" ptr_format,
        (int)event,
        rwflags,
        (unsigned int)ev.events,
@@ -559,7 +560,7 @@ ep_wait (struct event_set *es, const struct timeval *tv, struct event_set_return
 	  if (ev->events & EPOLLOUT)
 	    esr->rwflags |= EVENT_WRITE;
 	  esr->arg = ev->data.ptr;
-	  msg (D_EVENT_WAIT, "EP_WAIT[%d] rwflags=0x%04x ev=0x%08x arg=" ptr_format,
+	  dmsg (D_EVENT_WAIT, "EP_WAIT[%d] rwflags=0x%04x ev=0x%08x arg=" ptr_format,
 	       i, esr->rwflags, ev->events, (ptr_type)ev->data.ptr);
 	  ++ev;
 	  ++esr;
@@ -574,7 +575,7 @@ ep_init (int *maxevents, unsigned int flags)
   struct ep_set *eps;
   int fd;
 
-  msg (D_EVENT_WAIT, "EP_INIT maxevents=%d flags=0x%08x", *maxevents, flags);
+  dmsg (D_EVENT_WAIT, "EP_INIT maxevents=%d flags=0x%08x", *maxevents, flags);
 
   /* open epoll file descriptor */
   fd = epoll_create (*maxevents);
@@ -688,7 +689,7 @@ po_ctl (struct event_set *es, event_t event, unsigned int rwflags, void *arg)
 {
   struct po_set *pos = (struct po_set *) es;
 
-  msg (D_EVENT_WAIT, "PO_CTL rwflags=0x%04x ev=%d arg=" ptr_format,
+  dmsg (D_EVENT_WAIT, "PO_CTL rwflags=0x%04x ev=%d arg=" ptr_format,
        rwflags, (int)event, (ptr_type)arg);
 
   if (pos->fast)
@@ -744,7 +745,7 @@ po_wait (struct event_set *es, const struct timeval *tv, struct event_set_return
 	      if (pfdp->revents & POLLOUT)
 		out->rwflags |= EVENT_WRITE;
 	      out->arg = pos->args[i];
-	      msg (D_EVENT_WAIT, "PO_WAIT[%d,%d] fd=%d rev=0x%08x rwflags=0x%04x arg=" ptr_format " %s",
+	      dmsg (D_EVENT_WAIT, "PO_WAIT[%d,%d] fd=%d rev=0x%08x rwflags=0x%04x arg=" ptr_format " %s",
 		   i, j, pfdp->fd, pfdp->revents, out->rwflags, (ptr_type)out->arg, pos->fast ? "" : "[scalable]");
 	      ++out;
 	      ++j;
@@ -761,7 +762,7 @@ po_init (int *maxevents, unsigned int flags)
 {
   struct po_set *pos;
 
-  msg (D_EVENT_WAIT, "PO_INIT maxevents=%d flags=0x%08x", *maxevents, flags);
+  dmsg (D_EVENT_WAIT, "PO_INIT maxevents=%d flags=0x%08x", *maxevents, flags);
 
   ALLOC_OBJ_CLEAR (pos, struct po_set);
 
@@ -848,7 +849,7 @@ se_ctl (struct event_set *es, event_t event, unsigned int rwflags, void *arg)
 {
   struct se_set *ses = (struct se_set *) es;
 
-  msg (D_EVENT_WAIT, "SE_CTL rwflags=0x%04x ev=%d arg=" ptr_format,
+  dmsg (D_EVENT_WAIT, "SE_CTL rwflags=0x%04x ev=%d arg=" ptr_format,
        rwflags, (int)event, (ptr_type)arg);
 
   if (event >= 0 && event < ses->capacity)
@@ -902,7 +903,7 @@ se_wait_return (struct se_set *ses,
 	  if (w)
 	    out->rwflags |= EVENT_WRITE;
 	  out->arg = ses->args[i];
-	  msg (D_EVENT_WAIT, "SE_WAIT[%d,%d] rwflags=0x%04x arg=" ptr_format,
+	  dmsg (D_EVENT_WAIT, "SE_WAIT[%d,%d] rwflags=0x%04x arg=" ptr_format,
 	       i, j, out->rwflags, (ptr_type)out->arg);
 	  ++out;
 	  ++j;
@@ -948,7 +949,7 @@ se_init (int *maxevents, unsigned int flags)
 {
   struct se_set *ses;
 
-  msg (D_EVENT_WAIT, "SE_INIT maxevents=%d flags=0x%08x", *maxevents, flags);
+  dmsg (D_EVENT_WAIT, "SE_INIT maxevents=%d flags=0x%08x", *maxevents, flags);
 
   ALLOC_OBJ_CLEAR (ses, struct se_set);
 

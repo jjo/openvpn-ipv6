@@ -37,7 +37,7 @@
  * a ping or scheduling a TLS renegotiation.
  */
 
-#if P2MP
+#if P2MP_SERVER
 
 /* define to enable a special test mode */
 /*#define SCHEDULE_TEST*/

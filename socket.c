@@ -322,11 +322,11 @@ remote_list_next (struct remote_list *l)
       if (++l->current >= l->len)
 	l->current = 0;
 
-      msg (D_REMOTE_LIST, "REMOTE_LIST len=%d current=%d",
+      dmsg (D_REMOTE_LIST, "REMOTE_LIST len=%d current=%d",
 	   l->len, l->current);
       for (i = 0; i < l->len; ++i)
 	{
-	  msg (D_REMOTE_LIST, "[%d] %s:%d",
+	  dmsg (D_REMOTE_LIST, "[%d] %s:%d",
 	       i,
 	       l->array[i].hostname,
 	       l->array[i].port);
@@ -426,10 +426,10 @@ create_socket (struct link_socket *sock)
     {
       sock->sd = create_socket_udp ();
 
+#ifdef ENABLE_SOCKS
       if (sock->socks_proxy)
-	{
-	  sock->ctrl_sd = create_socket_tcp ();
-	}
+	sock->ctrl_sd = create_socket_tcp ();
+#endif
     }
   else if (sock->info.proto == PROTO_TCPv4_SERVER
 	   || sock->info.proto == PROTO_TCPv4_CLIENT)
@@ -474,14 +474,14 @@ socket_do_accept (socket_descriptor_t sd,
 		  const bool nowait)
 {
   socklen_t remote_len = sizeof (*remote);
-  socket_descriptor_t new_sd = -1;
+  socket_descriptor_t new_sd = SOCKET_UNDEFINED;
 
 #ifdef HAVE_GETPEERNAME
   if (nowait)
     {
       new_sd = getpeername (sd, (struct sockaddr *) remote, &remote_len);
 
-      if (new_sd == -1)
+      if (!socket_defined (new_sd))
 	msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP: getpeername() failed");
       else
 	new_sd = sd;
@@ -495,7 +495,7 @@ socket_do_accept (socket_descriptor_t sd,
       new_sd = accept (sd, (struct sockaddr *) remote, &remote_len);
     }
 
-  if (new_sd == -1)
+  if (!socket_defined (new_sd))
     {
       msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP: accept(%d) failed", sd);
     }
@@ -503,7 +503,7 @@ socket_do_accept (socket_descriptor_t sd,
     {
       msg (D_LINK_ERRORS, "TCP: Received strange incoming connection with unknown address length=%d", remote_len);
       openvpn_close_socket (new_sd);
-      new_sd = -1;
+      new_sd = SOCKET_UNDEFINED;
     }
   return new_sd;
 }
@@ -529,7 +529,7 @@ socket_listen_accept (socket_descriptor_t sd,
 {
   struct gc_arena gc = gc_new ();
   struct sockaddr_in remote_verify = *remote;
-  int new_sd = -1;
+  int new_sd = SOCKET_UNDEFINED;
 
   socket_do_listen (sd, local, do_listen, true);
 
@@ -561,7 +561,7 @@ socket_listen_accept (socket_descriptor_t sd,
 
       new_sd = socket_do_accept (sd, remote, nowait);
 
-      if (new_sd >= 0)
+      if (socket_defined (new_sd))
 	{
 	  update_remote (remote_dynamic, &remote_verify, remote_changed);
 	  if (addr_defined (&remote_verify)
@@ -766,9 +766,25 @@ resolve_remote (struct link_socket *sock,
 		    retry,
 		    &status,
 		    signal_received);
+	      
+	      dmsg (D_SOCKET_DEBUG, "RESOLVE_REMOTE flags=0x%04x phase=%d rrs=%d sig=%d status=%d",
+		   flags,
+		   phase,
+		   retry,
+		   signal_received ? *signal_received : -1,
+		   status);
 
-	      if (!status || (signal_received && *signal_received))
-		goto done;
+	      if (signal_received)
+		{
+		  if (*signal_received)
+		    goto done;
+		}
+	      if (!status)
+		{
+		  if (signal_received)
+		    *signal_received = SIGUSR1;
+		  goto done;
+		}
 	    }
 
 	  sock->info.lsa->remote.sin_port = htons (sock->remote_port);
@@ -799,8 +815,10 @@ link_socket_new (void)
   struct link_socket *sock;
 
   ALLOC_OBJ_CLEAR (sock, struct link_socket);
-  sock->sd = -1;
-  sock->ctrl_sd = -1;
+  sock->sd = SOCKET_UNDEFINED;
+#ifdef ENABLE_SOCKS
+  sock->ctrl_sd = SOCKET_UNDEFINED;
+#endif
   return sock;
 }
 
@@ -813,8 +831,15 @@ link_socket_init_phase1 (struct link_socket *sock,
 			 int proto,
 			 int mode,
 			 const struct link_socket *accept_from,
+#ifdef ENABLE_HTTP_PROXY
 			 struct http_proxy_info *http_proxy,
+#endif
+#ifdef ENABLE_SOCKS
 			 struct socks_proxy_info *socks_proxy,
+#endif
+#ifdef ENABLE_DEBUG
+			 int gremlin,
+#endif
 			 bool bind_local,
 			 bool remote_float,
 			 int inetd,
@@ -825,8 +850,7 @@ link_socket_init_phase1 (struct link_socket *sock,
 			 int connect_retry_seconds,
 			 int mtu_discover_type,
 			 int rcvbuf,
-			 int sndbuf,
-			 int gremlin)
+			 int sndbuf)
 {
   const char *remote_host;
   int remote_port;
@@ -840,14 +864,24 @@ link_socket_init_phase1 (struct link_socket *sock,
 
   sock->local_host = local_host;
   sock->local_port = local_port;
+
+#ifdef ENABLE_HTTP_PROXY
   sock->http_proxy = http_proxy;
+#endif
+
+#ifdef ENABLE_SOCKS
   sock->socks_proxy = socks_proxy;
+#endif
+
   sock->bind_local = bind_local;
   sock->inetd = inetd;
   sock->resolve_retry_seconds = resolve_retry_seconds;
   sock->connect_retry_seconds = connect_retry_seconds;
   sock->mtu_discover_type = mtu_discover_type;
+
+#ifdef ENABLE_DEBUG
   sock->gremlin = gremlin;
+#endif
 
   sock->socket_buffer_sizes.rcvbuf = rcvbuf;
   sock->socket_buffer_sizes.sndbuf = sndbuf;
@@ -867,8 +901,11 @@ link_socket_init_phase1 (struct link_socket *sock,
       sock->sd = accept_from->sd;
     }
 
+  if (false)
+    ;
+#ifdef ENABLE_HTTP_PROXY
   /* are we running in HTTP proxy mode? */
-  if (sock->http_proxy)
+  else if (sock->http_proxy)
     {
       ASSERT (sock->info.proto == PROTO_TCPv4_CLIENT);
       ASSERT (!sock->inetd);
@@ -885,6 +922,8 @@ link_socket_init_phase1 (struct link_socket *sock,
 	 not the remote OpenVPN address */
       sock->remote_list = NULL;
     }
+#endif
+#ifdef ENABLE_SOCKS
   /* or in Socks proxy mode? */
   else if (sock->socks_proxy)
     {
@@ -903,6 +942,7 @@ link_socket_init_phase1 (struct link_socket *sock,
 	 not the remote OpenVPN address */
       sock->remote_list = NULL;
     }
+#endif
   else
     {
       sock->remote_host = remote_host;
@@ -926,7 +966,7 @@ link_socket_init_phase1 (struct link_socket *sock,
   if (sock->inetd)
     {
       ASSERT (sock->info.proto != PROTO_TCPv4_CLIENT);
-      ASSERT (inetd_socket_descriptor >= 0);
+      ASSERT (socket_defined (inetd_socket_descriptor));
       sock->sd = inetd_socket_descriptor;
     }
   else if (mode != LS_MODE_TCP_ACCEPT_FROM)
@@ -1009,7 +1049,7 @@ link_socket_init_phase2 (struct link_socket *sock,
 	      sock->sd = socket_do_accept (sock->sd,
 					   &sock->info.lsa->actual,
 					   false);
-	      if (sock->sd == -1)
+	      if (!socket_defined (sock->sd))
 		{
 		  *signal_received = SIGTERM;
 		  goto done;
@@ -1033,7 +1073,10 @@ link_socket_init_phase2 (struct link_socket *sock,
 	  if (*signal_received)
 	    goto done;
 
-	  if (sock->http_proxy)
+	  if (false)
+	    ;
+#ifdef ENABLE_HTTP_PROXY
+	  else if (sock->http_proxy)
 	    {
 	      establish_http_proxy_passthru (sock->http_proxy,
 					     sock->sd,
@@ -1042,6 +1085,8 @@ link_socket_init_phase2 (struct link_socket *sock,
 					     &sock->stream_buf.residual,
 					     signal_received);
 	    }
+#endif
+#ifdef ENABLE_SOCKS
 	  else if (sock->socks_proxy)
 	    {
 	      establish_socks_proxy_passthru (sock->socks_proxy,
@@ -1050,7 +1095,9 @@ link_socket_init_phase2 (struct link_socket *sock,
 					      sock->proxy_dest_port,
 					      signal_received);
 	    }
+#endif
 	}
+#ifdef ENABLE_SOCKS
       else if (sock->info.proto == PROTO_UDPv4 && sock->socks_proxy)
 	{
 	  socket_connect (&sock->ctrl_sd,
@@ -1083,6 +1130,7 @@ link_socket_init_phase2 (struct link_socket *sock,
 	  if (*signal_received)
 	    goto done;
 	}
+#endif
       
       if (*signal_received)
 	goto done;
@@ -1103,8 +1151,11 @@ link_socket_init_phase2 (struct link_socket *sock,
   /* set socket file descriptor to not pass across execs, so that
      scripts don't have access to it */
   set_cloexec (sock->sd);
-  if (sock->ctrl_sd != -1)
+
+#ifdef ENABLE_SOCKS
+  if (socket_defined (sock->ctrl_sd))
     set_cloexec (sock->ctrl_sd);
+#endif
 
   /* set Path MTU discovery options on the socket */
   set_mtu_discover_type (sock->sd, sock->mtu_discover_type);
@@ -1137,8 +1188,13 @@ link_socket_close (struct link_socket *sock)
 {
   if (sock)
     {
+#ifdef ENABLE_DEBUG
       const int gremlin = GREMLIN_CONNECTION_FLOOD_LEVEL (sock->gremlin);
-      if (sock->sd != -1)
+#else
+      const int gremlin = 0;
+#endif
+
+      if (socket_defined (sock->sd))
 	{
 #ifdef WIN32
 	  close_net_event_win32 (&sock->listen_handle, sock->sd, 0);
@@ -1149,7 +1205,7 @@ link_socket_close (struct link_socket *sock)
 	      if (openvpn_close_socket (sock->sd))
 		msg (M_WARN | M_ERRNO_SOCK, "TCP/UDP: Close Socket failed");
 	    }
-	  sock->sd = -1;
+	  sock->sd = SOCKET_UNDEFINED;
 #ifdef WIN32
 	  if (!gremlin)
 	    {
@@ -1158,12 +1214,16 @@ link_socket_close (struct link_socket *sock)
 	    }
 #endif
 	}
-      if (sock->ctrl_sd != -1)
+
+#ifdef ENABLE_SOCKS
+      if (socket_defined (sock->ctrl_sd))
 	{
 	  if (openvpn_close_socket (sock->ctrl_sd))
-	    msg (M_WARN | M_ERRNO_SOCK, "TCP/UDP: Close Socket failed");
-	  sock->ctrl_sd = -1;
+	    msg (M_WARN | M_ERRNO_SOCK, "TCP/UDP: Close Socket (ctrl_sd) failed");
+	  sock->ctrl_sd = SOCKET_UNDEFINED;
 	}
+#endif
+
       stream_buf_close (&sock->stream_buf);
       free_buf (&sock->stream_buf_data);
       if (!gremlin)
@@ -1252,7 +1312,7 @@ link_socket_bad_incoming_addr (struct buffer *buf,
 void
 link_socket_bad_outgoing_addr (void)
 {
-  msg (D_READ_WRITE, "TCP/UDP: No outgoing address to send packet");
+  dmsg (D_READ_WRITE, "TCP/UDP: No outgoing address to send packet");
 }
 
 in_addr_t
@@ -1311,7 +1371,7 @@ socket_stat (const struct link_socket *s, unsigned int rwflags, struct gc_arena 
 static inline void
 stream_buf_reset (struct stream_buf *sb)
 {
-  msg (D_STREAM_DEBUG, "STREAM: RESET");
+  dmsg (D_STREAM_DEBUG, "STREAM: RESET");
   sb->residual_fully_formed = false;
   sb->buf = sb->buf_init;
   buf_reset (&sb->next);
@@ -1329,7 +1389,7 @@ stream_buf_init (struct stream_buf *sb,
   sb->error = false;
   stream_buf_reset (sb);
 
-  msg (D_STREAM_DEBUG, "STREAM: INIT maxlen=%d", sb->maxlen);
+  dmsg (D_STREAM_DEBUG, "STREAM: INIT maxlen=%d", sb->maxlen);
 }
 
 static inline void
@@ -1339,7 +1399,7 @@ stream_buf_set_next (struct stream_buf *sb)
   sb->next = sb->buf;
   sb->next.offset = sb->buf.offset + sb->buf.len;
   sb->next.len = (sb->len >= 0 ? sb->len : sb->maxlen) - sb->buf.len;
-  msg (D_STREAM_DEBUG, "STREAM: SET NEXT, buf=[%d,%d] next=[%d,%d] len=%d maxlen=%d",
+  dmsg (D_STREAM_DEBUG, "STREAM: SET NEXT, buf=[%d,%d] next=[%d,%d] len=%d maxlen=%d",
        sb->buf.offset, sb->buf.len,
        sb->next.offset, sb->next.len,
        sb->len, sb->maxlen);
@@ -1350,7 +1410,7 @@ stream_buf_set_next (struct stream_buf *sb)
 static inline void
 stream_buf_get_final (struct stream_buf *sb, struct buffer *buf)
 {
-  msg (D_STREAM_DEBUG, "STREAM: GET FINAL len=%d",
+  dmsg (D_STREAM_DEBUG, "STREAM: GET FINAL len=%d",
        buf_defined (&sb->buf) ? sb->buf.len : -1);
   ASSERT (buf_defined (&sb->buf));
   *buf = sb->buf;
@@ -1359,7 +1419,7 @@ stream_buf_get_final (struct stream_buf *sb, struct buffer *buf)
 static inline void
 stream_buf_get_next (struct stream_buf *sb, struct buffer *buf)
 {
-  msg (D_STREAM_DEBUG, "STREAM: GET NEXT len=%d",
+  dmsg (D_STREAM_DEBUG, "STREAM: GET NEXT len=%d",
        buf_defined (&sb->next) ? sb->next.len : -1);
   ASSERT (buf_defined (&sb->next));
   *buf = sb->next;
@@ -1373,7 +1433,7 @@ stream_buf_read_setup_dowork (struct link_socket* sock)
       ASSERT (buf_copy (&sock->stream_buf.buf, &sock->stream_buf.residual));
       ASSERT (buf_init (&sock->stream_buf.residual, 0));
       sock->stream_buf.residual_fully_formed = stream_buf_added (&sock->stream_buf, 0);
-      msg (D_STREAM_DEBUG, "STREAM: RESIDUAL FULLY FORMED [%s], len=%d",
+      dmsg (D_STREAM_DEBUG, "STREAM: RESIDUAL FULLY FORMED [%s], len=%d",
 	   sock->stream_buf.residual_fully_formed ? "YES" : "NO",
 	   sock->stream_buf.residual.len);
     }
@@ -1387,7 +1447,7 @@ bool
 stream_buf_added (struct stream_buf *sb,
 		  int length_added)
 {
-  msg (D_STREAM_DEBUG, "STREAM: ADD length_added=%d", length_added);
+  dmsg (D_STREAM_DEBUG, "STREAM: ADD length_added=%d", length_added);
   if (length_added > 0)
     sb->buf.len += length_added;
 
@@ -1415,14 +1475,14 @@ stream_buf_added (struct stream_buf *sb,
       ASSERT (buf_init (&sb->residual, 0));
       if (sb->buf.len > sb->len)
 	  ASSERT (buf_copy_excess (&sb->residual, &sb->buf, sb->len));
-      msg (D_STREAM_DEBUG, "STREAM: ADD returned TRUE, buf_len=%d, residual_len=%d",
+      dmsg (D_STREAM_DEBUG, "STREAM: ADD returned TRUE, buf_len=%d, residual_len=%d",
 	   BLEN (&sb->buf),
 	   BLEN (&sb->residual));
       return true;
     }
   else
     {
-      msg (D_STREAM_DEBUG, "STREAM: ADD returned FALSE (have=%d need=%d)", sb->buf.len, sb->len);
+      dmsg (D_STREAM_DEBUG, "STREAM: ADD returned FALSE (have=%d need=%d)", sb->buf.len, sb->len);
       stream_buf_set_next (sb);
       return false;
     }
@@ -1694,7 +1754,7 @@ link_socket_write_tcp (struct link_socket *sock,
 		       struct sockaddr_in *to)
 {
   packet_size_type len = BLEN (buf);
-  msg (D_STREAM_DEBUG, "STREAM: WRITE %d offset=%d", (int)len, buf->offset);
+  dmsg (D_STREAM_DEBUG, "STREAM: WRITE %d offset=%d", (int)len, buf->offset);
   ASSERT (len <= sock->stream_buf.maxlen);
   len = htonps (len);
   ASSERT (buf_write_prepend (buf, &len, sizeof (len)));
@@ -1788,7 +1848,7 @@ socket_recv_queue (struct link_socket *sock, int maxsize)
 	  ASSERT (SetEvent (sock->reads.overlapped.hEvent));
 	  sock->reads.status = 0;
 
-	  msg (D_WIN32_IO, "WIN32 I/O: Socket Receive immediate return [%d,%d]",
+	  dmsg (D_WIN32_IO, "WIN32 I/O: Socket Receive immediate return [%d,%d]",
 	       (int) wsabuf[0].len,
 	       (int) sock->reads.size);	       
 	}
@@ -1799,7 +1859,7 @@ socket_recv_queue (struct link_socket *sock, int maxsize)
 	    {
 	      sock->reads.iostate = IOSTATE_QUEUED;
 	      sock->reads.status = status;
-	      msg (D_WIN32_IO, "WIN32 I/O: Socket Receive queued [%d]",
+	      dmsg (D_WIN32_IO, "WIN32 I/O: Socket Receive queued [%d]",
 		   (int) wsabuf[0].len);
 	    }
 	  else /* error occurred */
@@ -1808,7 +1868,7 @@ socket_recv_queue (struct link_socket *sock, int maxsize)
 	      ASSERT (SetEvent (sock->reads.overlapped.hEvent));
 	      sock->reads.iostate = IOSTATE_IMMEDIATE_RETURN;
 	      sock->reads.status = status;
-	      msg (D_WIN32_IO, "WIN32 I/O: Socket Receive error [%d]: %s",
+	      dmsg (D_WIN32_IO, "WIN32 I/O: Socket Receive error [%d]: %s",
 		   (int) wsabuf[0].len,
 		   strerror_win32 (status, &gc));
 	      gc_free (&gc);
@@ -1886,7 +1946,7 @@ socket_send_queue (struct link_socket *sock, struct buffer *buf, const struct so
 
 	  sock->writes.status = 0;
 
-	  msg (D_WIN32_IO, "WIN32 I/O: Socket Send immediate return [%d,%d]",
+	  dmsg (D_WIN32_IO, "WIN32 I/O: Socket Send immediate return [%d,%d]",
 	       (int) wsabuf[0].len,
 	       (int) sock->writes.size);	       
 	}
@@ -1897,7 +1957,7 @@ socket_send_queue (struct link_socket *sock, struct buffer *buf, const struct so
 	    {
 	      sock->writes.iostate = IOSTATE_QUEUED;
 	      sock->writes.status = status;
-	      msg (D_WIN32_IO, "WIN32 I/O: Socket Send queued [%d]",
+	      dmsg (D_WIN32_IO, "WIN32 I/O: Socket Send queued [%d]",
 		   (int) wsabuf[0].len);
 	    }
 	  else /* error occurred */
@@ -1907,7 +1967,7 @@ socket_send_queue (struct link_socket *sock, struct buffer *buf, const struct so
 	      sock->writes.iostate = IOSTATE_IMMEDIATE_RETURN;
 	      sock->writes.status = status;
 
-	      msg (D_WIN32_IO, "WIN32 I/O: Socket Send error [%d]: %s",
+	      dmsg (D_WIN32_IO, "WIN32 I/O: Socket Send error [%d]: %s",
 		   (int) wsabuf[0].len,
 		   strerror_win32 (status, &gc));
 
@@ -1947,7 +2007,7 @@ socket_finalize (
 	  io->iostate = IOSTATE_INITIAL;
 	  ASSERT (ResetEvent (io->overlapped.hEvent));
 
-	  msg (D_WIN32_IO, "WIN32 I/O: Socket Completion success [%d]", ret);
+	  dmsg (D_WIN32_IO, "WIN32 I/O: Socket Completion success [%d]", ret);
 	}
       else
 	{
@@ -1979,14 +2039,14 @@ socket_finalize (
 	  if (buf)
 	    *buf = io->buf;
 	  ret = io->size;
-	  msg (D_WIN32_IO, "WIN32 I/O: Socket Completion non-queued success [%d]", ret);
+	  dmsg (D_WIN32_IO, "WIN32 I/O: Socket Completion non-queued success [%d]", ret);
 	}
       break;
 
     case IOSTATE_INITIAL: /* were we called without proper queueing? */
       WSASetLastError (WSAEINVAL);
       ret = -1;
-      msg (D_WIN32_IO, "WIN32 I/O: Socket Completion BAD STATE");
+      dmsg (D_WIN32_IO, "WIN32 I/O: Socket Completion BAD STATE");
       break;
 
     default:

@@ -38,6 +38,8 @@
 
 #include "memdbg.h"
 
+#if P2MP_SERVER
+
 static const char *
 print_netmask (int netbits, struct gc_arena *gc)
 {
@@ -99,13 +101,15 @@ verify_common_subnet (const char *opt, const in_addr_t a, const in_addr_t b, con
 {
   struct gc_arena gc = gc_new ();
   if ((a & subnet) != (b & subnet))
-    msg (M_USAGE, "Options Error: %s IP addresses %s and %s are not in the same %s subnet",
+    msg (M_USAGE, "%s IP addresses %s and %s are not in the same %s subnet",
 	 opt,
 	 print_in_addr_t (a, 0, &gc),
 	 print_in_addr_t (b, 0, &gc),
 	 print_in_addr_t (subnet, 0, &gc));
   gc_free (&gc);
 }
+
+#endif
 
 /*
  * Process server, server-bridge, and client helper
@@ -116,12 +120,9 @@ void
 helper_client_server (struct options *o)
 {
   struct gc_arena gc = gc_new ();
-#if P2MP
-  /*
-   * Get tun/tap/null device type
-   */
-  const int dev = dev_type_enum (o->dev, o->dev_type);
 
+#if P2MP
+#if P2MP_SERVER
   /*
    *
    * HELPER DIRECTIVE:
@@ -147,35 +148,41 @@ helper_client_server (struct options *o)
    *   ifconfig-pool 10.8.0.2 10.8.0.254 255.255.255.0
    *   push "route-gateway 10.8.0.1"
    */
+
+  /*
+   * Get tun/tap/null device type
+   */
+  const int dev = dev_type_enum (o->dev, o->dev_type);
+
   if (o->server_defined)
     {
       int netbits = -2;
       bool status = false;
 
       if (o->client)
-	msg (M_USAGE, "Options Error: --server and --client cannot be used together");
+	msg (M_USAGE, "--server and --client cannot be used together");
 
       if (o->server_bridge_defined)
-	msg (M_USAGE, "Options Error: --server and --server-bridge cannot be used together");
+	msg (M_USAGE, "--server and --server-bridge cannot be used together");
 
       if (o->shared_secret_file)
-	msg (M_USAGE, "Options Error: --server and --secret cannot be used together (you must use SSL/TLS keys)");
+	msg (M_USAGE, "--server and --secret cannot be used together (you must use SSL/TLS keys)");
 
       if (o->ifconfig_pool_defined)
-	msg (M_USAGE, "Options Error: --server already defines an ifconfig-pool, so you can't also specify --ifconfig-pool explicitly");
+	msg (M_USAGE, "--server already defines an ifconfig-pool, so you can't also specify --ifconfig-pool explicitly");
 
       if (!(dev == DEV_TYPE_TAP || dev == DEV_TYPE_TUN))
-	msg (M_USAGE, "Options Error: --server directive only makes sense with --dev tun or --dev tap");
+	msg (M_USAGE, "--server directive only makes sense with --dev tun or --dev tap");
 
       status = netmask_to_netbits (o->server_network, o->server_netmask, &netbits);
       if (!status)
-	msg (M_USAGE, "Options Error: --server directive network/netmask combination is invalid");
+	msg (M_USAGE, "--server directive network/netmask combination is invalid");
 
       if (netbits < 0)
-	msg (M_USAGE, "Options Error: --server directive netmask is invalid");
+	msg (M_USAGE, "--server directive netmask is invalid");
 
       if (netbits < IFCONFIG_POOL_MIN_NETBITS)
-	msg (M_USAGE, "Options Error: --server directive netmask allows for too many host addresses (subnet must be %s or higher)",
+	msg (M_USAGE, "--server directive netmask allows for too many host addresses (subnet must be %s or higher)",
 	     print_netmask (IFCONFIG_POOL_MIN_NETBITS, &gc));
 
       if (dev == DEV_TYPE_TUN)
@@ -183,7 +190,7 @@ helper_client_server (struct options *o)
 	  int pool_end_reserve = 4;
 
 	  if (netbits > 29)
-	    msg (M_USAGE, "Options Error: --server directive when used with --dev tun must define a subnet of %s or lower",
+	    msg (M_USAGE, "--server directive when used with --dev tun must define a subnet of %s or lower",
 		 print_netmask (29, &gc));
 
 	  if (netbits == 29)
@@ -205,7 +212,7 @@ helper_client_server (struct options *o)
       else if (dev == DEV_TYPE_TAP)
 	{
 	  if (netbits >= 30)
-	    msg (M_USAGE, "Options Error: --server directive when used with --dev tap must define a subnet of %s or lower",
+	    msg (M_USAGE, "--server directive when used with --dev tap must define a subnet of %s or lower",
 		 print_netmask (30, &gc));
 
 	  o->mode = MODE_SERVER;
@@ -243,16 +250,16 @@ helper_client_server (struct options *o)
   else if (o->server_bridge_defined)
     {
       if (o->client)
-	msg (M_USAGE, "Options Error: --server-bridge and --client cannot be used together");
+	msg (M_USAGE, "--server-bridge and --client cannot be used together");
 
       if (o->ifconfig_pool_defined)
-	msg (M_USAGE, "Options Error: --server-bridge already defines an ifconfig-pool, so you can't also specify --ifconfig-pool explicitly");
+	msg (M_USAGE, "--server-bridge already defines an ifconfig-pool, so you can't also specify --ifconfig-pool explicitly");
 
       if (o->shared_secret_file)
-	msg (M_USAGE, "Options Error: --server-bridge and --secret cannot be used together (you must use SSL/TLS keys)");
+	msg (M_USAGE, "--server-bridge and --secret cannot be used together (you must use SSL/TLS keys)");
 
       if (dev != DEV_TYPE_TAP)
-	msg (M_USAGE, "Options Error: --server-bridge directive only makes sense with --dev tap");
+	msg (M_USAGE, "--server-bridge directive only makes sense with --dev tap");
 
       verify_common_subnet ("--server-bridge", o->server_bridge_ip, o->server_bridge_pool_start, o->server_bridge_netmask); 
       verify_common_subnet ("--server-bridge", o->server_bridge_pool_start, o->server_bridge_pool_end, o->server_bridge_netmask); 
@@ -269,6 +276,8 @@ helper_client_server (struct options *o)
       if (o->proto == PROTO_TCPv4)
 	o->proto = PROTO_TCPv4_SERVER;
     }
+  else
+#endif /* P2MP_SERVER */
 
   /*
    * HELPER DIRECTIVE:
@@ -280,7 +289,7 @@ helper_client_server (struct options *o)
    * pull
    * tls-client
    */
-  else if (o->client)
+  if (o->client)
     {
       o->pull = true;
       o->tls_client = true;
@@ -288,10 +297,11 @@ helper_client_server (struct options *o)
       if (o->proto == PROTO_TCPv4)
 	o->proto = PROTO_TCPv4_CLIENT;
     }
-#endif
+
+#endif /* P2MP */
 
   if (o->proto == PROTO_TCPv4)
-    msg (M_USAGE, "Options Error: --proto tcp is ambiguous in this context.  Please specify --proto tcp-server or --proto tcp-client");
+    msg (M_USAGE, "--proto tcp is ambiguous in this context.  Please specify --proto tcp-server or --proto tcp-client");
 
   gc_free (&gc);
 }
@@ -322,13 +332,13 @@ helper_keepalive (struct options *o)
        * Sanity checks.
        */
       if (o->keepalive_ping <= 0 || o->keepalive_timeout <= 0)
-	msg (M_USAGE, "Options Error: --keepalive parameters must be > 0");
+	msg (M_USAGE, "--keepalive parameters must be > 0");
       if (o->keepalive_ping * 2 > o->keepalive_timeout)
-	msg (M_USAGE, "Options Error: the second parameter to --keepalive (restart timeout=%d) must be at least twice the value of the first parameter (ping interval=%d).  A ratio of 1:5 or 1:6 would be even better.  Recommended setting is --keepalive 10 60.",
+	msg (M_USAGE, "the second parameter to --keepalive (restart timeout=%d) must be at least twice the value of the first parameter (ping interval=%d).  A ratio of 1:5 or 1:6 would be even better.  Recommended setting is --keepalive 10 60.",
 	     o->keepalive_timeout,
 	     o->keepalive_ping);
       if (o->ping_send_timeout || o->ping_rec_timeout)
-	msg (M_USAGE, "Options Error: --keepalive conflicts with --ping, --ping-exit, or --ping-restart.  If you use --keepalive, you don't need any of the other --ping directives.");
+	msg (M_USAGE, "--keepalive conflicts with --ping, --ping-exit, or --ping-restart.  If you use --keepalive, you don't need any of the other --ping directives.");
 
       /*
        * Expand.
@@ -339,7 +349,7 @@ helper_keepalive (struct options *o)
 	  o->ping_send_timeout = o->keepalive_ping;
 	  o->ping_rec_timeout = o->keepalive_timeout;
 	}
-#if P2MP
+#if P2MP_SERVER
       else if (o->mode == MODE_SERVER)
 	{
 	  o->ping_rec_timeout_action = PING_RESTART;

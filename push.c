@@ -61,6 +61,7 @@ receive_auth_failed (struct context *c, const struct buffer *buffer)
     }
 }
 
+#if P2MP_SERVER
 /*
  * Send auth failed message from server to client.
  */
@@ -69,6 +70,7 @@ send_auth_failed (struct context *c)
 {
   return send_control_channel_string (c, "AUTH_FAILED", D_PUSH);
 }
+#endif
 
 /*
  * Push/Pull
@@ -106,6 +108,7 @@ send_push_request (struct context *c)
   return send_control_channel_string (c, "PUSH_REQUEST", D_PUSH);
 }
 
+#if P2MP_SERVER
 bool
 send_push_reply (struct context *c)
 {
@@ -162,6 +165,7 @@ push_reset (struct options *o)
 {
   o->push_list = NULL;
 }
+#endif
 
 int
 process_incoming_push_msg (struct context *c,
@@ -173,6 +177,7 @@ process_incoming_push_msg (struct context *c,
   int ret = PUSH_MSG_ERROR;
   struct buffer buf = *buffer;
 
+#if P2MP_SERVER
   if (buf_string_compare_advance (&buf, "PUSH_REQUEST"))
     {
       if (!tls_authenticated (c->c2.tls_multi))
@@ -190,7 +195,10 @@ process_incoming_push_msg (struct context *c,
 	  ret = PUSH_MSG_REQUEST_DEFERRED;
 	}
     }
-  else if (honor_received_options && buf_string_compare_advance (&buf, "PUSH_REPLY"))
+  else
+#endif
+
+  if (honor_received_options && buf_string_compare_advance (&buf, "PUSH_REPLY"))
     {
       const uint8_t ch = buf_read_u8 (&buf);
       if (ch == ',')
@@ -213,6 +221,7 @@ process_incoming_push_msg (struct context *c,
   return ret;
 }
 
+#if P2MP_SERVER
 /*
  * Remove iroutes from the push_list.
  */
@@ -293,5 +302,6 @@ remove_iroutes_from_push_route_list (struct options *o)
       gc_free (&gc);
     }
 }
+#endif
 
 #endif

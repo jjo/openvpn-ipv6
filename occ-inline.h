@@ -26,6 +26,8 @@
 #ifndef OCC_INLINE_H
 #define OCC_INLINE_H
 
+#ifdef ENABLE_OCC
+
 /*
  * Inline functions
  */
@@ -80,4 +82,5 @@ check_send_occ_msg (struct context *c)
     }
 }
 
+#endif
 #endif

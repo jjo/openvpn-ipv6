@@ -37,6 +37,7 @@
 #include "interval.h"
 #include "status.h"
 #include "fragment.h"
+#include "shaper.h"
 #include "route.h"
 #include "proxy.h"
 #include "socks.h"
@@ -146,23 +147,30 @@ struct context_1
   struct status_output *status_output;
   bool status_output_owned;
 
+#ifdef ENABLE_HTTP_PROXY
   /* HTTP proxy object */
   struct http_proxy_info *http_proxy;
+#endif
 
+#ifdef ENABLE_SOCKS
   /* SOCKS proxy object */
   struct socks_proxy_info *socks_proxy;
+#endif
 
   /* shared object plugins */
   struct plugin_list *plugins;
   bool plugins_owned;
   
 #if P2MP
-  /* if client mode, option strings we pulled from server */
-  char *pulled_options_string_save;
 
+#if P2MP_SERVER
   /* persist --ifconfig-pool db to file */
   struct ifconfig_pool_persist *ifconfig_pool_persist;
   bool ifconfig_pool_persist_owned;
+#endif
+
+  /* if client mode, option strings we pulled from server */
+  char *pulled_options_string_save;
 
   /* save user/pass for authentication */
   struct user_pass *auth_user_pass;
@@ -208,10 +216,12 @@ struct context_2
   /* MTU frame parameters */
   struct frame frame;
 
+#ifdef ENABLE_FRAGMENT
   /* Object to handle advanced MTU negotiation and datagram fragmentation */
   struct fragment_master *fragment;
   struct frame frame_fragment;
   struct frame frame_fragment_omit;
+#endif
 
 #ifdef HAVE_GETTIMEOFDAY
   /*
@@ -238,6 +248,7 @@ struct context_2
   struct event_timeout ping_send_interval;
   struct event_timeout ping_rec_interval;
 
+#ifdef ENABLE_OCC
   /* the option strings must match across peers */
   char *options_string_local;
   char *options_string_remote;
@@ -245,6 +256,7 @@ struct context_2
   int occ_op;			/* INIT to -1 */
   int occ_n_tries;
   struct event_timeout occ_interval;
+#endif
 
   /*
    * Keep track of maximum packet size received so far
@@ -256,11 +268,13 @@ struct context_2
   int max_send_size_local;	/* max packet size sent */
   int max_send_size_remote;	/* max packet size sent by remote */
 
+#ifdef ENABLE_OCC
   /* remote wants us to send back a load test packet of this size */
   int occ_mtu_load_size;
 
   struct event_timeout occ_mtu_load_test_interval;
   int occ_mtu_load_n_tries;
+#endif
 
 #ifdef USE_CRYPTO
 
@@ -362,11 +376,13 @@ struct context_2
   /* indicates that the do_up_delay function has run */
   bool do_up_ran;
 
+#ifdef ENABLE_OCC
   /* indicates that we have received a SIGTERM when
      options->explicit_exit_notification is enabled,
      but we have not exited yet */
   time_t explicit_exit_notification_time_wait;
   struct event_timeout explicit_exit_notification_interval;
+#endif
 
   /* environmental variables to pass to scripts */
   struct env_set *es;
@@ -375,15 +391,18 @@ struct context_2
   bool fast_io;
 
 #if P2MP
+
+#if P2MP_SERVER
   /* --ifconfig endpoints to be pushed to client */
   bool push_reply_deferred;
   bool push_ifconfig_defined;
   in_addr_t push_ifconfig_local;
   in_addr_t push_ifconfig_remote_netmask;
+#endif
 
   struct event_timeout push_request_interval;
-
   const char *pulled_options_string;
+
 #endif
 };
 

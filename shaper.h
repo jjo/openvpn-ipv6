@@ -113,7 +113,7 @@ shaper_delay (struct shaper* s)
       ASSERT (!gettimeofday (&tv, NULL));
       delay = tv_subtract (&s->wakeup, &tv, SHAPER_MAX_TIMEOUT);
 #ifdef SHAPER_DEBUG
-      msg (D_SHAPER_DEBUG, "SHAPER shaper_delay delay=%d", delay);
+      dmsg (D_SHAPER_DEBUG, "SHAPER shaper_delay delay=%d", delay);
 #endif
     }
 
@@ -148,7 +148,7 @@ shaper_wrote_bytes (struct shaper* s, int nbytes)
       tv_add (&s->wakeup, &tv);
 
 #ifdef SHAPER_DEBUG
-      msg (D_SHAPER_DEBUG, "SHAPER shaper_wrote_bytes bytes=%d delay=%d sec=%d usec=%d",
+      dmsg (D_SHAPER_DEBUG, "SHAPER shaper_wrote_bytes bytes=%d delay=%d sec=%d usec=%d",
 	   nbytes,
 	   (int)tv.tv_usec,
 	   (int)s->wakeup.tv_sec,

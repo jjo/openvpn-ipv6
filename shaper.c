@@ -77,7 +77,7 @@ shaper_soonest_event (struct timeval *tv, int delay)
 	}
     }
 #ifdef SHAPER_DEBUG
-  msg (D_SHAPER_DEBUG, "SHAPER shaper_soonest_event sec=%d usec=%d ret=%d",
+  dmsg (D_SHAPER_DEBUG, "SHAPER shaper_soonest_event sec=%d usec=%d ret=%d",
        (int)tv->tv_sec, (int)tv->tv_usec, (int)ret);
 #endif
   return ret;

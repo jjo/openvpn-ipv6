@@ -26,6 +26,8 @@
 #ifndef PROXY_H
 #define PROXY_H
 
+#ifdef ENABLE_HTTP_PROXY
+
 #include "buffer.h"
 #include "misc.h"
 
@@ -63,4 +65,5 @@ void establish_http_proxy_passthru (struct http_proxy_info *p,
 uint8_t *make_base64_string2 (const uint8_t *str, int str_len, struct gc_arena *gc);
 uint8_t *make_base64_string (const uint8_t *str, struct gc_arena *gc);
 
+#endif
 #endif

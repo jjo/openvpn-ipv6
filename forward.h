@@ -34,7 +34,12 @@
 #define LINK_OUT(c)     (BLEN(&(c)->c2.to_link) > 0)
 #define ANY_OUT(c)      (TUN_OUT(c) || LINK_OUT(c))
 
+#ifdef ENABLE_FRAGMENT
 #define TO_LINK_FRAG(c) ((c)->c2.fragment && fragment_outgoing_defined ((c)->c2.fragment))
+#else
+#define TO_LINK_FRAG(c) (false)
+#endif
+
 #define TO_LINK_DEF(c)  (LINK_OUT(c) || TO_LINK_FRAG(c))
 
 #define IOW_TO_TUN          (1<<0)

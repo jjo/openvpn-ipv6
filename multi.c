@@ -31,7 +31,7 @@
 
 #include "syshead.h"
 
-#if P2MP
+#if P2MP_SERVER
 
 #include "multi.h"
 #include "push.h"
@@ -43,7 +43,6 @@
 
 #include "forward-inline.h"
 
-#define MULTI_DEBUG
 //#define MULTI_DEBUG_EVENT_LOOP
 
 #ifdef MULTI_DEBUG_EVENT_LOOP
@@ -134,14 +133,14 @@ multi_reap_range (const struct multi_context *m,
       end_bucket = hash_n_buckets (m->vhash);
     }
 
-  msg (D_MULTI_DEBUG, "MULTI: REAP range %d -> %d", start_bucket, end_bucket);
+  dmsg (D_MULTI_DEBUG, "MULTI: REAP range %d -> %d", start_bucket, end_bucket);
   hash_iterator_init_range (m->vhash, &hi, true, start_bucket, end_bucket);
   while ((he = hash_iterator_next (&hi)) != NULL)
     {
       struct multi_route *r = (struct multi_route *) he->value;
       if (!multi_route_defined (m, r))
 	{
-	  msg (D_MULTI_DEBUG, "MULTI: REAP DEL %s",
+	  dmsg (D_MULTI_DEBUG, "MULTI: REAP DEL %s",
 	       mroute_addr_print (&r->addr, &gc));
 	  learn_address_script (m, NULL, "delete", &r->addr);
 	  multi_route_del (r);
@@ -431,7 +430,7 @@ multi_close_instance (struct multi_context *m,
   ASSERT (!mi->halt);
   mi->halt = true;
 
-  msg (D_MULTI_DEBUG, "MULTI: multi_close_instance called");
+  dmsg (D_MULTI_DEBUG, "MULTI: multi_close_instance called");
 
   /* prevent dangling pointers */
   if (m->pending == mi)
@@ -874,21 +873,21 @@ multi_get_instance_by_virtual_addr (struct multi_context *m,
       mroute_helper_unlock (rh);
     }
   
-#ifdef MULTI_DEBUG
+#ifdef ENABLE_DEBUG
   if (check_debug_level (D_MULTI_DEBUG))
     {
       struct gc_arena gc = gc_new ();
       const char *addr_text = mroute_addr_print (addr, &gc);
       if (ret)
 	{
-	  msg (D_MULTI_DEBUG, "GET INST BY VIRT: %s -> %s via %s",
+	  dmsg (D_MULTI_DEBUG, "GET INST BY VIRT: %s -> %s via %s",
 	       addr_text,
 	       multi_instance_string (ret, false, &gc),
 	       mroute_addr_print (&route->addr, &gc));
 	}
       else
 	{
-	  msg (D_MULTI_DEBUG, "GET INST BY VIRT: %s [failed]",
+	  dmsg (D_MULTI_DEBUG, "GET INST BY VIRT: %s [failed]",
 	       addr_text);
 	}
       gc_free (&gc);
@@ -1106,7 +1105,7 @@ multi_client_connect_post (struct multi_context *m,
     {
       options_server_import (&mi->context.options,
 			     dc_file,
-			     D_IMPORT_ERRORS,
+			     D_IMPORT_ERRORS|M_OPTERR,
 			     option_permissions_mask,
 			     option_types_found,
 			     mi->context.c2.es);
@@ -1172,7 +1171,7 @@ multi_connection_established (struct multi_context *m, struct multi_instance *mi
 	    {
 	      options_server_import (&mi->context.options,
 				     ccd_file,
-				     D_IMPORT_ERRORS,
+				     D_IMPORT_ERRORS|M_OPTERR,
 				     option_permissions_mask,
 				     &option_types_found,
 				     mi->context.c2.es);
@@ -1709,9 +1708,8 @@ multi_get_queue (struct mbuf_set *ms)
       encrypt_sign (&item.instance->context, true);
       mbuf_free_buf (item.buffer);
 
-#ifdef MULTI_DEBUG
-      msg (D_MULTI_DEBUG, "MULTI: C2C/MCAST/BCAST");
-#endif
+      dmsg (D_MULTI_DEBUG, "MULTI: C2C/MCAST/BCAST");
+
       clear_prefix ();
       return item.instance;
     }
@@ -1745,6 +1743,7 @@ multi_process_timeout (struct multi_context *m, const unsigned int mpp_flags)
   return ret;
 }
 
+#ifdef ENABLE_DEBUG
 /*
  * Flood clients with random packets
  */
@@ -1775,6 +1774,7 @@ gremlin_flood_clients (struct multi_context *m)
       gc_free (&gc);
     }
 }
+#endif
 
 /*
  * Process timers in the top-level context
@@ -1795,7 +1795,9 @@ multi_process_per_second_timers_dowork (struct multi_context *m)
   /* possibly flush ifconfig-pool file */
   multi_ifconfig_pool_persist (m, false);
 
+#ifdef ENABLE_DEBUG
   gremlin_flood_clients (m);
+#endif
 }
 
 void
@@ -1995,7 +1997,7 @@ inherit_multi_context (struct multi_context *dest, const struct multi_context *s
 void
 multi_acquire_io_lock (struct multi_context *m, const unsigned int iow_flags)
 {
-  msg (D_THREAD_DEBUG, "THREAD: acquire I/O lock ENTRY, flags=0x%08x", iow_flags);
+  dmsg (D_THREAD_DEBUG, "THREAD: acquire I/O lock ENTRY, flags=0x%08x", iow_flags);
   if ((iow_flags & IOW_READ) && !m->thread_local.read_owned)
     {
       mutex_lock (&m->thread_shared->read.mutex);
@@ -2014,13 +2016,13 @@ multi_acquire_io_lock (struct multi_context *m, const unsigned int iow_flags)
 	  m->thread_local.write_tun_owned = true;
 	}
     }
-  msg (D_THREAD_DEBUG, "THREAD: acquire I/O lock EXIT, flags=0x%08x", iow_flags);
+  dmsg (D_THREAD_DEBUG, "THREAD: acquire I/O lock EXIT, flags=0x%08x", iow_flags);
 }
 
 void
 multi_release_io_lock (struct multi_context *m)
 {
-  msg (D_THREAD_DEBUG, "THREAD: release I/O lock");
+  dmsg (D_THREAD_DEBUG, "THREAD: release I/O lock");
   if (m->thread_local.read_owned)
     {
       mutex_unlock (&m->thread_shared->read.mutex);
@@ -2071,12 +2073,12 @@ multi_set_pending (struct multi_context *m, struct multi_instance *mi)
 	    {
 	      m->thread_local.held = mi;
 	      m->pending = mi;
-	      msg (D_THREAD_DEBUG, "THREAD: instance lock SUCCEEDED");
+	      dmsg (D_THREAD_DEBUG, "THREAD: instance lock SUCCEEDED");
 	    }
 	  else
 	    {
 	      m->pending = NULL;
-	      msg (D_THREAD_DEBUG, "THREAD: instance lock FAILED");
+	      dmsg (D_THREAD_DEBUG, "THREAD: instance lock FAILED");
 	    }
 	}
     }
@@ -2095,4 +2097,4 @@ multi_set_pending (struct multi_context *m, struct multi_instance *mi)
 
 #else
 static void dummy(void) {}
-#endif /* P2MP */
+#endif /* P2MP_SERVER */

@@ -63,11 +63,29 @@ typedef unsigned long in_addr_t;
 #define TAP_WIN32_MIN_MAJOR 8
 #define TAP_WIN32_MIN_MINOR 1
 
+/* Enable client/server capability */
+#define ENABLE_CLIENT_SERVER 1
+
+/* Enable client capability only */
+/* #undef ENABLE_CLIENT_ONLY */
+
 /* Enable management server capability */
 #define ENABLE_MANAGEMENT 1
 
-/* Enable multiclient server capability */
-#define MULTICLIENT_SERVER_ENABLED 1
+/* Enable HTTP proxy support */
+#define ENABLE_HTTP_PROXY 1
+
+/* Enable Socks proxy support */
+#define ENABLE_SOCKS 1
+
+/* Enable internal fragmentation support */
+#define ENABLE_FRAGMENT 1
+
+/* Enable smaller executable size */
+/* #undef ENABLE_SMALL */
+
+/* Enable debugging support */
+#define ENABLE_DEBUG 1
 
 /* if defined, will allow usage of the --plugin directive */
 #define USE_LOAD_LIBRARY

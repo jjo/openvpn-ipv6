@@ -29,6 +29,8 @@
 #include "config.h"
 #endif
 
+#ifdef ENABLE_HTTP_PROXY
+
 #include "syshead.h"
 
 #include "common.h"
@@ -331,7 +333,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
       openvpn_snprintf (buf, sizeof(buf), "Proxy-Authorization: Basic %s",
 			username_password_as_base64 (p, &gc));
       msg (D_PROXY, "Attempting Basic Proxy-Authorization");
-      msg (D_SHOW_KEYS, "Send to HTTP proxy: '%s'", buf);
+      dmsg (D_SHOW_KEYS, "Send to HTTP proxy: '%s'", buf);
       openvpn_sleep (1);
       if (!send_line_crlf (sd, buf))
 	goto error;
@@ -342,7 +344,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
       openvpn_snprintf (buf, sizeof(buf), "Proxy-Authorization: NTLM %s",
 			ntlm_phase_1 (p, &gc));
       msg (D_PROXY, "Attempting NTLM Proxy-Authorization phase 1");
-      msg (D_SHOW_KEYS, "Send to HTTP proxy: '%s'", buf);
+      dmsg (D_SHOW_KEYS, "Send to HTTP proxy: '%s'", buf);
       openvpn_sleep (1);
       if (!send_line_crlf (sd, buf))
 	goto error;
@@ -499,3 +501,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
   gc_free (&gc);
   return;
 }
+
+#else
+static void dummy(void) {}
+#endif /* ENABLE_HTTP_PROXY */
