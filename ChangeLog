@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.07.07 -- Version 1.2.1.9
+2002.07.07 -- Version 
 
 * Added --dev-node option to allow explicit selection of
   tun/tap device node.
@@ -35,7 +35,7 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
 * All changes maintain protocol compatibility
   with OpenVPN versions since 1.1.0, however default
   MTU changes will require setting the MTU explicitly
-  by command line option, if you want 1.2.1.9 to
+  by command line option, if you want  to
   communicate with previous versions.
 
 2002.06.12 -- Version 1.2.1
