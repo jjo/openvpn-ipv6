@@ -230,6 +230,7 @@ fragment_incoming (struct fragment_master *f, struct buffer *buf,
 	}
       else if (frag_type == FRAG_TEST)
 	{
+	  /* TODO: use FRAG_TEST to empirically measure path MTU */
 	  FRAG_ERR ("FRAG_TEST not implemented");
 	}
       else
@@ -255,7 +256,6 @@ static inline void
 fragment_update_outgoing_stats (struct fragment_master *f, int size)
 {
   f->max_packet_size_sent_pending = max_int (f->max_packet_size_sent_pending, size);
-
 }
 
 /* pack fragment parms into a uint32_t and prepend to buffer */
@@ -298,8 +298,8 @@ fragment_prepend_flags (struct buffer *buf,
 
 /*
  * Without changing the number of fragments, return a possibly smaller
- * max fragment size that will allow for the last fragment size to not
- * be excessively small in relation to the max fragment size.
+ * max fragment size that will allow for the last fragment to be of
+ * similar size as previous fragments.
  */
 static inline int
 optimal_fragment_size (int len, int max_frag_size)
@@ -352,7 +352,6 @@ fragment_outgoing (struct fragment_master *f, struct buffer *buf,
 				  0,
 				  0,
 				  &f->max_packet_size_received);
-	  f->wrote_last_fragment = true;
 	}
     }
   return;
@@ -379,7 +378,6 @@ fragment_ready_to_send (struct fragment_master *f, struct buffer *buf,
 	{
 	  size = f->outgoing.len;
 	  last = true;
-	  f->wrote_last_fragment = true;
 	}
 
       /* initialize return buffer */

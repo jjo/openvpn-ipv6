@@ -354,9 +354,28 @@ struct gc_thread
 extern struct gc_thread x_gc_thread[N_THREADS];
 
 void *gc_malloc (size_t size);
-void gc_collect (int level);
 
-void x_gc_free (void *p);
+static inline void
+x_gc_free (void *p) {
+  free (p);
+}
+
+static inline void
+gc_collect (int level)
+{
+  struct gc_entry *e;
+  struct gc_thread* thread = &x_gc_thread[thread_number()];
+
+  while ((e = thread->gc_stack))
+    {
+      if (e->level < level)
+	break;
+      /*printf("GC FREE " ptr_format " lev=%d\n", e, e->level); */
+      --thread->gc_count;
+      thread->gc_stack = e->back;
+      x_gc_free (e);
+    }
+}
 
 static inline int
 gc_new_level (void)

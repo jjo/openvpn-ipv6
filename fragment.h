@@ -76,10 +76,6 @@ struct fragment_master {
   int max_packet_size_sent_pending;   /* queued but not yet sent */
   int max_packet_size_sent_confirmed; /* confirmed by peer */
 
-  /* set to true if we are returning the last fragment of a packet (or a whole packet)
-     to openvpn.c for UDP send */
-  bool wrote_last_fragment;
-
   /* true if the OS has explicitly recommended an MTU value */
   bool received_os_mtu_hint;
 

@@ -1472,10 +1472,7 @@ openvpn (const struct options *options,
 	       * device.
 	       */
 	      ASSERT (to_tun.len > 0);
-#if 0
-	      if (options->tun_af_inet)
-		tun_add_head (&to_tun, AF_INET);
-#endif
+
 	      if (to_tun.len <= MAX_RW_SIZE_TUN(&frame))
 		{
 		  /*

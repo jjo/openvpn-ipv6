@@ -179,27 +179,6 @@ gc_malloc (size_t size)
   return (char *) e + sizeof (struct gc_entry);
 }
 
-void
-gc_collect (int level)
-{
-  struct gc_entry *e;
-  struct gc_thread* thread = &x_gc_thread[thread_number()];
-
-  while ((e = thread->gc_stack))
-    {
-      if (e->level < level)
-	break;
-      /*printf("GC FREE " ptr_format " lev=%d\n", e, e->level); */
-      --thread->gc_count;
-      thread->gc_stack = e->back;
-      x_gc_free (e);
-    }
-}
-
-void x_gc_free (void *p) {
-  free (p);
-}
-
 #if 0
 void
 debug_gc_check_corrupt (const char *file, int line)
