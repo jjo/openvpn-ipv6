@@ -721,7 +721,7 @@ openvpn (const struct options *options,
 
   while (true)
     {
-      int stat;
+      int stat = 0;
       struct timeval *tv = NULL;
       struct timeval timeval;
 

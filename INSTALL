@@ -152,11 +152,27 @@ TUN/TAP Driver Configuration:
   openvpn.init script, these steps are taken care of for you.
 
 * Linux 2.2 or Solaris:
- 
+
   You should obtain
   version 1.1 of the TUN/TAP driver from
   http://vtun.sourceforge.net/tun/
   and follow the installation instructions.
+
+* FreeBSD 4.1.1+:
+
+  FreeBSD ships with the TUN/TAP driver, and the device nodes for tap0,
+  tap1, tap2, tap3, tun0, tun1, tun2 and tun3 are made by default.
+  However, only the TUN driver is linked into the GENERIC kernel.
+
+  To load the TAP driver, enter: 
+
+	kldload if_tap
+
+  See man rc(8) to find out how you can do this at boot time.
+
+  The easiest way is to install OpenVPN from the FreeBSD ports system,
+  the port includes a sample script to automatically load the tap driver
+  at boot-up time.
 
 * OpenBSD:
 
@@ -164,8 +180,7 @@ TUN/TAP Driver Configuration:
 
 * Mac OS X:
 
-  Obtain Christoph Pfisterer's
-  tun driver at
+  Obtain Christoph Pfisterer's tun driver at
   http://chrisp.de/en/projects/tunnel.html
 
  See the man page for more information, usage examples, and
