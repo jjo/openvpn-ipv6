@@ -18,6 +18,12 @@
 !define MUI_PRODUCT "OpenVPN"
 !define MUI_VERSION "@VERSION@" # AUTO_VERSION
 
+; something like "-DBG2"
+!define OUTFILE_LABEL ""
+
+; something like "DEBUG2"
+!define TITLE_LABEL ""
+
 ; Default service settings
 !define SERV_CONFIG_DIR   "$INSTDIR\config"
 !define SERV_CONFIG_EXT   "ovpn"
@@ -30,7 +36,9 @@
 ;Configuration
 
   ;General
-  OutFile "openvpn-${MUI_VERSION}-install.exe"
+
+  OutFile "openvpn-${MUI_VERSION}${OUTFILE_LABEL}-install.exe"
+
   SetCompressor bzip2
 
   ShowInstDetails show
@@ -48,7 +56,7 @@
 ;--------------------------------
 ;Modern UI Configuration
 
-  !define MUI_NAME "${MUI_PRODUCT} ${MUI_VERSION}"
+  !define MUI_NAME "${MUI_PRODUCT} ${MUI_VERSION} ${TITLE_LABEL}"
 
   !define MUI_WELCOMEPAGE
   !define MUI_LICENSEPAGE
@@ -405,7 +413,7 @@ Section -post
   WriteRegExpandStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\OpenVPN" "UninstallString" "$INSTDIR\Uninstall.exe"
 
   ; Advise a reboot
-  Messagebox MB_OK "Note: Rebooting the system is advised in order to finalize TAP-Win32 driver installation/upgrade (this is an informational message only, pressing OK will not reboot)."
+  Messagebox MB_OK "IMPORTANT: Rebooting the system is advised in order to finalize TAP-Win32 driver installation/upgrade (this is an informational message only, pressing OK will not reboot)."
 
 SectionEnd
 
@@ -496,7 +504,7 @@ Section "Uninstall"
   DeleteRegKey HKCU "Software\${MUI_PRODUCT}"
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\OpenVPN"
 
-  Messagebox MB_OK "Note: If you intend on reinstalling OpenVPN after this uninstall, and you are running Win2K, you are strongly urged to reboot before reinstalling (this is an informational message only, pressing OK will not reboot)."
+  Messagebox MB_OK "IMPORTANT: If you intend on reinstalling OpenVPN after this uninstall, and you are running Win2K, you are strongly urged to reboot before reinstalling (this is an informational message only, pressing OK will not reboot)."
 
   ;Display the Finish header
   !insertmacro MUI_UNFINISHHEADER

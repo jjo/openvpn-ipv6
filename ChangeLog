@@ -3,6 +3,17 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.03.13 -- Version 1.6-rc3
+
+* Minor Windows fixes for --ip-win32 dynamic, relating to
+  the way the TAP-Win32 driver responds to a DHCP request
+  from the Windows DHCP client.
+* The net_gateway environmental variable wasn't being
+  set correctly for called scripts (Paul Zuber).
+* Added code to determine the default gateway on FreeBSD,
+  allowing the --redirect-gateway option to work
+  (Juan Rodriguez Hervella).
+
 2004.03.04 -- Version 1.6-rc2
 
 * Fixed bug in Windows version where the NetBIOS node-type

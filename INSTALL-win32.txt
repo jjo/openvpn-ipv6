@@ -13,6 +13,10 @@ Currently, OpenVPN runs on Win 2000/XP, Linux, Mac OS X,
 Solaris, FreeBSD, NetBSD, and OpenBSD, making it one of the
 most portable VPN packages today.
 
+This document is also available in HTML:
+
+http://openvpn.sourceforge.net/INSTALL-win32.html
+
 What's new in the 1.6 beta series
 ---------------------------------
 
@@ -347,6 +351,11 @@ Service Notes:
 
   log_dir    -- log file directory, defaults to
                 "\Program Files\OpenVPN\log"
+
+  log_append -- if set to "1", multiple instantiations of an OpenVPN
+                process will append onto the same log file, if set
+                to "0" (default), each new instantiation will
+	        truncate the previous log file
 
   priority   -- the windows priority class for each
                 instantiated OpenVPN process, can be one of:

@@ -572,6 +572,8 @@ CreateTapDevice (TapAdapterPointer p_Adapter)
   NdisMoveMemory (l_TapString.Buffer, "\\Device", 7);	// For Win2K problem
   l_TapString.Length = l_AdapterLength + strlen (TAPSUFFIX);
 
+  DEBUGP (("TAP DEV NAME: '%s'\n", l_TapString.Buffer));
+
   //=======================================================
   // And modify for tap link name ("\??\TAPn.tap")
   //=======================================================
@@ -587,6 +589,8 @@ CreateTapDevice (TapAdapterPointer p_Adapter)
   l_LinkString.Buffer[l_LinkString.Length =
 		      l_TapString.Length - (strlen (SYSDEVICEDIR) -
 					    strlen (USERDEVICEDIR))] = 0;
+
+  DEBUGP (("TAP LINK NAME: '%s'\n", l_LinkString.Buffer));
 
   //==================================================
   // Create new tap device and associate with adapter

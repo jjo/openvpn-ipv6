@@ -45,6 +45,18 @@
 
 #include "memdbg.h"
 
+#if defined(TARGET_FREEBSD)
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+struct {
+  struct rt_msghdr m_rtm;
+  char       m_space[512];
+} m_rtmsg;
+
+#endif
+
 static void add_route (struct route *r);
 static void delete_route (const struct route *r);
 static bool get_default_gateway (in_addr_t *ret);
@@ -282,7 +294,7 @@ init_route_list (struct route_list *rl,
     }
 
   rl->spec.net_gateway_defined = get_default_gateway (&rl->spec.net_gateway);
-  if (rl->spec.remote_endpoint_defined)
+  if (rl->spec.net_gateway_defined)
     {
       setenv_route_addr ("net_gateway", rl->spec.net_gateway, -1);
     }
@@ -810,6 +822,96 @@ get_default_gateway (in_addr_t *ret)
     }
   return false;
 }
+
+#elif defined(TARGET_FREEBSD)
+
+#define ROUNDUP(a) \
+        ((a) > 0 ? (1 + (((a) - 1) | (sizeof(long) - 1))) : sizeof(long))
+
+static bool
+get_default_gateway (in_addr_t *ret)
+{
+  int s, seq, l, pid, rtm_addrs, i;
+  struct sockaddr so_dst, so_mask;
+  char *cp = m_rtmsg.m_space; 
+  struct sockaddr *gate = NULL, *sa;
+  struct  rt_msghdr *rtm_aux;
+
+#define NEXTADDR(w, u) \
+        if (rtm_addrs & (w)) {\
+            l = ROUNDUP(u.sa_len); memmove(cp, &(u), l); cp += l;\
+        }
+
+#define ADVANCE(x, n) (x += ROUNDUP((n)->sa_len))
+
+#define rtm m_rtmsg.m_rtm
+
+  pid = getpid();
+  seq = 0;
+  rtm_addrs = RTA_DST | RTA_NETMASK;
+
+  bzero(&so_dst, sizeof(so_dst));
+  bzero(&so_mask, sizeof(so_mask));
+  bzero(&rtm, sizeof(struct rt_msghdr));
+
+  rtm.rtm_type = RTM_GET;
+  rtm.rtm_flags = RTF_UP | RTF_GATEWAY;
+  rtm.rtm_version = RTM_VERSION;
+  rtm.rtm_seq = ++seq;
+  rtm.rtm_addrs = rtm_addrs; 
+
+  so_dst.sa_family = AF_INET;
+  so_dst.sa_len = sizeof(struct sockaddr_in);
+  so_mask.sa_family = AF_INET;
+  so_mask.sa_len = sizeof(struct sockaddr_in);
+
+  NEXTADDR(RTA_DST, so_dst);
+  NEXTADDR(RTA_NETMASK, so_mask);
+
+  rtm.rtm_msglen = l = cp - (char *)&m_rtmsg;
+
+  s = socket(PF_ROUTE, SOCK_RAW, 0);
+
+  if (write(s, (char *)&m_rtmsg, l) < 0) {
+                warn("writing to routing socket");
+                return false;
+  }
+
+  do {
+        l = read(s, (char *)&m_rtmsg, sizeof(m_rtmsg));
+  } while (l > 0 && (rtm.rtm_seq != seq || rtm.rtm_pid != pid));
+                        
+
+  rtm_aux = &rtm;
+
+  cp = ((char *)(rtm_aux + 1));
+  if (rtm_aux->rtm_addrs) {
+        for (i = 1; i; i <<= 1)
+             if (i & rtm_aux->rtm_addrs) {
+                   sa = (struct sockaddr *)cp;
+		   if( i == RTA_GATEWAY )
+                      gate = sa;
+                   ADVANCE(cp, sa);
+	     }
+  }
+  else
+	return false;
+
+
+  if( gate != NULL )
+  {
+	*ret = ntohl(((struct sockaddr_in *)gate)->sin_addr.s_addr);
+#if 1
+        msg (M_INFO, "gw %s",
+                 print_in_addr_t ((in_addr_t) *ret, false));
+#endif
+
+	return true;
+  }
+  else
+	return false;
+}
+
 
 #else
 

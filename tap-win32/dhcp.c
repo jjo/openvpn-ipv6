@@ -249,16 +249,19 @@ BuildDHCPPre (const TapAdapterPointer a,
 	      const UDPHDR *udp,
 	      const DHCP *dhcp,
 	      const int optlen,
-	      const BOOLEAN directed)
+	      const int type)
 {
+  // Should we broadcast or direct to a specific MAC / IP address?
+  const BOOLEAN broadcast = (type == DHCPNAK
+			     || MAC_EQUAL (eth->dest, a->m_MAC_Broadcast));
   // Build ethernet header
 
   COPY_MAC (p->eth.src, a->m_dhcp_server_mac);
 
-  if (directed)
-    COPY_MAC (p->eth.dest, eth->src);
-  else
+  if (broadcast)
     COPY_MAC (p->eth.dest, a->m_MAC_Broadcast);
+  else
+    COPY_MAC (p->eth.dest, eth->src);
 
   p->eth.proto = htons (ETH_P_IP);
 
@@ -274,10 +277,10 @@ BuildDHCPPre (const TapAdapterPointer a,
   p->ip.check = 0;
   p->ip.saddr = a->m_dhcp_server_ip;
 
-  if (directed)
-    p->ip.daddr = a->m_dhcp_addr;
-  else
+  if (broadcast)
     p->ip.daddr = ~0;
+  else
+    p->ip.daddr = a->m_dhcp_addr;
 
   // Build UDP header
 
@@ -297,10 +300,10 @@ BuildDHCPPre (const TapAdapterPointer a,
   p->dhcp.flags = 0;
   p->dhcp.ciaddr = 0;
 
-  if (directed)
-    p->dhcp.yiaddr = a->m_dhcp_addr;
-  else
+  if (type == DHCPNAK)
     p->dhcp.yiaddr = 0;
+  else
+    p->dhcp.yiaddr = a->m_dhcp_addr;
 
   p->dhcp.siaddr = a->m_dhcp_server_ip;
   p->dhcp.giaddr = 0;
@@ -368,7 +371,7 @@ SendDHCPMsg (const TapAdapterPointer a,
 			udp,
 			dhcp,
 			DHCPMSG_LEN_OPT (pkt),
-			type == DHCPOFFER || type == DHCPACK);
+			type);
 
 	  SetChecksumDHCPMsg (pkt);
 
