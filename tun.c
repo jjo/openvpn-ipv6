@@ -68,7 +68,7 @@ do_ifconfig (const char *dev, const char* dev_type,
 #if defined(TARGET_LINUX)
 
       snprintf (command_line, sizeof (command_line),
-		"ifconfig %s %s pointopoint %s mtu %d",
+		IFCONFIG_PATH " %s %s pointopoint %s mtu %d",
 		dev,
 		ifconfig_local,
 		ifconfig_remote,
@@ -82,7 +82,7 @@ do_ifconfig (const char *dev, const char* dev_type,
 
       /* example: ifconfig tun2 10.2.0.2 10.2.0.1 mtu 1450 netmask 255.255.255.255 up */
       snprintf (command_line, sizeof (command_line),
-		"ifconfig %s %s %s mtu %d netmask 255.255.255.255 up",
+		IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
 		dev,
 		ifconfig_local,
 		ifconfig_remote,
@@ -101,7 +101,7 @@ do_ifconfig (const char *dev, const char* dev_type,
        */
 
       snprintf (command_line, sizeof (command_line),
-		"ifconfig %s delete",
+		IFCONFIG_PATH " %s delete",
 		dev);
       msg (M_INFO, "%s", command_line);
       openvpn_system (command_line);
@@ -110,7 +110,7 @@ do_ifconfig (const char *dev, const char* dev_type,
 
       /* example: ifconfig tun2 10.2.0.2 10.2.0.1 mtu 1450 netmask 255.255.255.255 up */
       snprintf (command_line, sizeof (command_line),
-		"ifconfig %s %s %s mtu %d netmask 255.255.255.255 up",
+		IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
 		dev,
 		ifconfig_local,
 		ifconfig_remote,

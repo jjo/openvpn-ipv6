@@ -74,6 +74,34 @@ set_user (const char *username)
 #endif
 }
 
+/* Set GID of process */
+void
+set_group (const char *groupname)
+{
+#if defined(HAVE_GETGRNAM) && defined(HAVE_SETGID)
+  if (groupname)
+    {
+      struct group *gr;
+      gr = getgrnam (groupname);
+      if (!gr)
+	msg (M_ERR, "failed to find GID for group %s", groupname);
+      if (setgid (gr->gr_gid))
+	msg (M_ERR, "setgid('%s') failed", groupname);
+      msg (M_INFO, "GID set to %s", groupname);
+#ifdef HAVE_SETGROUPS
+      {
+        gid_t gr_list[1];
+	gr_list[0] = gr->gr_gid;
+	if (setgroups (1, gr_list))
+	  msg (M_ERR, "setgroups('%s') failed", groupname);
+      }
+#endif
+    }
+#else
+  msg (M_FATAL, "Sorry but I can't setgid to '%s' because this operating system doesn't appear to support the getgrnam() or setgid() system calls", groupname);
+#endif
+}
+
 /* Change process priority */
 void
 set_nice (int niceval)

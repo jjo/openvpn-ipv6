@@ -646,7 +646,10 @@ openvpn (const struct options *options,
 
   /* drop privileges if requested */
   if (first_time)
-    set_user (options->username);
+    {
+      set_group (options->groupname);
+      set_user (options->username);
+    }
 
   /* catch signals */
   signal (SIGINT, signal_handler);

@@ -26,6 +26,7 @@
 #include "basic.h"
 
 void set_user (const char *username);
+void set_group (const char *groupname);
 void set_nice (int niceval);
 void do_chroot (const char *path);
 

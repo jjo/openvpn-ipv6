@@ -5,7 +5,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "6 June 2002"
+.TH openvpn 8 "7 June 2002"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -43,6 +43,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-up\fR\ \fIcmd\fR\ ]
 [\ \fB\-\-down\fR\ \fIcmd\fR\ ]
 [\ \fB\-\-user\fR\ \fIuser\fR\ ]
+[\ \fB\-\-group\fR\ \fIgroup\fR\ ]
 [\ \fB\-\-cd\fR\ \fIdir\fR\ ]
 [\ \fB\-\-chroot\fR\ \fIdir\fR\ ]
 [\ \fB\-\-daemon\fR\ ]
@@ -253,14 +254,11 @@ secret static.key
 # should match on both peers.
 ; port 5000
 
-# Downgrade UID to "nobody"
-# after initialization for
-# extra security.  Uncomment
-# this out if you don't plan
-# on sending any signals to
-# OpenVPN, such as for
-# DHCP resets.
+# Downgrade UID and GID to
+# "nobody" after initialization
+# for extra security.
 ; user nobody
+; group nobody
 
 # If you built OpenVPN with
 # LZO compression, uncomment
@@ -513,13 +511,6 @@ across platforms, while OpenVPN deals
 with formatting the appropriate
 .BR ifconfig (8)
 command for your platform.
-
-Note: The
-.B --ifconfig
-option requires that the
-.BR ifconfig (8)
-executable be accessible in the current
-.B PATH.
 .TP
 .B --udp-mtu n
 Take the UDP device MTU to be n and derive the TUN MTU
@@ -802,9 +793,10 @@ UID change and/or
 option above.
 .TP
 .B --user user
-Drop privileges to
+Change the user ID of the OpenVPN process to
 .B user
-after initialization.  This option is useful to protect the system
+after initialization, dropping privileges in the process.
+This option is useful to protect the system
 in the event that some hostile party was able to gain control of
 an OpenVPN session.  Though OpenVPN's security features make
 this unlikely, it is provided as a second line of defense.
@@ -828,6 +820,14 @@ operations in order to restart (such as re-reading key files
 or running
 .BR ifconfig
 on the tun device).
+.TP
+.B --group group
+Similar to the
+.B --user
+option,
+this option changes the group ID of the OpenVPN process to
+.B group
+after initialization.
 .TP
 .B --cd dir
 Change directory to
@@ -1645,13 +1645,6 @@ not part of any existing subnet on the networks of
 either peer.  If you use an address that is part of
 your local subnet for either of the tunnel endpoints,
 you will get a weird feedback loop.
-
-Also note that the
-.B --ifconfig
-option used in the examples below requires that the
-.BR ifconfig (8)
-executable be accessible in the current
-.B PATH.
 .SS Example 1: A simple tunnel without security
 .LP
 On may:

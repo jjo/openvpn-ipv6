@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.06.06 -- Version 1.2.0.8
+2002.06.07 -- Version 1.2.0.9
 
 * Added --ping-restart option to restart
   connection on ping timeout using SIGUSR1
@@ -29,6 +29,10 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   on incoming datagrams.
 * Added --mute option to limit repetitive
   logging of similar message types.
+* Added --group option to downgrade GID
+  after initialization.
+* Try to set ifconfig path automatically
+  in configure.
 * Added RPM notes to INSTALL.
 * Added ACX_PTHREAD (from the autoconf
   macro archive) to configure.ac

@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.2.0.8], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.2.0.9], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 
 AC_ARG_ENABLE(lzo,
@@ -80,8 +80,15 @@ AC_ARG_WITH(lzo-lib,
    [LIBS="$LIBS -L$withval"] 
 )
 
+AC_ARG_WITH(ifconfig-path,
+   [  --with-ifconfig-path=PATH   Path to ifconfig tool],
+   [IFCONFIG="$withval"],
+   [AC_PATH_PROG([IFCONFIG], [ifconfig], [ifconfig], [$PATH:/usr/local/sbin:/usr/sbin:/sbin])]
+)
+AC_DEFINE_UNQUOTED(IFCONFIG_PATH, "$IFCONFIG", [Path to ifconfig tool])
+
 AC_ARG_WITH(leak-check,
-   [  --with-leak-check=TYPE  Build with memory leak checking  TYPE = dmalloc or ssl],
+   [  --with-leak-check=TYPE  Build with memory leak checking, TYPE = dmalloc or ssl],
    [LEAK="$withval"]
 )
 
@@ -150,6 +157,7 @@ AC_CHECK_HEADERS(ctype.h)
 AC_CHECK_HEADERS(errno.h)
 AC_CHECK_HEADERS(syslog.h)
 AC_CHECK_HEADERS(pwd.h)
+AC_CHECK_HEADERS(grp.h)
 AC_CHECK_HEADERS(net/if_tun.h)
 AC_CHECK_HEADERS(net/if.h)
 AC_CHECK_HEADERS(stropts.h)
@@ -211,6 +219,9 @@ AC_CHECK_FUNCS(strerror)
 AC_CHECK_FUNCS(syslog)
 AC_CHECK_FUNCS(openlog)
 AC_CHECK_FUNCS(mlockall)
+AC_CHECK_FUNCS(getgrnam)
+AC_CHECK_FUNCS(setgid)
+AC_CHECK_FUNCS(setgroups)
 
 dnl Required library functions
 AC_FUNC_MEMCMP

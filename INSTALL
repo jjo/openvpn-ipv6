@@ -68,19 +68,22 @@ BUILD NOTES:
 
 OPTIONS for ./configure:
 
+  --enable-pthread          Compile pthread support for
+                            improved latency during SSL/TLS key
+                            negotiations (Linux or Solaris only)
+
   --disable-lzo             Do not compile LZO compression support
   --disable-crypto          Do not compile OpenSSL crypto support
   --disable-ssl             Do not compile OpenSSL SSL support for
                             TLS-based key exchange
 
-  --enable-pthread          Compile pthread support for
-                            improved latency during SSL/TLS key
-                            negotiations (Linux or Solaris only)
-
   --with-ssl-headers=DIR    Crypto/SSL Include files location
   --with-ssl-lib=DIR        Crypto/SSL Library location
   --with-lzo-headers=DIR    LZO Include files location
   --with-lzo-lib=DIR        LZO Library location
+
+  --with-ifconfig-path=PATH   Path to ifconfig tool (only need to
+                              specify if in a non-standard location)
 
   --with-leak-check=TYPE    Build with memory leak checking
                             TYPE = dmalloc or ssl

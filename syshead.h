@@ -111,6 +111,10 @@
 #include <pwd.h>
 #endif
 
+#ifdef HAVE_GRP_H
+#include <grp.h>
+#endif
+
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif

@@ -87,11 +87,12 @@ static const char usage_message[] =
   "--up cmd        : Shell cmd to execute after successful tun device open.\n"
   "                  Execute as: cmd tun/tap-dev tun-mtu udp-mtu \\\n"
   "                              ifconfig-local-ip ifconfig-remote-ip\n"
-  "                  (pre --user UID change)\n"
+  "                  (pre --user or --group UID/GID change)\n"
   "--down cmd      : Shell cmd to run after tun device close.\n"
-  "                  (post --user UID change and/or --chroot)\n"
+  "                  (post --user/--group UID/GID change and/or --chroot)\n"
   "                  (script parameters are same as --up option)\n"
-  "--user user     : Drop privileges to user after initialization.\n"
+  "--user user     : Set UID to user after initialization.\n"
+  "--group group   : Set GID to group after initialization.\n"
   "--chroot dir    : Chroot to this directory before initialization.\n"
   "--cd dir        : Change to this directory before initialization.\n"
   "--daemon        : Become a daemon.\n"
@@ -294,6 +295,7 @@ show_settings (const struct options *o)
   SHOW_INT (resolve_retry_seconds);
 
   SHOW_STR (username);
+  SHOW_STR (groupname);
   SHOW_STR (chroot_dir);
   SHOW_STR (cd_dir);
   SHOW_STR (writepid);
@@ -655,6 +657,11 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       ++i;
       options->username = p2;
+    }
+  else if (streq (p1, "group") && p2)
+    {
+      ++i;
+      options->groupname = p2;
     }
   else if (streq (p1, "chroot") && p2)
     {

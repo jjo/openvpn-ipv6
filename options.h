@@ -78,6 +78,7 @@ struct options
 
   /* Misc parms */
   char *username;
+  char *groupname;
   char *chroot_dir;
   char *cd_dir;
   char *writepid;
