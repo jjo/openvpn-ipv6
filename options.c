@@ -148,10 +148,12 @@ static const char usage_message[] =
   "                  Set alg=none to disable encryption.\n"
 #ifdef HAVE_EVP_CIPHER_CTX_SET_KEY_LENGTH
   "--keysize n     : Size of cipher key in bits (optional).\n"
-#endif
   "                  If unspecified, defaults to cipher-specific default.\n"
+#endif
   "--no-replay     : Disable replay protection.\n"
   "--no-iv         : Disable cipher IV -- only allowed with CBC mode ciphers.\n"
+  "--replay-persist file : Persist replay-protection state across sessions\n"
+  "                  using file.\n"
   "--test-crypto   : Run a self-test of crypto features enabled.\n"
   "                  For debugging only.\n"
 #ifdef USE_SSL
@@ -336,6 +338,7 @@ show_settings (const struct options *o)
   SHOW_STR (authname);
   SHOW_INT (keysize);
   SHOW_BOOL (packet_id);
+  SHOW_STR (packet_id_file);
   SHOW_BOOL (iv);
   SHOW_BOOL (test_crypto);
 
@@ -933,6 +936,11 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
   else if (streq (p1, "no-iv"))
     {
       options->iv = false;
+    }
+  else if (streq (p1, "replay-persist") && p2)
+    {
+      ++i;
+      options->packet_id_file = p2;
     }
   else if (streq (p1, "test-crypto"))
     {

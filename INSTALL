@@ -8,8 +8,7 @@ the Free Software Foundation; either version 2 of the License, or
 
 *************************************************************************
 
-For the latest stable version of OpenVPN as source or
-RPM binaries, go to:
+For the latest stable version of OpenVPN, go to:
 
 	http://sourceforge.net/projects/openvpn/
 
@@ -102,15 +101,7 @@ OPTIONS for ./configure:
 
 BUILDING ON LINUX 2.4+ FROM RPM
 
-OpenVPN binary RPMs are available for selected platforms:
-
-	http://sourceforge.net/projects/openvpn/
-
-Install a binary RPM with the command:
-
-	rpm -ivh [binary-rpm]
-
-It is also possible to build a binary RPM directly from the tarball:
+You can build a binary RPM directly from the OpenVPN tarball file:
 
 	rpm -tb [tarball]
 

@@ -171,6 +171,7 @@ openvpn (const struct options *options,
 	 struct udp_socket_addr *udp_socket_addr,
 	 struct tuntap *tuntap,
 	 struct key_schedule *ks,
+	 struct packet_id_persist *pid_persist,
 	 bool first_time)
 {
   /*
@@ -326,12 +327,17 @@ openvpn (const struct options *options,
       /* save process ID in a file */
       write_pid (options->writepid);
 
-      if (options->mlock) /* should we disable paging? */
+      /* should we disable paging? */
+      if (options->mlock)
 	do_mlockall (true);
 
       /* chroot if requested */
       do_chroot (options->chroot_dir);
     }
+
+  /* load a persisted packet-id for cross-session replay-protection */
+  if (options->packet_id_file)
+    packet_id_persist_load (pid_persist, options->packet_id_file);
 
 #ifdef USE_CRYPTO
   if (!options->test_crypto)
@@ -369,7 +375,9 @@ openvpn (const struct options *options,
       if (options->packet_id)
 	{
 	  crypto_options.packet_id = &packet_id;
+	  crypto_options.pid_persist = pid_persist;
 	  crypto_options.packet_id_long_form = true;
+	  packet_id_persist_load_obj (pid_persist, crypto_options.packet_id);
 	}
 
       if (!key_ctx_bi_defined (&ks->static_key))
@@ -521,6 +529,7 @@ openvpn (const struct options *options,
       if (options->tls_auth_file)
 	{
 	  to.tls_auth_key = ks->tls_auth_key;
+	  to.tls_auth.pid_persist = pid_persist;
 	  to.tls_auth.packet_id_long_form = true;
 	  crypto_adjust_frame_parameters(&to.frame,
 					 &ks->key_type,
@@ -729,6 +738,10 @@ openvpn (const struct options *options,
       /* initialize select() timeout */
       timeval.tv_sec = 0;
       timeval.tv_usec = 0;
+
+      /* flush current packet-id to file once per 60
+	 seconds if --replay-persist was specified */
+      packet_id_persist_flush (pid_persist, current, 60);
 
 #if defined(USE_CRYPTO) && defined(USE_SSL) && !defined(USE_PTHREAD)
       /*
@@ -1041,7 +1054,7 @@ openvpn (const struct options *options,
 			  /* tell TLS thread a packet is waiting */
 			  if (tls_thread_process (tls_thread_socket) == -1)
 			    {
-			      msg (M_WARN, "TLS thread is not responding, exiting");
+			      msg (M_WARN, "TLS thread is not responding, exiting (1)");
 			      signal_received = 0;
 			      mutex_unlock (L_TLS);
 			      break;
@@ -1072,6 +1085,8 @@ openvpn (const struct options *options,
 		   * authenticated.  In TLS mode we do nothing
 		   * because TLS mode takes care of source address
 		   * authentication.
+		   *
+		   * Also, update the persisted version of our packet-id.
 		   */
 		  if (!TLS_MODE)
 		    udp_socket_set_outgoing_addr (&buf, &udp_socket, &from);
@@ -1119,7 +1134,7 @@ openvpn (const struct options *options,
 	      /* remote died? */
 	      else if (s == -1)
 		{
-		  msg (M_WARN, "TLS thread is not responding, exiting");
+		  msg (M_WARN, "TLS thread is not responding, exiting (2)");
 		  signal_received = 0;
 		  break;
 		}
@@ -1406,6 +1421,14 @@ openvpn (const struct options *options,
       run_script (options->down_script, tuntap_actual, MAX_RW_SIZE_TUN (&frame),
 		  max_rw_size_udp, options->ifconfig_local, options->ifconfig_remote);
     }
+
+  /*
+   * Close packet-id persistance file
+   */
+  packet_id_persist_save (pid_persist);
+  if ( !(signal_received == SIGUSR1) )
+    packet_id_persist_close (pid_persist);
+
  done:
   /* pop our garbage collection level */
   gc_free_level (gc_level);
@@ -1658,14 +1681,18 @@ main (int argc, char *argv[])
 
       /* Do Work */
       {
+	/* these objects are potentially persistent across SIGUSR1 resets */
 	struct udp_socket_addr usa;
 	struct key_schedule ks;
 	struct tuntap tuntap;
+	struct packet_id_persist pid_persist;
 	CLEAR (usa);
 	CLEAR (ks);
 	clear_tuntap (&tuntap);
+	packet_id_persist_init (&pid_persist);
+
 	do {
-	  sig = openvpn (&options, &usa, &tuntap, &ks, first_time);
+	  sig = openvpn (&options, &usa, &tuntap, &ks, &pid_persist, first_time);
 	  first_time = false;
 	} while (sig == SIGUSR1);
       }
@@ -1695,13 +1722,15 @@ test_crypto_thread (void *arg)
   struct udp_socket_addr usa;
   struct tuntap tuntap;
   struct key_schedule ks;
+  struct packet_id_persist pid_persist;
   const struct options *opt = (struct options*) arg;
 
   set_nice (opt->nice_work);
   CLEAR (usa);
   CLEAR (ks);
   clear_tuntap (&tuntap);
-  openvpn (opt, &usa, &tuntap, &ks, false);
+  packet_id_persist_init (&pid_persist);
+  openvpn (opt, &usa, &tuntap, &ks, &pid_persist, false);
   return NULL;
 }
 #endif

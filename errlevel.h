@@ -15,6 +15,7 @@
 #define D_TLS_ERRORS         LOGLEV(1, 3, M_NONFATAL)   /* show TLS control channel errors */
 #define D_RESOLVE_ERRORS     LOGLEV(1, 4, M_NONFATAL)   /* show hostname resolve errors */
 #define D_COMP_ERRORS        LOGLEV(1, 5, M_NONFATAL)   /* show compression errors */
+#define D_PID_PERSIST        LOGLEV(1, 6, M_NONFATAL)   /* show packet_id persist errors */
 
 #define D_SHOW_PARMS         LOGLEV(2, 10, 0)   /* show all parameters on program initiation */
 
@@ -40,9 +41,10 @@
 #define D_THREAD_DEBUG       LOGLEV(8, 28, M_DEBUG)  /* show pthread debug information */
 #define D_REL_LOW            LOGLEV(8, 29, M_DEBUG)  /* show low frequency info from reliable layer */
 #define D_PID_DEBUG          LOGLEV(8, 30, M_DEBUG)  /* show packet-id debugging info */
+#define D_PID_PERSIST_DEBUG  LOGLEV(8, 31, M_DEBUG)  /* show packet-id persist debugging info */
 
-#define D_SHAPER             LOGLEV(9, 31, M_DEBUG)  /* show traffic shaper info */
+#define D_SHAPER             LOGLEV(9, 32, M_DEBUG)  /* show traffic shaper info */
 
-#define D_OPENSSL_LOCK       LOGLEV(10, 32, M_DEBUG) /* show OpenSSL locks */
+#define D_OPENSSL_LOCK       LOGLEV(10, 33, M_DEBUG) /* show OpenSSL locks */
 
 #endif

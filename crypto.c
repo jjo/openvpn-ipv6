@@ -335,7 +335,11 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
       if (have_pin)
 	{
 	  if (packet_id_test (&opt->packet_id->rec, &pin))
-	    packet_id_add (&opt->packet_id->rec, &pin);
+	    {
+	      packet_id_add (&opt->packet_id->rec, &pin);
+	      if (opt->pid_persist && opt->packet_id_long_form)
+		packet_id_persist_save_obj (opt->pid_persist, opt->packet_id);
+	    }
 	  else
 	    CRYPT_ERROR_ARGS ("bad packet ID (may be a replay): %s", packet_id_net_print (&pin));
 	}

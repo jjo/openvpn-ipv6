@@ -119,6 +119,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-cipher\fR\ \fIalg\fR\ ]
 [\ \fB\-\-keysize\fR\ \fIn\fR\ ]
 [\ \fB\-\-no\-replay\fR\ ]
+[\ \fB\-\-replay\-persist\fR\ \fIfile\fR\ ]
 [\ \fB\-\-no\-iv\fR\ ]
 [\ \fB\-\-tls\-server\fR\ ]
 [\ \fB\-\-tls\-client\fR\ ]
@@ -222,7 +223,8 @@ client/server modes such as the ability to designate a peer as
 either a TLS server or client, or the ability to instantiate an OpenVPN peer without
 an explicit remote peer address.
 
-OpenVPN never uses more than a single UDP port to communicate with its peer.  OpenVPN
+OpenVPN never uses more than a single UDP port to communicate with its peer, though
+multiple sessions between different peers will each use a separate UDP port.  OpenVPN
 doesn't use the
 .B GRE
 protocol which can be a benefit for users running on networks that
@@ -340,7 +342,9 @@ non-blocked I/O, it is fairly immune to the problem of hung or unresponsive proc
 
 Another ramification of being a peer-to-peer application is
 that OpenVPN will not dynamically
-fork to accept new clients. 
+fork to accept new clients, however you can use the
+.B --inetd
+option to accomplish the same effect. 
 If you have three clients who need to securely connect to a machine,
 you should run 3 instantiations of OpenVPN on that machine,
 each on a different UDP port
@@ -1197,6 +1201,29 @@ the
 algorithm used
 by IPSec.
 .TP
+.B --replay-persist file
+Persist replay-protection state across sessions using
+.B file
+to save and reload the state.
+
+This option will strengthen protection against replay attacks,
+especially when you are using OpenVPN in a dynamic context (such
+as with
+.B --inetd)
+when OpenVPN sessions are frequently started and stopped. 
+
+This option will keep a disk copy of the current replay protection
+state (i.e. the most recent packet timestamp and sequence number
+received from the remote peer), so that if an OpenVPN session
+is stopped and restarted, it will reject any replays of packets
+which were already received by the prior session.
+
+This option only makes sense when replay protection is enabled
+(the default) and you are using either
+.B --secret
+(shared-secret key mode) or TLS mode with
+.B --tls-auth.
+.TP
 .B --no-iv
 Disable OpenVPN's use of IV (cipher initialization vector).
 Don't use this option unless you are prepared to make
@@ -1508,6 +1535,11 @@ The result is that packets without
 the correct signature can be dropped immediately upon reception,
 before they have a chance to consume additional system resources
 such as by initiating a TLS handshake.
+.B --tls-auth
+can be strengthened by adding the
+.B --replay-persist
+option which will keep OpenVPN's replay protection state
+in a file so that it is not lost across restarts.
 
 It should be emphasized that this feature is optional and that the
 passphrase file used with

@@ -111,6 +111,7 @@ struct options
   const char *authname;
   int keysize;
   bool packet_id;
+  const char *packet_id_file;
   bool iv;
   bool test_crypto;
 

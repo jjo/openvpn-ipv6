@@ -872,7 +872,7 @@ static inline void tls_session_set_self_referential_pointers (struct tls_session
 
 /*
  * Initialize a TLS session.  A TLS session normally has 2 key_state objects,
- * one for the current key, and one for the retiring key.
+ * one for the current key, and one for the lame duck (i.e. retiring) key.
  */
 static void
 tls_session_init (struct tls_multi *multi, struct tls_session *session)
@@ -881,18 +881,25 @@ tls_session_init (struct tls_multi *multi, struct tls_session *session)
 
   CLEAR (*session);
 
+  /* Set options data to point to parent's option structure */
   session->opt = &multi->opt;
   
+  /* Randomize session # if it is 0 */
   while (!session_id_defined(&session->session_id))
     session_id_random (&session->session_id);
 
+  /* Are we a TLS server or client? */
   session->initial_opcode = session->opt->server ?
     P_CONTROL_HARD_RESET_SERVER_V1 : P_CONTROL_HARD_RESET_CLIENT_V1;
 
   /* Initialize control channel authentication parameters */
   session->tls_auth = session->opt->tls_auth;
 
-  tls_session_set_self_referential_pointers(session);
+  /* Set session internal pointers (also called if session object is moved in memory) */
+  tls_session_set_self_referential_pointers (session);
+
+  /* load most recent packet-id to replay protect on --tls-auth */
+  packet_id_persist_load_obj (session->tls_auth.pid_persist, session->tls_auth.packet_id);
 
   key_state_init (session, &session->key[KS_PRIMARY], time (NULL));
 
@@ -2023,6 +2030,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 		  /* return appropriate data channel decrypt key in opt */
 		  opt->key_ctx_bi = &ks->key;
 		  opt->packet_id = multi->opt.packet_id ? &ks->packet_id : NULL;
+		  opt->pid_persist = NULL;
 		  opt->packet_id_long_form = multi->opt.packet_id_long_form;
 		  ASSERT (buf_advance (buf, 1));
 		  ++ks->n_packets;
@@ -2327,6 +2335,7 @@ tls_pre_decrypt (struct tls_multi *multi,
   buf->len = 0;
   opt->key_ctx_bi = NULL;
   opt->packet_id = NULL;
+  opt->pid_persist = NULL;
   opt->packet_id_long_form = false;
   return ret;
 }
@@ -2347,6 +2356,7 @@ tls_pre_encrypt (struct tls_multi *multi,
 	    {
 	      opt->key_ctx_bi = &ks->key;
 	      opt->packet_id = multi->opt.packet_id ? &ks->packet_id : NULL;
+	      opt->pid_persist = NULL;
 	      opt->packet_id_long_form = multi->opt.packet_id_long_form;
 	      multi->save_ks = ks;
 	      msg (D_TLS_DEBUG, "tls_pre_encrypt: key_id=%d", ks->key_id);
@@ -2360,6 +2370,7 @@ tls_pre_encrypt (struct tls_multi *multi,
   buf->len = 0;
   opt->key_ctx_bi = NULL;
   opt->packet_id = NULL;
+  opt->pid_persist = NULL;
   opt->packet_id_long_form = false;
 }
 

@@ -111,9 +111,30 @@ CIRC_LIST (pkt_id, uint8_t, PACKET_BACKTRACK_MAX);
  */
 struct packet_id_rec
 {
-  time_t time;
-  packet_id_type id;
-  struct pkt_id id_list;
+  time_t time;             /* time stamp */
+  packet_id_type id;       /* sequence number */
+  struct pkt_id id_list;   /* packet-id "memory" */
+};
+
+/*
+ * file to facilitate cross-session persistence
+ * of time/id
+ */
+struct packet_id_persist
+{
+  const char *filename;
+  int fd;
+  time_t time;             /* time stamp */
+  packet_id_type id;       /* sequence number */
+  time_t time_last_written;
+  packet_id_type id_last_written;
+  time_t last_flush;
+};
+
+struct packet_id_persist_file_image
+{
+  time_t time;             /* time stamp */
+  packet_id_type id;       /* sequence number */
 };
 
 /*
@@ -166,6 +187,60 @@ bool packet_id_test (const struct packet_id_rec *p, const struct packet_id_net *
 
 /* change our current state to reflect an accepted packet id */
 void packet_id_add (struct packet_id_rec *p, const struct packet_id_net *pin);
+
+/*
+ * packet ID persistence
+ */
+
+/* initialize the packet_id_persist structure in a disabled state */
+void packet_id_persist_init (struct packet_id_persist *p);
+
+/* close the file descriptor if it is open, and switch to disabled state */
+void packet_id_persist_close (struct packet_id_persist *p);
+
+/* load persisted rec packet_id (time and id) only once from file, and set state to enabled */
+void packet_id_persist_load (struct packet_id_persist *p, const char *filename);
+
+/* save persisted rec packet_id (time and id) to file (only if enabled state) */
+void packet_id_persist_save (struct packet_id_persist *p);
+
+/* transfer packet_id_persist -> packet_id */
+void packet_id_persist_load_obj (const struct packet_id_persist *p, struct packet_id* pid);
+
+/* return an ascii string representing a packet_id_persist object */
+const char *packet_id_persist_print (const struct packet_id_persist *p);
+
+/* are we in enabled state? */
+static inline bool
+packet_id_persist_enabled (const struct packet_id_persist *p)
+{
+  return p->fd >= 0;
+}
+
+/* transfer packet_id -> packet_id_persist */
+static inline void
+packet_id_persist_save_obj (struct packet_id_persist *p, const struct packet_id* pid)
+{
+  if (packet_id_persist_enabled (p) && pid->rec.time)
+    {
+      p->time = pid->rec.time;
+      p->id = pid->rec.id;
+    }
+}
+
+/* flush the current packet_id to disk, once per n seconds */
+static inline void
+packet_id_persist_flush (struct packet_id_persist *p, time_t current, int n)
+{
+  if (packet_id_persist_enabled (p))
+    {
+      if (!p->last_flush || p->last_flush + n < current)
+	{
+	  packet_id_persist_save (p);
+	  p->last_flush = current;
+	}
+    }
+}
 
 const char* packet_id_net_print(const struct packet_id_net *pin);
 

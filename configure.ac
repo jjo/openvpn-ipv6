@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.1.10], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.2.1], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 
 AC_ARG_ENABLE(lzo,
@@ -149,6 +149,7 @@ AC_CHECK_HEADERS(sys/ioctl.h)
 AC_CHECK_HEADERS(sys/stat.h)
 AC_CHECK_HEADERS(sys/mman.h)
 AC_CHECK_HEADERS(fcntl.h)
+AC_CHECK_HEADERS(sys/file.h)
 AC_CHECK_HEADERS(stdlib.h)
 AC_CHECK_HEADERS(stdint.h)
 AC_CHECK_HEADERS(stdarg.h)
@@ -228,6 +229,7 @@ AC_CHECK_FUNCS(getgrnam)
 AC_CHECK_FUNCS(setgid)
 AC_CHECK_FUNCS(setgroups)
 AC_CHECK_FUNCS(stat)
+AC_CHECK_FUNCS(flock)
 
 dnl Required library functions
 AC_FUNC_MEMCMP
