@@ -110,43 +110,33 @@ AC_CHECK_HEADER(linux/if_tun.h,
 	]
 )
 
-if test "$LZO" = "yes"; then
-   AC_CHECKING( for LZO Library and Header files ... )
-   AC_CHECK_HEADER(lzo1x.h, 
-        AC_CHECK_LIB(lzo, lzo1x_1_15_compress,
-	    [
-	       LIBS="$LIBS -llzo"
-	       AC_DEFINE(USE_LZO)
-	    ],
-	    AC_MSG_ERROR( LZO library not found. )
-	),
-        AC_MSG_ERROR( LZO headers not found. )
-   )
-fi
-
 if test "$CRYPTO" = "yes"; then
+   if test "$SSL" = "yes"; then
+       AC_DEFINE(USE_SSL)
+       LIBS="$LIBS -lssl"
+   fi
+   AC_DEFINE(USE_CRYPTO)
+   LIBS="$LIBS -lcrypto"
+
    AC_CHECKING( for OpenSSL Crypto Library and Header files ... )
    AC_CHECK_HEADER(openssl/evp.h,
 	AC_CHECK_LIB(crypto, EVP_CIPHER_CTX_init,
-	    [
-	       LIBS="$LIBS -lcrypto"
-	       AC_DEFINE(USE_CRYPTO)
+            [
+		   AC_CHECKING( that OpenSSL Library is at least version 0.9.6 ... )
+		   AC_EGREP_CPP(yes,
+		     [
+		       #include "openssl/evp.h"
+		       #if SSLEAY_VERSION_NUMBER >= 0x00906000L
+		         yes
+		       #endif
+		     ],
+		     [],
+		     AC_MSG_ERROR( OpenSSL Library is too old. )
+		   )
 	    ],
 	    AC_MSG_ERROR( OpenSSL Crypto library not found. )
 	),
 	AC_MSG_ERROR( OpenSSL Crypto headers not found. )
-   )
-
-   AC_CHECKING( that OpenSSL Library is at least version 0.9.6 ... )
-   AC_EGREP_CPP(yes,
-     [
-       #include "openssl/evp.h"
-       #if SSLEAY_VERSION_NUMBER >= 0x00906000L
-         yes
-       #endif
-     ],
-     [],
-     AC_MSG_ERROR( OpenSSL Library is too old. )
    )
 
    if test "$SSL" = "yes"; then
@@ -154,8 +144,6 @@ if test "$CRYPTO" = "yes"; then
       AC_CHECK_HEADER(openssl/ssl.h,
 	   AC_CHECK_LIB(ssl, SSL_CTX_new,
 	       [
-	          LIBS="$LIBS -lssl"
-	          AC_DEFINE(USE_SSL)
                   if test "$LEAK" = "ssl"; then
                      AC_CHECKING( for Memory Debugging Capabilities in OpenSSL Library ... )
                      AC_CHECK_LIB(ssl, CRYPTO_mem_ctrl,
@@ -172,6 +160,20 @@ if test "$CRYPTO" = "yes"; then
 	   AC_MSG_ERROR( OpenSSL SSL headers not found. )
       )
    fi
+fi
+
+if test "$LZO" = "yes"; then
+   AC_CHECKING( for LZO Library and Header files ... )
+   AC_CHECK_HEADER(lzo1x.h, 
+        AC_CHECK_LIB(lzo, lzo1x_1_15_compress,
+	    [
+	       LIBS="$LIBS -llzo"
+	       AC_DEFINE(USE_LZO)
+	    ],
+	    AC_MSG_ERROR( LZO library not found. )
+	),
+        AC_MSG_ERROR( LZO headers not found. )
+   )
 fi
 
 if test "$LEAK" = "dmalloc"; then
