@@ -44,8 +44,10 @@
 #   service openvpn reload - SIGHUP
 #   service openvpn reopen - SIGUSR1
 #   service openvpn status - SIGUSR2
-
-# Modifications 2003.05.02
+#
+# Modifications:
+#
+# 2003.05.02
 #   * Changed == to = for sh compliance (Bishop Clark).
 #   * If condrestart|reload|reopen|status, check that we were
 #     actually started (James Yonan).
@@ -56,6 +58,11 @@
 #     commencing new start operation (James Yonan).
 #   * Do a better job of flagging errors on start, and properly
 #     returning success or failure status to caller (James Yonan).
+#
+# 2005.04.04
+#   * Added openvpn-startup and openvpn-shutdown script calls
+#     (James Yonan).
+#
 
 # Location of openvpn binary
 openvpn=""
@@ -111,6 +118,11 @@ case "$1" in
 
 	#echo 1 > /proc/sys/net/ipv4/ip_forward
 
+	# Run startup script, if defined
+	if [ -f $work/openvpn-startup ]; then
+	    $work/openvpn-startup
+	fi
+
 	if [ ! -d  $piddir ]; then
 	    mkdir $piddir
 	fi
@@ -165,6 +177,12 @@ case "$1" in
 	  fi
 	  rm -f $pidf
 	done
+
+	# Run shutdown script, if defined
+	if [ -f $work/openvpn-shutdown ]; then
+	    $work/openvpn-shutdown
+	fi
+
 	success; echo
 	rm -f $lock
 	;;

@@ -3,6 +3,21 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.04.04 -- Version 2.0-rc20
+
+* Dag Wieers has put together an OpenVPN/LZO binary RPM set with
+  excellent distro/version coverage for RH/EL/Fedora, though
+  using his own SPEC.  I modified openvpn.spec to follow some of
+  the same conventions such as putting sample scripts and doc
+  files in %doc rather than /usr/share/openvpn.
+* Minor change to init scripts to run the user-defined script
+  /etc/openvpn/openvpn-startup (if it exists) before any OpenVPN
+  configs are started, and to run /etc/openvpn/openvpn-shutdown
+  after all OpenVPN configs have been stopped.  The
+  openvpn-startup script can be used for stuff like
+  insmod tun.o, setting up firewall rules, or starting
+  ethernet bridges.
+
 2005.03.29 -- Version 2.0-rc19
 
 * Omit additions of routes where the network and
