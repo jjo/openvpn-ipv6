@@ -1,13 +1,16 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.07.28 -- Version 1.3.1.2
+2002.08.07 -- Version 1.3.1.3
 
 * Added SSL_CTX_set_client_CA_list call to ssl
   initialization.
 * Added build-inter script to easy-rsa package, to
   facilitate the generation of intermediate CAs.
 * Ported to NetBSD (Dimitri Goldin).
+* Fixed minor bug in easy-rsa/sign-req.  It refers to
+  openssl.cnf file, instead of $KEY_CONFIG, like all
+  other scripts (Ernesto Baschny). 
 
 2002.07.10 -- Version 1.3.1
 
