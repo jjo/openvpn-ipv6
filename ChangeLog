@@ -3,6 +3,11 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.05.09 -- Version 1.6.0
+	
+* Unchanged from 1.6-rc4 except for version number
+  upgrade.
+
 2004.04.01 -- Version 1.6-rc4
 
 * Made minor customizations to devcon and
