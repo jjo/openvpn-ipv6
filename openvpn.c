@@ -23,7 +23,11 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifdef WIN32
+#include "config-win32.h"
+#else
 #include "config.h"
+#endif
 
 #include "syshead.h"
 
@@ -76,6 +80,8 @@ possibly_become_daemon (int level, const struct options* options, const bool fir
 
 static volatile int signal_received = 0;
 
+#ifdef HAVE_SIGNAL_H
+
 /* normal signal handler, when we are in event loop */
 static void
 signal_handler (int signum)
@@ -90,6 +96,8 @@ signal_handler_exit (int signum)
 {
   msg (M_FATAL | M_NOLOCK, "Signal %d received during initialization, exiting", signum);
 }
+
+#endif /* HAVE_SIGNAL_H */
 
 /*
  * For debugging, dump a packet in
@@ -140,6 +148,8 @@ struct key_schedule
   struct key_ctx_bi tls_auth_key;
 
 #endif /* USE_SSL */
+#else /* USE_CRYPTO */
+  int dummy;
 #endif /* USE_CRYPTO */
 };
 
@@ -162,7 +172,7 @@ key_schedule_free(struct key_schedule* ks)
  * building with crypto.
  */
 #ifndef PACKET_ID_H
-struct packet_id_persist {};
+struct packet_id_persist { int dummy; };
 static inline void packet_id_persist_init (struct packet_id_persist *p) {}
 #endif
 
@@ -258,10 +268,12 @@ openvpn (const struct options *options,
   /* Always set to current time. */
   time_t current;
 
+#ifdef HAVE_GETTIMEOFDAY
   /*
    * Traffic shaper object.
    */
   struct shaper shaper;
+#endif
 
   /*
    * Statistics
@@ -367,6 +379,7 @@ openvpn (const struct options *options,
   /* temporary variable */
   bool did_we_daemonize;
 
+#ifdef HAVE_SIGNAL_H
   /*
    * Special handling if signal arrives before
    * we are properly initialized.
@@ -377,8 +390,9 @@ openvpn (const struct options *options,
   signal (SIGUSR1, SIG_IGN);
   signal (SIGUSR2, SIG_IGN);
   signal (SIGPIPE, SIG_IGN);
+#endif /* HAVE_SIGNAL_H */
 
-  msg (M_INFO, "%s", TITLE);
+  msg (M_INFO, "%s", title_string);
 
   CLEAR (udp_socket);
   CLEAR (frame);
@@ -741,12 +755,14 @@ openvpn (const struct options *options,
       msg (M_INFO, "Preserving previous TUN/TAP instance: %s", tuntap->actual);
     }
 
+#ifdef HAVE_GETTIMEOFDAY
   /* initialize traffic shaper (i.e. transmit bandwidth limiter) */
   if (options->shaper)
     {
       shaper_init (&shaper, options->shaper);
       shaper_msg (&shaper);
     }
+#endif
 
   if (first_time)
     {
@@ -764,12 +780,14 @@ openvpn (const struct options *options,
   /* become a daemon if --daemon */
   did_we_daemonize = possibly_become_daemon (1, options, first_time);
 
+#ifdef HAVE_SIGNAL_H
   /* catch signals */
   signal (SIGINT, signal_handler);
   signal (SIGTERM, signal_handler);
   signal (SIGHUP, signal_handler);
   signal (SIGUSR1, signal_handler);
   signal (SIGUSR2, signal_handler);
+#endif /* HAVE_SIGNAL_H */
 
   if (first_time)
     {
@@ -1080,6 +1098,8 @@ openvpn (const struct options *options,
 	   * quota, don't send -- instead compute the delay we must wait
 	   * until it will be OK to send the packet.
 	   */
+
+#ifdef HAVE_GETTIMEOFDAY
 	  int delay = 0;
 
 	  /* set traffic shaping delay in microseconds */
@@ -1095,6 +1115,9 @@ openvpn (const struct options *options,
 	    {
 	      FD_SET (udp_socket.sd, &writes);
 	    }
+#else /* HAVE_GETTIMEOFDAY */
+	  FD_SET (udp_socket.sd, &writes);
+#endif /* HAVE_GETTIMEOFDAY */
 	}
 #ifdef FRAGMENT_ENABLE
       else if (!fragment || !fragment_outgoing_defined (fragment))
@@ -1156,6 +1179,7 @@ openvpn (const struct options *options,
       /* current should always be a reasonably up-to-date timestamp */
       current = time (NULL);
 
+#ifdef HAVE_SIGNAL_H
       /*
        * Did we get a signal before or while we were waiting
        * in select() ?
@@ -1198,6 +1222,7 @@ openvpn (const struct options *options,
 	    }
 	  break;
 	}
+#endif /* HAVE_SIGNAL_H */
 
       if (!stat) /* timeout? */
 	continue;
@@ -1543,9 +1568,11 @@ openvpn (const struct options *options,
 		       * Let the traffic shaper know how many bytes
 		       * we wrote.
 		       */
+#ifdef HAVE_GETTIMEOFDAY
 		      if (options->shaper)
 			shaper_wrote_bytes (&shaper, BLEN (&to_udp)
 					    + datagram_overhead (ipv6_udp_transport));
+#endif
 #ifdef FRAGMENT_ENABLE
 		      if (fragment)
 			fragment_post_send (fragment, BLEN (&to_udp)
@@ -1993,6 +2020,7 @@ main (int argc, char *argv[])
       }
     }
     gc_collect (gc_level);
+    close_syslog ();
   } while (sig == SIGHUP);
 
   thread_cleanup();

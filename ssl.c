@@ -31,7 +31,11 @@
  * over the same UDP port.
  */
 
+#ifdef WIN32
+#include "config-win32.h"
+#else
 #include "config.h"
+#endif
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
 
@@ -62,7 +66,7 @@ static int tls_packets_sent;
 #define INCR_ERROR      ++tls_handshake_error
 
 void
-show_tls_performance_stats()
+show_tls_performance_stats(void)
 {
   msg (D_TLS_DEBUG_LOW, "TLS Handshakes, success=%f%% (good=%d, bad=%d), retransmits=%f%%",
        (double) tls_handshake_success / (tls_handshake_success + tls_handshake_error) * 100.0,

@@ -38,6 +38,8 @@ struct user_state {
 #if defined(HAVE_GETPWNAM) && defined(HAVE_SETUID)
   const char *username;
   struct passwd *pw;
+#else
+  int dummy;
 #endif
 };
 
@@ -50,6 +52,8 @@ struct group_state {
 #if defined(HAVE_GETGRNAM) && defined(HAVE_SETGID)
   const char *groupname;
   struct group *gr;
+#else
+  int dummy;
 #endif
 };
 
@@ -67,6 +71,8 @@ struct pid_state {
 #ifdef HAVE_GETPID
   FILE *fp;
   const char *filename;
+#else
+  int dummy;
 #endif
 };
 
@@ -97,14 +103,14 @@ bool system_check (const char* command, const char* error_message, bool fatal);
 const char* time_string (time_t t);
 
 /* Set standard file descriptors to /dev/null */
-void set_std_files_to_null ();
+void set_std_files_to_null (void);
 
 /* Wrapper for chdir library function */
 int openvpn_chdir (const char* dir);
 
 /* dup inetd/xinetd socket descriptor and save */
 extern int inetd_socket_descriptor;
-void save_inetd_socket_descriptor ();
+void save_inetd_socket_descriptor (void);
 
 /* init random() function, only used as source for weak random numbers, when !USE_CRYPTO */
 void init_random_seed(void);

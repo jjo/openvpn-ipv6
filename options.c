@@ -23,7 +23,11 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifdef WIN32
+#include "config-win32.h"
+#else
 #include "config.h"
+#endif
 
 #include "syshead.h"
 
@@ -40,6 +44,28 @@
 #include "misc.h"
 
 #include "memdbg.h"
+
+const char title_string[] =
+  PACKAGE_STRING
+  " " TARGET_ALIAS
+#ifdef USE_CRYPTO
+#ifdef USE_SSL
+  " [SSL]"
+#else
+  " [CRYPTO]"
+#endif
+#endif
+#ifdef USE_LZO
+  " [LZO]"
+#endif
+#ifdef USE_PTHREAD
+  " [PTHREAD]"
+#endif
+#ifdef FRAGMENT_ENABLE
+  " [MTU-DYNAMIC]"
+#endif
+  " built on " __DATE__
+;
 
 static const char usage_message[] =
   "%s\n"
@@ -122,8 +148,11 @@ static const char usage_message[] =
   "--group group   : Set GID to group after initialization.\n"
   "--chroot dir    : Chroot to this directory after initialization.\n"
   "--cd dir        : Change to this directory before initialization.\n"
-  "--daemon        : Become a daemon after initialization.\n"
-  "--inetd         : Run as an inetd or xinetd server.\n"
+  "--daemon [name] : Become a daemon after initialization.\n"
+  "                  The optional 'name' parameter will be passed\n"
+  "                  as the program name to the system logger.\n"
+  "--inetd [name]  : Run as an inetd or xinetd server.  See --daemon\n"
+  "                  above for a description of the 'name' parameter.\n"
   "--writepid file : Write main process ID to file.\n"
   "--nice n        : Change process priority (>0 = lower, <0 = higher).\n"
 #ifdef USE_PTHREAD
@@ -314,7 +343,9 @@ show_settings (const struct options *o)
   SHOW_BOOL (tun_ipv6);
   SHOW_STR (ifconfig_local);
   SHOW_STR (ifconfig_remote);
+#ifdef HAVE_GETTIMEOFDAY
   SHOW_INT (shaper);
+#endif
   SHOW_INT (tun_mtu);
   SHOW_BOOL (tun_mtu_defined);
   SHOW_INT (udp_mtu);
@@ -497,20 +528,23 @@ usage (void)
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
   fprintf (fp, usage_message,
-	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.tun_mtu_extra,
-	  o.verbosity, o.authname, o.ciphername, o.tls_timeout,
-	  o.renegotiate_seconds, o.handshake_window, o.transition_window);
+	   title_string, o.local_port, o.remote_port, o.udp_mtu,
+	   o.tun_mtu, o.tun_mtu_extra,
+	   o.verbosity, o.authname, o.ciphername, o.tls_timeout,
+	   o.renegotiate_seconds, o.handshake_window, o.transition_window);
 #elif defined(USE_CRYPTO)
   fprintf (fp, usage_message,
-	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.tun_mtu_extra,
-	  o.verbosity, o.authname, o.ciphername);
+	   title_string, o.local_port, o.remote_port, o.udp_mtu,
+	   o.tun_mtu, o.tun_mtu_extra,
+	   o.verbosity, o.authname, o.ciphername);
 #else
   fprintf (fp, usage_message,
-	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.tun_mtu_extra,
-	  o.verbosity);
+	   title_string, o.local_port, o.remote_port, o.udp_mtu,
+	   o.tun_mtu, o.tun_mtu_extra,
+	   o.verbosity);
 #endif
   fflush(fp);
-
+  
   exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
 
@@ -524,7 +558,7 @@ usage_small (void)
 static void
 usage_version (void)
 {
-  msg (M_INFO, "%s", TITLE);
+  msg (M_INFO, "%s", title_string);
   msg (M_INFO, "Copyright (C) 2002-2003 James Yonan <jim@yonan.net>");
   exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
@@ -618,7 +652,7 @@ parse_line (char *line, char *p[], int n, const char *file, int line_num)
 	}
       if (state == 4)
 	{
-	  const int len = c - start;
+	  const int len = (int) (c - start);
 	  ASSERT (len > 0);
 	  p[ret] = gc_malloc (len + 1);
 	  memcpy (p[ret], start, len);
@@ -801,7 +835,9 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       if (!options->daemon) {
 	options->daemon = true;
-	open_syslog ();
+	open_syslog (p2);
+	if (p2)
+	  ++i;
       }
     }
   else if (streq (p1, "inetd"))
@@ -810,7 +846,9 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
 	{
 	  options->inetd = true;
 	  save_inetd_socket_descriptor ();
-	  open_syslog ();
+	  open_syslog (p2);
+	  if (p2)
+	    ++i;
 	}
     }
   else if (streq (p1, "mlock"))
@@ -885,6 +923,7 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
 #endif
   else if (streq (p1, "shaper") && p2)
     {
+#ifdef HAVE_GETTIMEOFDAY
       ++i;
       options->shaper = atoi (p2);
       if (options->shaper < SHAPER_MIN || options->shaper > SHAPER_MAX)
@@ -893,6 +932,10 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
 	       SHAPER_MIN, SHAPER_MAX);
 	  usage_small ();
 	}
+#else /* HAVE_GETTIMEOFDAY */
+      msg (M_WARN, "--shaper requires the gettimeofday() function which is missing");
+      usage_small ();
+#endif /* HAVE_GETTIMEOFDAY */
     }
   else if (streq (p1, "port") && p2)
     {

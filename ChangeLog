@@ -16,6 +16,12 @@ Upcoming Version 1.4.2
 * Silenced spurious configure warnings (1.4.1.2).
 * Backed out --dev-name patch, modified --dev
   to offer equivalent functionality (1.4.1.4).
+* Added an optional parameter to --daemon and
+  --inetd to support the passing of a custom
+  program name to the system logger (1.4.1.5).
+* Add compiled-in options to the program title
+  (1.4.1.5).
+* Coded the beginnings of a WIN32 port (1.4.1.5).
 
 2003.05.15 -- Version 1.4.1
 

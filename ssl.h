@@ -442,7 +442,7 @@ const char *protocol_dump (struct buffer *buffer, unsigned int flags);
  */
 
 #ifdef MEASURE_TLS_HANDSHAKE_STATS
-void show_tls_performance_stats();
+void show_tls_performance_stats(void);
 #endif
 
 

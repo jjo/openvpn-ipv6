@@ -23,7 +23,11 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifdef WIN32
+#include "config-win32.h"
+#else
 #include "config.h"
+#endif
 
 #include "syshead.h"
 
@@ -105,7 +109,9 @@ int msg_line_num;
 void x_msg (unsigned int flags, const char *format, ...)
 {
   va_list arglist;
+#if SYSLOG_CAPABILITY
   int level;
+#endif
   char msg1[ERR_BUF_SIZE];
   char msg2[ERR_BUF_SIZE];
   char *m1;
@@ -191,12 +197,14 @@ void x_msg (unsigned int flags, const char *format, ...)
     }
 #endif
 
+#if SYSLOG_CAPABILITY
   if (flags & (M_FATAL|M_NONFATAL))
     level = LOG_ERR;
   else if (flags & M_WARN)
     level = LOG_WARNING;
   else
     level = LOG_NOTICE;
+#endif
 
   if (use_syslog)
     {
@@ -233,18 +241,33 @@ assert_failed (const char *filename, int line)
 }
 
 void
-open_syslog (void)
+open_syslog (const char *pgmname)
 {
 #if SYSLOG_CAPABILITY
   if (!msgfp)
     {
-      openlog ("openvpn", LOG_PID, LOG_DAEMON);
-      use_syslog = true;
+      if (!use_syslog)
+	{
+	  openlog ((pgmname ? pgmname : "openvpn"), LOG_PID, LOG_DAEMON);
+	  use_syslog = true;
 
-      /* Better idea: pipe stdout/stderr output to msg() */
-      set_std_files_to_null ();
+	  /* Better idea: somehow pipe stdout/stderr output to msg() */
+	  set_std_files_to_null ();
+	}
     }
 #else
   msg (M_WARN, "Warning on use of --daemon/--inetd: this operating system lacks daemon logging features, therefore when I become a daemon, I won't be able to log status or error messages");
+#endif
+}
+
+void
+close_syslog ()
+{
+#if SYSLOG_CAPABILITY
+  if (use_syslog)
+    {
+      closelog();
+      use_syslog = false;
+    }
 #endif
 }

@@ -49,7 +49,7 @@ static inline void
 interval_earliest_wakeup (interval_t *wakeup, time_t at, time_t current) {
   if (at > current)
     {
-      const interval_t delta = at - current;
+      const interval_t delta = (interval_t) (at - current);
       if (!*wakeup || delta < *wakeup)
 	*wakeup = delta;
     }
@@ -186,7 +186,7 @@ event_timeout_wakeup (struct event_timeout* et, time_t current, struct timeval* 
 {
   if (et->n)
     {
-      const int wakeup = et->last + et->n - current;
+      const int wakeup = (int) (et->last + et->n - current);
       if (wakeup > 0 && (!tv->tv_sec || wakeup < tv->tv_sec))
 	{
 	  msg (D_INTERVAL, "EVENT event_timeout_wakeup (%d/%d)", wakeup, et->n);
@@ -209,6 +209,8 @@ struct usec_timer {
   struct timeval end;
 };
 
+#ifdef HAVE_GETTIMEOFDAY
+
 static inline void
 usec_timer_start (struct usec_timer *obj)
 {
@@ -221,6 +223,8 @@ usec_timer_end (struct usec_timer *obj)
 {
   gettimeofday (&obj->end, NULL);
 }
+
+#endif /* HAVE_GETTIMEOFDAY */
 
 static inline bool
 usec_timer_interval_defined (struct usec_timer *obj)

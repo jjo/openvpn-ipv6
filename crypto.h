@@ -277,8 +277,8 @@ void get_tls_handshake_key (const struct key_type *key_type,
 			    const char *passphrase_file);
 #else
 
-void init_ssl_lib ();
-void free_ssl_lib ();
+void init_ssl_lib (void);
+void free_ssl_lib (void);
 
 #endif /* USE_SSL */
 

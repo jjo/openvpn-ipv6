@@ -23,7 +23,11 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifdef WIN32
+#include "config-win32.h"
+#else
 #include "config.h"
+#endif
 
 #include "syshead.h"
 
@@ -252,7 +256,7 @@ daemon(int nochdir, int noclose)
  * Set standard file descriptors to /dev/null
  */
 void
-set_std_files_to_null ()
+set_std_files_to_null (void)
 {
 #if defined(HAVE_DUP) && defined(HAVE_DUP2)
   int fd;
@@ -287,7 +291,7 @@ openvpn_chdir (const char* dir)
 int inetd_socket_descriptor = -1;
 
 void
-save_inetd_socket_descriptor ()
+save_inetd_socket_descriptor (void)
 {
   inetd_socket_descriptor = INETD_SOCKET_DESCRIPTOR;
 #if defined(HAVE_DUP) && defined(HAVE_DUP2)
@@ -390,9 +394,10 @@ system_check (const char* command, const char* error_message, bool fatal)
  */
 
 void
-init_random_seed()
+init_random_seed(void)
 {
 #ifndef USE_CRYPTO
+#ifdef HAVE_GETTIMEOFDAY
   struct timeval tv;
 
   if (!gettimeofday (&tv, NULL))
@@ -400,7 +405,11 @@ init_random_seed()
       const unsigned int seed = (unsigned int) tv.tv_sec ^ tv.tv_usec;
       srandom (seed);
     }
-#endif
+#else /* HAVE_GETTIMEOFDAY */
+  const time_t current = time (NULL);
+  srandom ((unsigned int)current);
+#endif /* HAVE_GETTIMEOFDAY */
+#endif /* USE_CRYPTO */
 }
 
 /* format a time_t as ascii, or use current time if 0 */

@@ -25,6 +25,8 @@
 
 #include "basic.h"
 
+extern const char title_string[];
+
 /* Command line options */
 struct options
 {
@@ -55,7 +57,9 @@ struct options
   const char *dev_node;
   const char *ifconfig_local;
   const char *ifconfig_remote;
+#ifdef HAVE_GETTIMEOFDAY
   int shaper;
+#endif
   int tun_mtu;          /* MTU of tun device */
   int tun_mtu_extra;
   int udp_mtu;          /* MTU of device over which tunnel packets pass via UDP */

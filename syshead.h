@@ -26,6 +26,10 @@
 #ifndef SYSHEAD_H
 #define SYSHEAD_H
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif

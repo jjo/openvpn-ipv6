@@ -28,7 +28,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "2 May 2003"
+.TH openvpn 8 "28 June 2003"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -590,7 +590,15 @@ command for your platform.
 Take the UDP device MTU to be n and derive the TUN MTU
 from it (default=1300 when the
 .B --ifconfig
-option is used).
+option is used).  This is a conservative value that was chosen
+because it has a higher probability of working correctly.
+However, for many
+cases, using a value of 1472 will maximize performance.
+
+This option should only be used for TUN style tunnels.  TAP tunnels
+that are used for ethernet bridging should use the
+.B --tun-mtu
+parameter.
 
 The MTU (Maximum Transmission Units) is
 the maximum datagram size in bytes that can be sent unfragmented
@@ -633,6 +641,11 @@ Using the
 .B --ifconfig
 option is the recommended method of configuring
 a TUN device MTU automatically.
+
+However, for TUN devices which are used to bridge ethernet segments,
+it is recommended that you set this parameter to 1500 and then also add
+.B --tun-mtu-extra 64
+to your command line or config file.
 .TP
 .B --tun-mtu-extra n
 Assume that the TUN/TAP device might return as many as
@@ -754,6 +767,22 @@ restart after
 .B n
 seconds pass without reception of a ping
 or other packet from remote.
+
+This option is useful in cases
+where the remote peer has a dynamic IP address and
+a low-TTL DNS name is used to track the IP address using
+a service such as
+.I http://dyndns.org/
++ a dynamic DNS client such
+as
+.B ddclient.
+
+If the peer cannot be reached, a restart will be triggered, causing
+the hostname used with
+.B --remote
+to be re-resolved (if
+.B --resolv-retry
+is also specified).
 
 See the signals section below for more information
 on
@@ -980,13 +1009,24 @@ parameter can point to an empty directory, however
 complications can result when scripts or restarts
 are executed after the chroot operation.
 .TP
-.B --daemon
+.B --daemon [progname]
 Become a daemon after all initialization functions are completed.
 This option will cause all message and error output to
 be sent to the syslog file (such as /var/log/messages),
 except for the output of shell scripts and
 ifconfig commands,
 which will go to /dev/null unless otherwise redirected.
+
+The optional
+.B progname
+parameter will cause OpenVPN to report its program name
+to the system logger as
+.B progname.
+This can be useful in linking OpenVPN messages
+in the syslog file with specific tunnels.
+When unspecified,
+.B progname
+defaults to "openvpn".
 
 When openvpn is run with the
 .B --daemon
@@ -1001,7 +1041,7 @@ In OpenVPN, the vast majority of errors which occur after initialization are non
 .B --passtos
 Set the TOS field of the tunnel packet to what the payload's TOS is.
 .TP
-.B --inetd
+.B --inetd [progname]
 Use this option when OpenVPN is being run from the inetd or
 .BR xinetd(8)
 server.
@@ -1012,7 +1052,11 @@ or
 Note that this option causes message and error output to be handled in the same
 way as the
 .B --daemon
-option.
+option.  The optional
+.B progname
+parameter is also handled exactly as in
+.B --daemon.
+
 Also note that each OpenVPN tunnel requires a separate UDP port and
 a separate inetd or xinetd entry.  See the OpenVPN HOWTO for an example
 on using OpenVPN with xinetd:

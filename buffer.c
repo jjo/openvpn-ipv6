@@ -23,7 +23,11 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifdef WIN32
+#include "config-win32.h"
+#else
 #include "config.h"
+#endif
 
 #include "syshead.h"
 
@@ -36,7 +40,7 @@ struct buffer
 alloc_buf (size_t size)
 {
   struct buffer buf;
-  buf.capacity = size;
+  buf.capacity = (int)size;
   buf.offset = 0;
   buf.len = 0;
   buf.data = (uint8_t *) malloc (size);
@@ -50,7 +54,7 @@ struct buffer
 alloc_buf_gc (size_t size)
 {
   struct buffer buf;
-  buf.capacity = size;
+  buf.capacity = (int)size;
   buf.offset = 0;
   buf.len = 0;
   buf.data = (uint8_t *) gc_malloc (size);
@@ -122,7 +126,7 @@ buf_printf (struct buffer *buf, const char *format, ...)
   vsnprintf ((char *)ptr, cap, format, arglist);
   va_end (arglist);
 
-  buf->len += strlen ((char *)ptr);
+  buf->len += (int) strlen ((char *)ptr);
 }
 
 /*
@@ -134,7 +138,7 @@ buf_catrunc (struct buffer *buf, const char *str)
 {
   if (buf_forward_capacity (buf) <= 1)
     {
-      int len = strlen (str) + 1;
+      int len = (int) strlen (str) + 1;
       if (len < buf_forward_capacity_total (buf))
 	{
 	  strncpynt ((char *)(buf->data + buf->capacity - len), str, len);

@@ -26,8 +26,6 @@
 #ifndef OPENVPN_H
 #define OPENVPN_H
 
-#define TITLE PACKAGE_STRING " " TARGET_ALIAS " built on " __DATE__
-
 /*
  * Where should messages be printed before syslog is opened?
  * Not used if OPENVPN_DEBUG_COMMAND_LINE is defined.

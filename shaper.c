@@ -23,10 +23,16 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifdef WIN32
+#include "config-win32.h"
+#else
 #include "config.h"
+#endif
 #include "syshead.h"
 #include "shaper.h"
 #include "memdbg.h"
+
+#ifdef HAVE_GETTIMEOFDAY
 
 void
 shaper_msg (struct shaper *s)
@@ -34,3 +40,7 @@ shaper_msg (struct shaper *s)
   msg (M_INFO, "Output Traffic Shaping initialized at %d bytes per second",
        s->bytes_per_second);
 }
+
+#else
+static void dummy(void) {}
+#endif /* HAVE_GETTIMEOFDAY */

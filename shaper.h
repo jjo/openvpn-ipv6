@@ -26,6 +26,8 @@
 #ifndef SHAPER_H
 #define SHAPER_H
 
+#ifdef HAVE_GETTIMEOFDAY
+
 #include "basic.h"
 #include "misc.h"
 #include "error.h"
@@ -173,5 +175,7 @@ shaper_change_pct (struct shaper *s, int pct)
   shaper_reset (s, new_bandwidth);
   return s->bytes_per_second != orig_bandwidth;
 }
+
+#endif /* HAVE_GETTIMEOFDAY */
 
 #endif

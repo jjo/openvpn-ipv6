@@ -23,7 +23,11 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifdef WIN32
+#include "config-win32.h"
+#else
 #include "config.h"
+#endif
 
 #ifdef USE_CRYPTO
 
@@ -1134,7 +1138,7 @@ md5sum(uint8_t *buf, int len)
 #ifndef USE_SSL
 
 void
-init_ssl_lib ()
+init_ssl_lib (void)
 {
   ERR_load_crypto_strings ();
   OpenSSL_add_all_algorithms ();
@@ -1142,7 +1146,7 @@ init_ssl_lib ()
 }
 
 void
-free_ssl_lib ()
+free_ssl_lib (void)
 {
   EVP_cleanup ();
   ERR_free_strings ();

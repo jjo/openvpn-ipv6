@@ -129,7 +129,7 @@ OPTIONS for ./configure:
 
   --enable-strict-options   Enable strict options check between peers
 
-  --enable-mtu-dynamic      Enable dynamic MTU support
+  --enable-mtu-dynamic      Enable dynamic MTU support (experimental)
 
 *************************************************************************
 

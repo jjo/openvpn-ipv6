@@ -130,7 +130,10 @@ check_debug_level (unsigned int level)
   return (level & M_DEBUG_LEVEL) < x_debug_level;
 }
 
-void open_syslog (void);
+/* syslog output */
+
+void open_syslog (const char *pgmname);
+void close_syslog ();
 
 #include "errlevel.h"
 

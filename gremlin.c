@@ -28,7 +28,11 @@
  * network outages when the --gremlin option is enabled.
  */
 
+#ifdef WIN32
+#include "config-win32.h"
+#else
 #include "config.h"
+#endif
 
 #include "syshead.h"
 
@@ -105,9 +109,7 @@ static time_t next;
 bool
 ask_gremlin(void)
 {
-  struct timeval tv;
-
-  ASSERT (!gettimeofday (&tv, NULL));
+  const time_t current = time (NULL);
 
   if (!initialized)
     {
@@ -117,12 +119,12 @@ ask_gremlin(void)
 #else
       up = true;
 #endif
-      next = tv.tv_sec;
+      next = current;
     }
 
 #ifdef UP_DOWN_ENABLE
 /* change up/down state? */
-  if (tv.tv_sec >= next)
+  if (current >= next)
     {
       int delta;
       if (up)
@@ -140,7 +142,7 @@ ask_gremlin(void)
 	   "GREMLIN: CONNECTION GOING %s FOR %d SECONDS",
 	   (up ? "UP" : "DOWN"),
 	   delta);
-      next = tv.tv_sec + delta;
+      next = current + delta;
     }
 #endif
 

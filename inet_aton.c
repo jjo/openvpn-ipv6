@@ -23,7 +23,11 @@
  */
 
 #ifdef HAVE_CONFIG_H
+#ifdef WIN32
+#include "config-win32.h"
+#else
 #include "config.h"
+#endif
 #endif
 
 #if !HAVE_INET_ATON
