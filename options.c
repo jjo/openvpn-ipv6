@@ -113,7 +113,7 @@ static const char usage_message[] =
   "                : 6 -- show keys\n"
   "                : 7 -- show verbose key negotiations\n"
   "                : 8 -- show all debug info\n"
-  "--mute          : Log at most n consecutive messages in the same category.\n"
+  "--mute n        : Log at most n consecutive messages in the same category.\n"
   "--gremlin       : Simulate dropped & corrupted packets + network outages\n"
   "                  to test robustness of protocol (for debugging only).\n"
 #ifdef USE_LZO
