@@ -136,10 +136,11 @@ set_nice (int niceval)
     {
 #ifdef HAVE_NICE
       if (nice (niceval) < 0)
-	msg (M_ERR, "nice %d failed", niceval);
-      msg (M_INFO, "nice %d succeeded", niceval);
+	msg (M_WARN | M_ERRNO, "WARNING: nice %d failed", niceval);
+      else
+	msg (M_INFO, "nice %d succeeded", niceval);
 #else
-      msg (M_FATAL, "Sorry but I can't set nice priority to '%d' because this operating system doesn't appear to support the nice() system call", niceval);
+      msg (M_WARN, "WARNING: nice %d failed (function not implemented)", niceval);
 #endif
     }
 }
@@ -320,7 +321,7 @@ warn_if_group_others_accessible(const char* filename)
   struct stat st;
   if (stat (filename, &st))
     {
-      msg (M_WARN, "WARNING: cannot stat file '%s'", filename);
+      msg (M_WARN | M_ERRNO, "WARNING: cannot stat file '%s'", filename);
     }
   else
     {

@@ -47,13 +47,15 @@
 
 # Modifications 2003.05.02
 #   * Changed == to = for sh compliance (Bishop Clark).
-#   * If condrestart|reload|reopen|status, check that we were started (James Yonan).
+#   * If condrestart|reload|reopen|status, check that we were
+#     actually started (James Yonan).
 #   * Added lock, piddir, and work variables (James Yonan).
 #   * If start is attempted twice, without an intervening stop, or
 #     if start is attempted when previous start was not properly
 #     shut down, then kill any previously started processes, before
 #     commencing new start operation (James Yonan).
-#   * Do a better job of flagging errors on start (James Yonan).
+#   * Do a better job of flagging errors on start, and properly
+#     returning success or failure status to caller (James Yonan).
 
 # Location of openvpn binary
 openvpn="/usr/sbin/openvpn"
@@ -102,6 +104,7 @@ case "$1" in
 	    sleep 2
 	fi
 
+	rm -f $piddir/*.pid
 	cd $work
 
 	# Start every .conf in $work and run .sh if exists

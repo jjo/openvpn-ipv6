@@ -12,7 +12,7 @@ die "usage: verify-cn cn certificate_depth X509_NAME_oneline" if (@ARGV != 3);
 ($cn, $depth, $x509) = @ARGV;
 
 if ($depth == 0) {
-    if ($x509 =~ /\/CN=(.+)\//) {
+    if ($x509 =~ /\/CN=([^\/]+)/) {
 	if ($cn eq $1) {
 	    exit 0;
 	}
