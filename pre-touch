@@ -1,9 +1,0 @@
-#!/bin/sh
-
-#
-# This script should be run after a CVS checkout
-# but before ./configure is run to ensure that
-# all timestamps are up-to-date.  It is not
-# necessary when building from a tarball.
-
-touch acinclude.m4 aclocal.m4 config.h.in configure Makefile.in
