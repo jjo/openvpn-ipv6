@@ -2528,15 +2528,43 @@ Set primary domain name server address.  Repeat
 this option to set secondary DNS server addresses.
 
 .B WINS addr --
-Set primary WINS server address.  Repeat this option
-to set secondary WINS server addresses.
+Set primary WINS server address (NetBIOS over TCP/IP Name Server).
+Repeat this option to set secondary WINS server addresses.
+
+.B NBDD addr --
+Set primary NBDD server address (NetBIOS over TCP/IP Datagram Distribution Server)
+Repeat this option
+to set secondary NBDD server addresses.
+
+.B NTP addr --
+Set primary NTP server address (Network Time Protocol).
+Repeat this option
+to set secondary NTP server addresses.
 
 .B NBT type --
 Set NetBIOS over TCP/IP Node type.  Possible options:
-1 = b-node (broadcasts), 2 = p-node (point-to-point
-name queries to a WINS server), 4 = m-node (broadcast
-then query name server), and 8 = h-node (query name
-server, then broadcast).
+.B 1
+= b-node (broadcasts),
+.B 2
+= p-node (point-to-point
+name queries to a WINS server),
+.B 4
+= m-node (broadcast
+then query name server), and
+.B 8
+= h-node (query name server, then broadcast).
+
+.B NBS scope-id --
+Set NetBIOS over TCP/IP Scope. A NetBIOS Scope ID provides an extended
+naming service for the NetBIOS over TCP/IP (Known as NBT) module. The
+primary purpose of a NetBIOS scope ID is to isolate NetBIOS traffic on
+a single network to only those nodes with the same NetBIOS scope ID.
+The NetBIOS scope ID is a character string that is appended to the NetBIOS
+name. The NetBIOS scope ID on two hosts must match, or the two hosts
+will not be able to communicate. The NetBIOS Scope ID also allows
+computers to use the same computer name, as they have different
+scope IDs. The Scope ID becomes a part of the NetBIOS name, making the name unique.
+(This description of NetBIOS scopes courtesy of NeonSurge@abyss.com)  
 .TP
 .B --tap-sleep n
 Cause OpenVPN to sleep for

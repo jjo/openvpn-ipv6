@@ -322,12 +322,17 @@ static const char usage_message[] =
   "                    lease-time: Lease time in seconds.\n"
   "                                Default is one year.\n"
   "--dhcp-option type [parm] : Set extended TAP-Win32 properties, must\n"
-  "                    be used with --ip-win32 dynamic.\n"
+  "                    be used with --ip-win32 dynamic.  For options\n"
+  "                    which allow multiple addresses,\n"
+  "                    --dhcp-option must be repeated.\n"
   "                    DOMAIN name : Set DNS suffix\n"
   "                    DNS addr    : Set domain name server address(es)\n"
+  "                    NTP         : Set NTP server address(es)\n"
+  "                    NBDD        : Set NBDD server address(es)\n"
   "                    WINS addr   : Set WINS server address(es)\n"
   "                    NBT type    : Set NetBIOS over TCP/IP Node type\n"
   "                                  1: B, 2: P, 4: M, 8: H\n"
+  "                    NBS id      : Set NetBIOS scope ID\n"
   "--tap-sleep n   : Sleep for n seconds after TAP adapter open before\n"
   "                  attempting to set adapter properties.\n"
   "--show-valid-subnets : Show valid subnets for --dev tun emulation.\n" 
@@ -423,11 +428,23 @@ setenv_settings (const struct options *o)
 }
 
 #ifdef WIN32
+
+static void
+show_dhcp_option_addrs (const char *name, const in_addr_t *array, int len)
+{
+  int i;
+  for (i = 0; i < len; ++i)
+    {
+      msg (D_SHOW_PARMS, "  %s[%d] = %s",
+	   name,
+	   i,
+	   print_in_addr_t (array[i], false));
+    }
+}
+
 static void
 show_tuntap_options (const struct tuntap_options *o)
 {
-  int i;
-
   SHOW_BOOL (ip_win32_defined);
   SHOW_INT (ip_win32_type);
   SHOW_BOOL (dhcp_hioff);
@@ -436,23 +453,33 @@ show_tuntap_options (const struct tuntap_options *o)
   SHOW_INT (tap_sleep);
   SHOW_BOOL (dhcp_options);
   SHOW_STR (domain);
+  SHOW_STR (netbios_scope);
+  SHOW_INT (netbios_node_type);
 
-  for (i = 0; i < o->dns_len; ++i)
-    {
-      msg (D_SHOW_PARMS, "  dns[%d] = %s",
-	   i,
-	   print_in_addr_t (o->dns[i], false));
-    }
-
-  for (i = 0; i < o->wins_len; ++i)
-    {
-      msg (D_SHOW_PARMS, "  wins[%d] = %s",
-	   i,
-	   print_in_addr_t (o->wins[i], false));
-    }
-
-  SHOW_INT (node_type);
+  show_dhcp_option_addrs ("DNS", o->dns, o->dns_len);
+  show_dhcp_option_addrs ("WINS", o->wins, o->wins_len);
+  show_dhcp_option_addrs ("NTP", o->ntp, o->ntp_len);
+  show_dhcp_option_addrs ("NBDD", o->nbdd, o->nbdd_len);
 }
+
+static void
+dhcp_option_address_parse (const char *name, const char *parm, in_addr_t *array, int *len)
+{
+  if (*len >= N_DHCP_ADDR)
+    msg (M_USAGE, "--dhcp-option %s: maximum of %d %s servers can be specified",
+	 name,
+	 N_DHCP_ADDR,
+	 name);
+
+  array[(*len)++] = getaddr (GETADDR_FATAL
+			   | GETADDR_HOST_ORDER
+			   | GETADDR_FATAL_ON_SIGNAL,
+			   parm,
+			   0,
+			   NULL,
+			   NULL);
+}
+
 #endif
 
 void
@@ -1649,31 +1676,10 @@ add_option (struct options *options, int i, char *p[],
 	  ++i;
 	  o->domain = p[2];
 	}
-      else if (streq (p[1], "DNS") && p[2])
+      else if (streq (p[1], "NBS") && p[2])
 	{
 	  ++i;
-	  if (o->dns_len >= N_DNS)
-	    msg (M_USAGE, "--dhcp-option DNS: maximum of %d DNS servers can be specified", N_DNS);
-	  o->dns[o->dns_len++] = getaddr (GETADDR_FATAL
-					  | GETADDR_HOST_ORDER
-					  | GETADDR_FATAL_ON_SIGNAL,
-					  p[2],
-					  0,
-					  NULL,
-					  NULL);
-	}
-      else if (streq (p[1], "WINS") && p[2])
-	{
-	  ++i;
-	  if (o->wins_len >= N_WINS)
-	    msg (M_USAGE, "--dhcp-option WINS: maximum of %d WINS servers can be specified", N_WINS);
-	  o->wins[o->wins_len++] = getaddr (GETADDR_FATAL
-					  | GETADDR_HOST_ORDER
-					  | GETADDR_FATAL_ON_SIGNAL,
-					  p[2],
-					  0,
-					  NULL,
-					  NULL);
+	  o->netbios_scope = p[2];
 	}
       else if (streq (p[1], "NBT") && p[2])
 	{
@@ -1682,7 +1688,27 @@ add_option (struct options *options, int i, char *p[],
 	  t = atoi (p[2]);
 	  if (!(t == 1 || t == 2 || t == 4 || t == 8))
 	    msg (M_USAGE, "--dhcp-option NBT: parameter (%d) must be 1, 2, 4, or 8", t);
-	  o->node_type = t;
+	  o->netbios_node_type = t;
+	}
+      else if (streq (p[1], "DNS") && p[2])
+	{
+	  ++i;
+	  dhcp_option_address_parse ("DNS", p[2], o->dns, &o->dns_len);
+	}
+      else if (streq (p[1], "WINS") && p[2])
+	{
+	  ++i;
+	  dhcp_option_address_parse ("WINS", p[2], o->wins, &o->wins_len);
+	}
+      else if (streq (p[1], "NTP") && p[2])
+	{
+	  ++i;
+	  dhcp_option_address_parse ("NTP", p[2], o->ntp, &o->ntp_len);
+	}
+      else if (streq (p[1], "NBDD") && p[2])
+	{
+	  ++i;
+	  dhcp_option_address_parse ("NBDD", p[2], o->nbdd, &o->nbdd_len);
 	}
       else
 	{

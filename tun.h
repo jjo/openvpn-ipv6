@@ -62,17 +62,30 @@ struct tuntap_options {
 
   bool dhcp_options;
 
-  const char *domain;      /* DOMAIN (15) */
+  const char *domain;        /* DOMAIN (15) */
 
-# define N_DNS 4           /* DNS (6) */
-  in_addr_t dns[N_DNS];
+  const char *netbios_scope; /* NBS (47) */
+
+  int netbios_node_type;     /* NBT 1,2,4,8 (46) */
+
+#define N_DHCP_ADDR 4        /* Max # of addresses allowed for
+			        DNS, WINS, etc. */
+
+  /* DNS (6) */
+  in_addr_t dns[N_DHCP_ADDR];
   int dns_len;
 
-# define N_WINS 4          /* WINS (44) */
-  in_addr_t wins[N_WINS];
+  /* WINS (44) */
+  in_addr_t wins[N_DHCP_ADDR];
   int wins_len;
 
-  int node_type;           /* NBT 1,2,4,8 (46) */
+  /* NTP (42) */
+  in_addr_t ntp[N_DHCP_ADDR];
+  int ntp_len;
+
+  /* NBDD (45) */
+  in_addr_t nbdd[N_DHCP_ADDR];
+  int nbdd_len;
 };
 
 #else

@@ -69,6 +69,7 @@
 #define D_MSS                LOGLEV(4, 42, 0)        /* show MSS adjustments */
 #define D_BACKTRACK          LOGLEV(4, 43, 0)        /* show replay backtracks */
 #define D_SEMAPHORE_LOW      LOGLEV(4, 44, 0)        /* show Win32 semaphore waits (low freq) */
+#define D_DHCP_OPT           LOGLEV(4, 45, 0)        /* show DHCP options binary string */
 
 #define D_LOG_RW             LOGLEV(5, 0,  0)        /* Print 'R' or 'W' to stdout for read/write */
 

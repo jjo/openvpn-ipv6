@@ -2061,13 +2061,19 @@ write_dhcp_str (struct buffer *buf, const int type, const char *str)
 static void
 build_dhcp_options_string (struct buffer *buf, const struct tuntap_options *o)
 {
-  int i;
-
   if (o->domain)
     write_dhcp_str (buf, 15, o->domain);
+
+  if (o->netbios_scope)
+    write_dhcp_str (buf, 47, o->netbios_scope);
+
+  if (o->netbios_node_type)
+    write_dhcp_u8 (buf, 46, o->netbios_node_type);
+
   write_dhcp_u32_array (buf, 6, o->dns, o->dns_len);
   write_dhcp_u32_array (buf, 44, o->wins, o->wins_len);
-  write_dhcp_u8 (buf, 46, o->node_type);
+  write_dhcp_u32_array (buf, 42, o->ntp, o->ntp_len);
+  write_dhcp_u32_array (buf, 45, o->nbdd, o->nbdd_len);
 }
 
 void
@@ -2232,6 +2238,7 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 	{
 	  struct buffer buf = alloc_buf (256);
 	  build_dhcp_options_string (&buf, &tt->options);
+	  msg (D_DHCP_OPT, "DHCP option string: %s", format_hex (BPTR (&buf), BLEN (&buf), 0));
 	  if (!DeviceIoControl (tt->hand, TAP_IOCTL_CONFIG_DHCP_SET_OPT,
 				BPTR (&buf), BLEN (&buf),
 				BPTR (&buf), BLEN (&buf), &len, NULL))

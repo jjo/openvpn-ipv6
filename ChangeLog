@@ -3,6 +3,14 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.03.xx -- Version 1.6-rc2
+
+* Fixed bug in Windows version where the node-type
+  dhcp option might have been passed even if it
+  was not specified.
+* Added some new --dhcp-option types for Windows
+  version.
+
 2004.03.02 -- Version 1.6-rc1
 
 * For Windows, make "--ip-win32 dynamic" the default.
