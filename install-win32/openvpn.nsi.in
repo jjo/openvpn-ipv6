@@ -63,7 +63,7 @@
 ;--------------------------------
 ;Modern UI Configuration
 
-  Name "${PRODUCT_NAME} ${TITLE_LABEL}"
+  Name "${PRODUCT_NAME} ${VERSION} ${TITLE_LABEL}"
 
   !define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of OpenVPN, an Open Source VPN package by James Yonan.\r\n\r\nNote that the Windows version of OpenVPN will only run on Win 2000, XP, or higher.\r\n\r\n\r\n"
 
@@ -214,6 +214,7 @@ Section "OpenVPN RSA Certificate Management Scripts" SecOpenVPNEasyRSA
   File "${MASTER}\easy-rsa\Windows\build-dh.bat"
   File "${MASTER}\easy-rsa\Windows\build-key-server.bat"
   File "${MASTER}\easy-rsa\Windows\build-key.bat"
+  File "${MASTER}\easy-rsa\Windows\build-key-pkcs12.bat"
   File "${MASTER}\easy-rsa\Windows\clean-all.bat"
   File "${MASTER}\easy-rsa\Windows\index.txt.start"
   File "${MASTER}\easy-rsa\Windows\revoke-full.bat"
@@ -568,6 +569,7 @@ Section "Uninstall"
   Delete "$INSTDIR\easy-rsa\build-dh.bat"
   Delete "$INSTDIR\easy-rsa\build-key-server.bat"
   Delete "$INSTDIR\easy-rsa\build-key.bat"
+  Delete "$INSTDIR\easy-rsa\build-key-pkcs12.bat"
   Delete "$INSTDIR\easy-rsa\clean-all.bat"
   Delete "$INSTDIR\easy-rsa\index.txt.start"
   Delete "$INSTDIR\easy-rsa\revoke-key.bat"

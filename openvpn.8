@@ -27,7 +27,7 @@
 .\" LP paragraph
 .\" IP indented paragraph
 .\" TP hanging label
-.TH openvpn 8 "2 February 2005"
+.TH openvpn 8 "18 February 2005"
 .\"*********************************************************
 .SH NAME
 openvpn \- secure IP tunnel daemon.
@@ -1351,6 +1351,17 @@ individual client instance objects, never to whole server itself.
 Note also in server mode that any internally generated signal
 which would normally cause a restart, will cause the deletion
 of the client instance object instead.
+
+In client mode, the
+.B --ping-restart
+parameter is set to 120 seconds by default.  This default will
+hold until the client pulls a replacement value from the server, based on
+the
+.B --keepalive
+setting in the server configuration.
+To disable the 120 second default, set
+.B --ping-restart 0
+on the client.
 
 See the signals section below for more information
 on

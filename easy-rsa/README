@@ -3,6 +3,10 @@ based on the openssl command line tool, that
 can be found in the easy-rsa subdirectory
 of the OpenVPN distribution.
 
+These are reference notes.  For step
+by step instructions, see the HOWTO:
+
+http://openvpn.net/howto.html
 INSTALL
 
 1. Edit vars.
@@ -39,7 +43,7 @@ BUILD YOUR OWN ROOT CERTIFICATE AUTHORITY (CA) CERTIFICATE/KEY
 2. ca.crt and ca.key will be built in your KEY_DIR
    directory
 
-BUILD AN INTERMEDIATE CERTIFICATE AUTHORITY CERTIFICATE/KEY
+BUILD AN INTERMEDIATE CERTIFICATE AUTHORITY CERTIFICATE/KEY (optional)
 
 1. ./build-inter inter
 2. inter.crt and inter.key will be built in your KEY_DIR
@@ -108,10 +112,13 @@ secure channel.
 
 1. ./build-key mycert (no password protection)
 2. OR ./build-key-pass mycert (with password protection)
-3. OR ./build-key-server mycert (with nsCertType=server)
-4. mycert.crt and mycert.key will be built in your
+3. OR ./build-key-pkcs12 mycert (PKCS #12 format)
+4. OR ./build-key-server mycert (with nsCertType=server)
+5. mycert.crt and mycert.key will be built in your
    KEY_DIR directory, and mycert.crt will be signed
-   by your root CA.
+   by your root CA. If ./build-key-pkcs12 was used a
+   mycert.p12 file will also be created including the
+   private key, certificate and the ca certificate.
 
 IMPORTANT
 

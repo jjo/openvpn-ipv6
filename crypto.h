@@ -42,7 +42,9 @@
 #include <openssl/hmac.h>
 #include <openssl/des.h>
 #include <openssl/md5.h>
+#if NTLM
 #include <openssl/md4.h>
+#endif
 #include <openssl/sha.h>
 #include <openssl/err.h>
 
