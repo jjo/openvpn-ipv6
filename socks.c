@@ -48,6 +48,13 @@
 
 #include "memdbg.h"
 
+
+void socks_adjust_frame_parameters (struct frame *frame, int proto)
+{
+  if (proto == PROTO_UDPv4)
+    frame_add_to_extra_buffer (frame, 10);
+}
+
 void
 init_socks_proxy (struct socks_proxy_info *p,
 		  const char *server,

@@ -1069,6 +1069,12 @@ openvpn (const struct options *options,
 #endif
 
   /*
+   * Adjust frame size for UDP Socks support.
+   */
+  if (options->socks_proxy_server)
+    socks_adjust_frame_parameters (&frame, options->proto);
+
+  /*
    * Adjust frame size based on the --tun-mtu-extra parameter.
    */
   if (options->tun_mtu_extra_defined)

@@ -561,6 +561,9 @@ link_socket_read_socks_udp (struct link_socket *sock,
 {
   int atyp;
 
+  if (BLEN(buf) < 10)
+    goto error;
+
   buf_read_u16 (buf);
   if (buf_read_u8 (buf) != 0)
     goto error;

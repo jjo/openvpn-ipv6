@@ -437,10 +437,15 @@ link_socket_read (struct link_socket *sock,
 {
   if (sock->proto == PROTO_UDPv4)
     {
+      int res;
+
+      if (sock->socks_proxy)
+	maxsize += 10;
+
 #ifdef WIN32
-      int res = link_socket_read_udp_win32 (sock, buf, from);
+      res = link_socket_read_udp_win32 (sock, buf, from);
 #else
-      int res = link_socket_read_udp_posix (sock, buf, maxsize, from);
+      res = link_socket_read_udp_posix (sock, buf, maxsize, from);
 #endif
 
       if (res > 0 && sock->socks_proxy)

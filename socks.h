@@ -39,6 +39,8 @@ struct socks_proxy_info {
   int port;
 };
 
+void socks_adjust_frame_parameters (struct frame *frame, int proto);
+
 void init_socks_proxy (struct socks_proxy_info *p,
 		       const char *server,
 		       int port,
