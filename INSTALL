@@ -38,7 +38,7 @@ SUPPORTED PLATFORMS:
 SUPPORTED PROCESSOR ARCHITECTURES:
    In general, OpenVPN is word size and endian independent, so
    most processors should be supported.  Architectures known to
-   work include Intel x86, Alpha, and Sparc.
+   work include Intel x86, Alpha, Sparc, and ARM.
 
 REQUIRES:
   (1) TUN and/or TAP driver to allow user-space programs to control
@@ -57,7 +57,7 @@ OPTIONAL (but recommended):
   (3) Pthread library.
 
 OPTIONAL (for developers only):
-  (1) Autoconf 2.50 or higher + Automake 1.6 or higher
+  (1) Autoconf 2.50 or higher + Automake 1.5 or higher
       -- available from http://www.gnu.org/software/software.html
   (2) Dmalloc library
       -- available from http://dmalloc.com/

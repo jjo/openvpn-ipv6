@@ -307,7 +307,7 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
       char command[512];
       struct buffer out;
       int ret;
-      buf_set_write (&out, command, sizeof (command));
+      buf_set_write (&out, (uint8_t*)command, sizeof (command));
       buf_printf (&out, "%s %d %s", verify_command, ctx->error_depth, txt);
       msg (D_TLS_DEBUG, "executing verify command: %s", command);
       ret = openvpn_system (command);
@@ -1520,13 +1520,17 @@ tls_process (struct tls_multi *multi,
 		}
 
 	      ASSERT (buf->len > 0);
-	      if (!session->opt->disable_occ && !options_cmp_equal (BPTR (buf), session->opt->options, buf->len))
+	      if (!session->opt->disable_occ &&
+		  !options_cmp_equal ((const char *)BPTR (buf),
+				      session->opt->options, buf->len))
 		{
 		  msg (D_TLS_ERRORS | M_WARN,
 		       "WARNING: TLS Error: Local ('%s') and Remote ('%s') options are incompatible -- NOTE: use --disable-occ to suppress this error",
 		       session->opt->options, BPTR (buf));
 #if 0
-		  status = 0; /* enable this line to make options incompatibility a handshake-fatal error */
+		  /* enable this line to make options incompatibility
+		     a handshake-fatal error */
+		  status = 0;
 #endif
 		}
 	      buf_clear (buf);

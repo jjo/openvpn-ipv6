@@ -799,7 +799,7 @@ get_tls_handshake_key (const struct key_type *key_type,
 
       /* get key material for hmac */
       {
-	int digest_len;
+	unsigned int digest_len;
 	uint8_t digest[MAX_HMAC_KEY_LENGTH];
 	EVP_MD_CTX md;
 

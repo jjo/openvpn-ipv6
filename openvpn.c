@@ -1165,8 +1165,8 @@ openvpn (const struct options *options,
        */
       if (!signal_received) {
 	msg (D_SELECT, "SELECT %s|%s|%s|%s %d/%d",
-	     FD_ISSET (tuntap->fd, &reads) ?     "TR" : "tr", 
-	     FD_ISSET (tuntap->fd, &writes) ?    "TW" : "tw", 
+	     (tuntap->fd >= 0 && FD_ISSET (tuntap->fd, &reads)) ? "TR" : "tr", 
+	     (tuntap->fd >= 0 && FD_ISSET (tuntap->fd, &writes)) ? "TW" : "tw", 
 	     FD_ISSET (udp_socket.sd, &reads) ?  "UR" : "ur",
 	     FD_ISSET (udp_socket.sd, &writes) ? "UW" : "uw",
 	     tv ? (int)tv->tv_sec : -1,

@@ -18,10 +18,13 @@ PLATFORM STATUS:
   * FreeBSD
   * NetBSD (experimental)
   * Windows (under development -- OpenVPN daemon has been
-    ported to Cygwin, but we still need a tun or tap
-    driver to be written for windows).
+    ported to Cygwin and MinGW, but we still need a tun
+    or tap driver to be written for windows).
   * 64 bit platforms -- I have heard reports that
     OpenVPN runs on Alpha Linux and FreeBSD.
+  * ARM -- I have heard of at least one case
+    where OpenVPN was successfully built and
+    run on the ARM architecture.
 
 PORTING NOTES:
 
