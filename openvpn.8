@@ -745,11 +745,6 @@ Prior to OpenVPN 1.5, this option was named
 While deprecated, this name will still be supported
 for compatibility.
 
-This option should only be used for TUN style tunnels.  TAP tunnels
-that are used for ethernet bridging should use the
-.B --tun-mtu
-parameter.
-
 The MTU (Maximum Transmission Units) is
 the maximum datagram size in bytes that can be sent unfragmented
 over a particular network path.  OpenVPN requires that packets
@@ -766,6 +761,10 @@ hang during periods of active usage.  The
 and
 .B --mssfix
 options are provided as workarounds to such problems.
+When using either of these options, it's best to
+set
+.B --tun-mtu
+to 1500.
 
 OpenVPN
 adds a small amount of overhead to each tunnel packet before
@@ -930,7 +929,7 @@ Therefore, one could lower the maximum UDP packet size
 to 1300 (a good first try for solving MTU-related
 connection problems) with the following options:
 
-.B --fragment 1300 --mssfix
+.B --tun-mtu 1500 --fragment 1300 --mssfix
 .TP
 .B --shaper n
 Limit bandwidth of outgoing tunnel data to
@@ -979,7 +978,8 @@ if no packets have been sent for at least
 .B n
 seconds (specify
 .B --ping
-on both peers to cause ping packets to be sent in both directions).
+on both peers to cause ping packets to be sent in both directions since
+OpenVPN ping packets are not echoed like IP ping packets).
 When used in one of OpenVPN's secure modes (where
 .B --secret, --tls-server,
 or
@@ -1631,7 +1631,7 @@ your peer (such as
 fact that your key never changes unless you manually generate a new one,
 makes it somewhat less secure than TLS mode (see below).  If an attacker
 manages to steal your key, everything that was ever encrypted with
-it is compromised.  Contrast that to the perfect forward security features of
+it is compromised.  Contrast that to the perfect forward secrecy features of
 TLS mode (using Diffie Hellman key exchange), where even if an attacker
 was able to steal your private key, he would gain no information to help
 him decrypt past sessions.
@@ -1916,7 +1916,7 @@ any mediation.  The result is the best of both worlds: a fast data channel
 that forwards over UDP with only the overhead of encrypt,
 decrypt, and HMAC functions,
 and a control channel that provides all of the security features of TLS,
-including certificate-based authentication and Diffie Hellman forward security.
+including certificate-based authentication and Diffie Hellman forward secrecy.
 
 To use TLS mode, each peer that runs OpenVPN should have its own local
 certificate/key pair (
