@@ -197,8 +197,18 @@ void frame_print (const struct frame *frame, int level, const char *prefix);
 void set_mtu_discover_type (int sd, int mtu_type);
 int translate_mtu_discover_type_name (const char *name);
 
+/*
+ * EXTENDED_SOCKET_ERROR_CAPABILITY functions -- print extra error info
+ * on socket errors, such as PMTU size.  As of 2003.05.11, only works
+ * on Linux 2.4.
+ */
+
+#if EXTENDED_SOCKET_ERROR_CAPABILITY
+
 void set_sock_extended_error_passing (int sd);
-int format_extended_socket_error (int fd, struct buffer *out);
+const char *format_extended_socket_error (int fd, int* mtu);
+
+#endif
 
 /*
  * Inline functions

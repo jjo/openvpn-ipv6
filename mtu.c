@@ -254,90 +254,97 @@ translate_mtu_discover_type_name (const char *name)
 
 struct probehdr
 {
-	__u32 ttl;
-	struct timeval tv;
+  uint32_t ttl;
+  struct timeval tv;
 };
 
-int
-format_extended_socket_error (int fd, struct buffer *out)
+const char *
+format_extended_socket_error (int fd, int* mtu)
 {
   int res;
   struct probehdr rcvbuf;
-  char cbuf[512];
   struct iovec iov;
   struct msghdr msg;
   struct cmsghdr *cmsg;
   struct sock_extended_err *e;
   struct sockaddr_in addr;
-  int mtu = 0;
+  struct buffer out = alloc_buf_gc (512);
+  char cbuf[512];
 
-restart:
-  memset (&rcvbuf, -1, sizeof (rcvbuf));
-  iov.iov_base = &rcvbuf;
-  iov.iov_len = sizeof (rcvbuf);
-  msg.msg_name = (__u8 *) & addr;
-  msg.msg_namelen = sizeof (addr);
-  msg.msg_iov = &iov;
-  msg.msg_iovlen = 1;
-  msg.msg_flags = 0;
-  msg.msg_control = cbuf;
-  msg.msg_controllen = sizeof (cbuf);
+  *mtu = 0;
 
-  res = recvmsg (fd, &msg, MSG_ERRQUEUE);
-  if (res < 0)
-    return mtu;
-
-  e = NULL;
-
-  for (cmsg = CMSG_FIRSTHDR (&msg); cmsg; cmsg = CMSG_NXTHDR (&msg, cmsg))
+  while (true)
     {
-      if (cmsg->cmsg_level == SOL_IP)
+      memset (&rcvbuf, -1, sizeof (rcvbuf));
+      iov.iov_base = &rcvbuf;
+      iov.iov_len = sizeof (rcvbuf);
+      msg.msg_name = (uint8_t *) &addr;
+      msg.msg_namelen = sizeof (addr);
+      msg.msg_iov = &iov;
+      msg.msg_iovlen = 1;
+      msg.msg_flags = 0;
+      msg.msg_control = cbuf;
+      msg.msg_controllen = sizeof (cbuf);
+
+      res = recvmsg (fd, &msg, MSG_ERRQUEUE);
+      if (res < 0)
+	goto exit;
+
+      e = NULL;
+
+      for (cmsg = CMSG_FIRSTHDR (&msg); cmsg; cmsg = CMSG_NXTHDR (&msg, cmsg))
 	{
-	  if (cmsg->cmsg_type == IP_RECVERR)
+	  if (cmsg->cmsg_level == SOL_IP)
 	    {
-	      e = (struct sock_extended_err *) CMSG_DATA (cmsg);
-	    }
-	  else
-	    {
-	      buf_printf (out ,"CMSG=%d|", cmsg->cmsg_type);
+	      if (cmsg->cmsg_type == IP_RECVERR)
+		{
+		  e = (struct sock_extended_err *) CMSG_DATA (cmsg);
+		}
+	      else
+		{
+		  buf_printf (&out ,"CMSG=%d|", cmsg->cmsg_type);
+		}
 	    }
 	}
-    }
-  if (e == NULL)
-    {
-      buf_printf (out, "NO-INFO|");
-      return 0;
+      if (e == NULL)
+	{
+	  buf_printf (&out, "NO-INFO|");
+	  goto exit;
+	}
+
+      switch (e->ee_errno)
+	{
+	case ETIMEDOUT:
+	  buf_printf (&out, "ETIMEDOUT|");
+	  break;
+	case EMSGSIZE:
+	  buf_printf (&out, "EMSGSIZE Path-MTU=%d|", e->ee_info);
+	  *mtu = e->ee_info;
+	  break;
+	case ECONNREFUSED:
+	  buf_printf (&out, "ECONNREFUSED|");
+	  break;
+	case EPROTO:
+	  buf_printf (&out, "EPROTO|");
+	  break;
+	case EHOSTUNREACH:
+	  buf_printf (&out, "EHOSTUNREACH|");
+	  break;
+	case ENETUNREACH:
+	  buf_printf (&out, "ENETUNREACH|");
+	  break;
+	case EACCES:
+	  buf_printf (&out, "EACCES|");
+	  break;
+	default:
+	  buf_printf (&out, "UNKNOWN|");
+	  break;
+	}
     }
 
-  switch (e->ee_errno)
-    {
-    case ETIMEDOUT:
-      buf_printf (out, "ETIMEDOUT|");
-      break;
-    case EMSGSIZE:
-      buf_printf (out, "EMSGSIZE Path-MTU=%d|", e->ee_info);
-      mtu = e->ee_info;
-      break;
-    case ECONNREFUSED:
-      buf_printf (out, "ECONNREFUSED|");
-      break;
-    case EPROTO:
-      buf_printf (out, "EPROTO|");
-      break;
-    case EHOSTUNREACH:
-      buf_printf (out, "EHOSTUNREACH|");
-      break;
-    case ENETUNREACH:
-      buf_printf (out, "ENETUNREACH|");
-      break;
-    case EACCES:
-      buf_printf (out, "EACCES|");
-      break;
-    default:
-      buf_printf (out, "UNKNOWN|");
-      break;
-    }
-  goto restart;
+ exit:
+  buf_chomp (&out, '|');
+  return BSTR (&out);
 }
 
 void
@@ -349,17 +356,4 @@ set_sock_extended_error_passing (int sd)
 	 "Note: enable extended error passing on UDP socket failed (IP_RECVERR)");
 }
 
-#else
-
-void
-set_sock_extended_error_passing (int sd)
-{
-}
-
-int
-format_extended_socket_error (int fd, struct buffer *out)
-{
-  return 0;
-}
-
-#endif /* EXTENDED_SOCKET_ERROR_CAPABILITY */
+#endif

@@ -29,6 +29,7 @@
 #include "buffer.h"
 #include "common.h"
 #include "error.h"
+#include "mtu.h"
 
 /* persistant across SIGUSR1s */
 struct udp_socket_addr
@@ -117,7 +118,7 @@ void x_check_status (int status, const char *description, struct udp_socket *soc
 static inline void
 check_status (int status, const char *description, struct udp_socket *sock)
 {
-  if ((status < 0 && errno != EAGAIN) || check_debug_level (x_cs_verbose_level))
+  if (status < 0 || check_debug_level (x_cs_verbose_level))
     x_check_status (status, description, sock);
 }
 

@@ -8,6 +8,11 @@ Upcoming Version 1.4.1
 * Modified the Linux 2.4 TUN/TAP open code to
   fall back to the 2.2 TUN/TAP interface if the
   open or ioctl fails.
+* Fixed bug when --verb is set to 0 and non-fatal
+  socket errors occur, causing 100% CPU utilization.
+  Occurs on platorms where
+  EXTENDED_SOCKET_ERROR_CAPABILITY is defined,
+  such as Linux 2.4.
 
 2003.05.07 -- Version 1.4.0
 

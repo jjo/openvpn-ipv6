@@ -416,7 +416,7 @@ time_string (time_t t)
   mutex_lock (L_CTIME);
   buf_printf (&out, "%s", ctime (&t));
   mutex_unlock (L_CTIME);
-  buf_chomp (&out);
+  buf_chomp (&out, '\n');
 
   return BSTR (&out);
 }

@@ -28,9 +28,7 @@
 #include "syshead.h"
 
 #include "socket.h"
-#include "mtu.h"
 #include "fdmisc.h"
-#include "error.h"
 #include "thread.h"
 #include "misc.h"
 
@@ -58,33 +56,38 @@ set_check_status (unsigned int info_level, unsigned int verbose_level)
 /*
  * Called after most socket operations, via the inline function check_status().
  * Decide if we should print an error message, and see if we can extract any useful
- * info from the error, such as a Path MTU value.
+ * info from the error, such as a Path MTU hint from the OS.
  */
 void
 x_check_status (int status, const char *description, struct udp_socket *sock)
 {
   const int my_errno = errno;
+  const char *extended_msg = NULL;
+
   msg (x_cs_verbose_level, "%s returned %d", description, status);
-  if (status < 0 && check_debug_level (x_cs_info_level))
+
+  if (status < 0)
     {
-      const unsigned int lev = x_cs_info_level | EMBEDDED_ERRNO_MASK (my_errno);
+#if EXTENDED_SOCKET_ERROR_CAPABILITY
+      /* get extended socket error message and possible PMTU hint from OS */
       if (sock)
 	{
-	  struct buffer out = alloc_buf_gc (512);
-	  const int mtu = format_extended_socket_error (sock->sd, &out);
+	  int mtu;
+	  extended_msg = format_extended_socket_error (sock->sd, &mtu);
 	  if (mtu > 0 && sock->mtu != mtu)
 	    {
 	      sock->mtu = mtu;
 	      sock->mtu_changed = true;
 	    }
-	  if (out.len)
-	      msg (lev, "%s [%s]", description, BPTR(&out));
-	    else
-	      msg (lev, "%s", description);
 	}
-      else
+#endif
+      if (my_errno != EAGAIN)
 	{
-	  msg (lev, "%s", description);
+	  const unsigned int lev = x_cs_info_level | EMBEDDED_ERRNO_MASK (my_errno);
+	  if (extended_msg)
+	    msg (lev, "%s [%s]", description, extended_msg);
+	  else
+	    msg (lev, "%s", description);
 	}
     }
 }
@@ -225,8 +228,10 @@ udp_socket_init (struct udp_socket *sock,
   /* set Path MTU discovery options on the socket */
   set_mtu_discover_type (sock->sd, mtu_discover_type);
 
+#if EXTENDED_SOCKET_ERROR_CAPABILITY
   /* if the OS supports it, enable extended error passing on the socket */
   set_sock_extended_error_passing (sock->sd);
+#endif
 
   /* print local and active remote address */
   if (sock->sd == INETD_SOCKET_DESCRIPTOR)

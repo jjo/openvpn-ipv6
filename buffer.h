@@ -39,7 +39,7 @@ struct buffer
 
 #define BPTR(buf)  ((buf)->data + (buf)->offset)
 #define BEND(buf)  (BPTR(buf) + (buf)->len)
-#define BLAST(buf) ((buf)->len ? BPTR(buf) + (buf)->len - 1 : NULL)
+#define BLAST(buf) (((buf)->data && (buf)->len) ? (BPTR(buf) + (buf)->len - 1) : NULL)
 #define BLEN(buf)  ((buf)->len)
 #define BDEF(buf)  ((buf)->data != NULL)
 #define BSTR(buf)  (char *)BPTR(buf)
@@ -126,10 +126,10 @@ void buf_printf (struct buffer *buf, const char *format, ...)
  * remove trailing newline
  */
 static inline void
-buf_chomp (struct buffer *buf)
+buf_chomp (struct buffer *buf, uint8_t remove)
 {
   uint8_t *cp = BLAST(buf);
-  if (cp && *cp == '\n')
+  if (cp && *cp == remove)
     {
       *cp = '\0'; 
       --buf->len;
