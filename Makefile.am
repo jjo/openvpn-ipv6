@@ -43,7 +43,7 @@ man_MANS = openvpn.8
 EXTRA_DIST = $(man_MANS) \
 	     COPYRIGHT.GPL PORTS openvpn.spec \
 	     easy-rsa sample-config-files sample-keys \
-	     sample-scripts openvpn.spec.in \
+	     sample-scripts gentoo openvpn.spec.in \
 	     config-win32.h \
 	     openvpn-win32.h \
 	     openvpn-win32.c \

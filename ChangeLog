@@ -32,7 +32,7 @@ Upcoming Version 1.4.2
   of OpenVPN when built by compilers that
   lack ISO C99 vararg macros (1.4.1.6).
 * Created an init script for Gentoo Linux
-  in sample-scripts directory (1.4.1.6).
+  in ./gentoo directory (1.4.1.6).
 
 2003.05.15 -- Version 1.4.1
 
