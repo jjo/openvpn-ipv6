@@ -115,6 +115,10 @@
 #include <netdb.h>
 #endif
 
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+
 #ifdef HAVE_ARPA_INET_H
 #ifndef TARGET_OPENBSD
 #include <arpa/inet.h>
@@ -148,10 +152,6 @@
 #include <sys/sockio.h>
 #endif
 
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-
 #ifdef HAVE_NETINET_IN_SYSTM_H
 #include <netinet/in_systm.h>
 #endif
@@ -172,10 +172,6 @@
 #include <sys/uio.h>
 #endif
 
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-
 #ifdef HAVE_NET_IF_TUN_H
 #include <net/if_tun.h>
 #endif
@@ -191,6 +187,9 @@
 #endif /* TARGET_FREEBSD */
 
 #ifdef HAVE_SYS_MMAN_H
+#ifdef TARGET_DARWIN
+#define _P1003_1B_VISIBLE
+#endif /* TARGET_DARWIN */
 #include <sys/mman.h>
 #endif
 

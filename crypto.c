@@ -721,6 +721,7 @@ test_crypto (const struct crypto_options *co, struct frame* frame)
   for (i = 1; i <= MTU_SIZE (frame); ++i)
     {
       const time_t current = time (NULL);
+      uint8_t iv_save[EVP_MAX_IV_LENGTH];
 
       msg (M_INFO, "TESTING ENCRYPT/DECRYPT of packet length=%d", i);
 
@@ -736,8 +737,17 @@ test_crypto (const struct crypto_options *co, struct frame* frame)
       buf = work;
       memcpy (buf_write_alloc (&buf, BLEN (&src)), BPTR (&src), BLEN (&src));
 
+      /* save IV */
+      memcpy (iv_save, co->iv, EVP_MAX_IV_LENGTH);
+
       /* encrypt */
       openvpn_encrypt (&buf, encrypt_workspace, co, frame, current);
+
+      /* make sure IV changed */
+      if (!memcmp (iv_save, co->iv, EVP_MAX_IV_LENGTH))
+	  msg (M_FATAL, "IV Collision: before:%s after:%s",
+	       format_hex (iv_save, EVP_MAX_IV_LENGTH, 0),
+	       format_hex (co->iv, EVP_MAX_IV_LENGTH, 0));
 
       /* decrypt */
       openvpn_decrypt (&buf, decrypt_workspace, co, frame, current);

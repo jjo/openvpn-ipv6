@@ -38,7 +38,7 @@ test $TEST_TYPE $FILE || {
 }
 
 # Let's have a fresh start
-rm -f *.o openvpn config.cache configure Makefile stamp-h* config.log config.status config.h config.h.in aclocal.m4
+rm -f *.o openvpn config.cache configure Makefile Makefile.in stamp-h* config.log config.status config.h config.h.in aclocal.m4
 
 aclocal $ACLOCAL_FLAGS || exit 1
 
