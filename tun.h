@@ -224,16 +224,25 @@ ifconfig_order(void)
 
 /* --ip-win32 constants */
 
-#define IP_SET_MANUAL      0  /* "manual" */
-#define IP_SET_NETSH       1  /* "netsh" */
-#define IP_SET_IPAPI       2  /* "ipapi" */
-#define IP_SET_DHCP        3  /* "dhcp" */
+#define IPW32_SET_MANUAL       0  /* "manual" */
+#define IPW32_SET_NETSH        1  /* "netsh" */
+#define IPW32_SET_IPAPI        2  /* "ipapi" */
+#define IPW32_SET_DHCP_MASQ    3  /* "dynamic" */
 
-#define IP_SET_N           4
-#define IP_SET_MASK        3
+#define IPW32_SET_N            4
+#define IPW32_SET_MASK         3
 
-#define TUNTAP_SLEEP_SHIFT    2
-#define TUNTAP_SLEEP_MASK  0xFF
+#define IPW32_DEFINED                     0x04 /* if true, --ip-win32 parameter was used */
+#define IPW32_DHCP_MASQ_HIOFF             0x08 /* if false, low offset; if true, high offset */
+#define IPW32_DHCP_MASQ_LEASE_TIME_SHORT  0x10 /* if true, short lease time, if false, long lease time */
+
+#define IPW32_DHCP_MASQ_OFFSET_SHIFT    5
+#define IPW32_DHCP_MASQ_OFFSET_MASK  0xFF
+
+/* --tap-sleep parameter */
+
+#define TUNTAP_SLEEP_SHIFT     13
+#define TUNTAP_SLEEP_MASK    0xFF
 
 int ascii2ipset (const char* name);
 const char *ipset2ascii (int index);
@@ -256,6 +265,7 @@ void verify_255_255_255_252 (in_addr_t local, in_addr_t remote);
 void show_tap_win32_adapters (void);
 void show_valid_win32_tun_subnets (void);
 const char *tap_win32_getinfo (struct tuntap *tt);
+void tun_show_debug (struct tuntap *tt);
 
 int tun_read_queue (struct tuntap *tt, int maxsize);
 int tun_write_queue (struct tuntap *tt, struct buffer *buf);

@@ -30,6 +30,16 @@
 #pragma pack(1)
 
 //
+// How many bad DHCPREQUESTs do we receive before we
+// return a NAK?
+//
+// A bad DHCPREQUEST is defined to be one where the
+// requestor doesn't know its IP address.
+//
+
+#define BAD_DHCPREQUEST_NAK_THRESHOLD 3
+
+//
 // UDP port numbers of DHCP messages.
 //
 
@@ -100,6 +110,8 @@ typedef struct {
   DHCPOPT8 msg_type;
   DHCPOPT32 server_id;
   DHCPOPT32 lease_time;
+  DHCPOPT32 renew_time;
+  DHCPOPT32 rebind_time;
   DHCPOPT32 netmask;
   DHCPOPT0 end;
 } DHCP_OFFER_ACK;

@@ -45,11 +45,14 @@
 typedef unsigned int in_addr_t;
 typedef unsigned int ssize_t;
 
-#define FRAGMENT_ENABLE
+/* Should we print debug info from driver? */
+/* #define TAP_WIN32_DEBUG */
 
-// Minimum TAP-Win32 version number expected by userspace
+/* Minimum TAP-Win32 version number expected by userspace */
 #define TAP_WIN32_MIN_MAJOR 4
-#define TAP_WIN32_MIN_MINOR 2
+#define TAP_WIN32_MIN_MINOR 25
+
+#define FRAGMENT_ENABLE
 
 /* Define to 1 if you have the `chdir' function. */
 #define HAVE_CHDIR 1

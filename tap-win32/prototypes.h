@@ -173,6 +173,11 @@ VOID InjectPacket
     const unsigned int len
    );
 
+VOID CheckIfDhcpAndPointToPointMode
+   (
+    TapAdapterPointer p_Adapter
+   );
+
 VOID HookDispatchFunctions();
 
 #endif

@@ -32,6 +32,7 @@
 #include "mtu.h"
 #include "io.h"
 #include "proxy.h"
+#include "socks.h"
 
 /* 
  * packet_size_type is used communicate packet size
@@ -108,6 +109,7 @@ struct link_socket
 #endif
 
   socket_descriptor_t sd;
+  socket_descriptor_t ctrl_sd;  /* only used for UDP over Socks */
 
   /* set on initial call to init phase 1 */
   const char *local_host;
@@ -117,7 +119,12 @@ struct link_socket
   int proto;                    /* Protocol (PROTO_x defined below) */
   bool bind_local;
   bool remote_float;
-  bool inetd;
+
+# define INETD_NONE   0
+# define INETD_WAIT   1
+# define INETD_NOWAIT 2
+  int inetd;
+
   struct link_socket_addr *lsa;
   const char *ipchange_command;
   int resolve_retry_seconds;
@@ -139,6 +146,10 @@ struct link_socket
 
   /* HTTP proxy */
   struct http_proxy_info *http_proxy;
+
+  /* Socks proxy */
+  struct socks_proxy_info *socks_proxy;
+  struct sockaddr_in socks_relay; /* Socks UDP relay address */
 
   /* The OpenVPN server we will use the proxy to connect to */
   const char *proxy_dest_host;
@@ -178,6 +189,14 @@ int socket_finalize (
 
 #endif
 
+int link_socket_read_socks_udp (struct link_socket *sock,
+				struct buffer *buf,
+				struct sockaddr_in *from);
+
+int link_socket_write_socks_udp (struct link_socket *sock,
+				 struct buffer *buf,
+				 struct sockaddr_in *to);
+
 void link_socket_reset (struct link_socket *sock);
 
 void link_socket_init_phase1 (struct link_socket *sock,
@@ -186,10 +205,11 @@ void link_socket_init_phase1 (struct link_socket *sock,
 			      int local_port,
 			      int remote_port,
 			      int proto,
-			      struct http_proxy_info *proxy_info,
+			      struct http_proxy_info *http_proxy,
+			      struct socks_proxy_info *socks_proxy,
 			      bool bind_local,
 			      bool remote_float,
-			      bool inetd,
+			      int inetd,
 			      struct link_socket_addr *lsa,
 			      const char *ipchange_command,
 			      int resolve_retry_seconds,
@@ -418,10 +438,17 @@ link_socket_read (struct link_socket *sock,
   if (sock->proto == PROTO_UDPv4)
     {
 #ifdef WIN32
-      return link_socket_read_udp_win32 (sock, buf, from);
+      int res = link_socket_read_udp_win32 (sock, buf, from);
 #else
-      return link_socket_read_udp_posix (sock, buf, maxsize, from);
+      int res = link_socket_read_udp_posix (sock, buf, maxsize, from);
 #endif
+
+      if (res > 0 && sock->socks_proxy)
+        {
+	  res = link_socket_read_socks_udp (sock, buf, from);
+	}
+
+      return res;
     }
   else if (sock->proto == PROTO_TCPv4_SERVER || sock->proto == PROTO_TCPv4_CLIENT)
     {
@@ -495,11 +522,18 @@ link_socket_write_udp (struct link_socket *sock,
 		       struct buffer *buf,
 		       struct sockaddr_in *to)
 {
+  if (sock->socks_proxy)
+    {
+      return link_socket_write_socks_udp (sock, buf, to);
+    }
+  else
+    {
 #ifdef WIN32
-  return link_socket_write_win32 (sock, buf, to);
+      return link_socket_write_win32 (sock, buf, to);
 #else
-  return link_socket_write_udp_posix (sock, buf, to);
+      return link_socket_write_udp_posix (sock, buf, to);
 #endif
+    }
 }
 
 static inline int

@@ -39,6 +39,17 @@
 
 #if DBG
 
+typedef struct {
+  unsigned int in;
+  unsigned int out;
+  unsigned int capacity;
+  char *text;
+  BOOLEAN error;
+  LONG use;
+} DebugOutput;
+
+VOID MyDebugPrint (const unsigned char* format, ...);
+
 VOID MyAssert (const unsigned char *file, int line);
 
 VOID DumpPacket (const char *prefix,
@@ -50,7 +61,7 @@ VOID DumpPacket2 (const char *prefix,
 		  const unsigned char *data,
 		  unsigned int len);
 
-#define DEBUGP(fmt) { DbgPrint fmt; }
+#define DEBUGP(fmt) { MyDebugPrint fmt; }
 
 #define MYASSERT(exp) \
 { \

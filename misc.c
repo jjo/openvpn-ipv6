@@ -680,3 +680,30 @@ safe_string (char *cp)
       ++cp;
     }
 }
+
+
+/*
+ * taken from busybox networking/ifupdown.c
+ */
+unsigned int
+count_bits(unsigned int a)
+{
+  unsigned int result;
+  result = (a & 0x55) + ((a >> 1) & 0x55);
+  result = (result & 0x33) + ((result >> 2) & 0x33);
+  return((result & 0x0F) + ((result >> 4) & 0x0F));
+}
+
+int
+count_netmask_bits(const char *dotted_quad)
+{
+  unsigned int result, a, b, c, d;
+  /* Found a netmask...  Check if it is dotted quad */
+  if (sscanf(dotted_quad, "%u.%u.%u.%u", &a, &b, &c, &d) != 4)
+    return -1;
+  result = count_bits(a);
+  result += count_bits(b);
+  result += count_bits(c);
+  result += count_bits(d);
+  return ((int)result);
+}

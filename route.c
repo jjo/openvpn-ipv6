@@ -545,14 +545,22 @@ add_route (struct route *r)
   gateway = print_in_addr_t (r->gateway, false);
 
 #if defined(TARGET_LINUX)
+#ifdef CONFIG_FEATURE_IPROUTE
+  buf_printf (&buf, IPROUTE_PATH " route add %s/%d via %s",
+	      network,
+	      count_netmask_bits(netmask),
+	      gateway);
+  if (r->metric_defined)
+    buf_printf (&buf, " metric %d", r->metric);
 
+#else
   buf_printf (&buf, ROUTE_PATH " add -net %s netmask %s gw %s",
 	      network,
 	      netmask,
 	      gateway);
   if (r->metric_defined)
     buf_printf (&buf, " metric %d", r->metric);
-
+#endif  /*CONFIG_FEATURE_IPROUTE*/
   msg (D_ROUTE, "%s", BSTR (&buf));
   status = system_check (BSTR (&buf), "ERROR: Linux route add command failed", false);
 
@@ -650,11 +658,16 @@ delete_route (const struct route *r)
   gateway = print_in_addr_t (r->gateway, false);
 
 #if defined(TARGET_LINUX)
+#ifdef CONFIG_FEATURE_IPROUTE
+  buf_printf (&buf, IPROUTE_PATH " route del %s/%d",
+	      network,
+	      count_netmask_bits(netmask));
+#else
 
   buf_printf (&buf, ROUTE_PATH " del -net %s netmask %s",
 	      network,
 	      netmask);
-
+#endif /*CONFIG_FEATURE_IPROUTE*/
   msg (D_ROUTE, "%s", BSTR (&buf));
   system_check (BSTR (&buf), "ERROR: Linux route delete command failed", false);
 

@@ -259,7 +259,7 @@ SendDHCPOFFERACK (TapAdapterPointer a,
 		  const UDPHDR *udp,
 		  const DHCP *dhcp)
 {
-  DHCP_OFFER_ACK *pkt = (DHCP_OFFER_ACK *) MemAllocZeroed (sizeof (DHCP_OFFER_ACK));
+  DHCP_OFFER_ACK *pkt = (DHCP_OFFER_ACK *) MemAlloc (sizeof (DHCP_OFFER_ACK), TRUE);
 
   if (pkt)
     {
@@ -280,6 +280,12 @@ SendDHCPOFFERACK (TapAdapterPointer a,
 
       // Lease Time
       SET_DHCP_OPT (pkt->lease_time, DHCP_LEASE_TIME, htonl (a->m_lease_time));
+
+      // Renewal Time
+      SET_DHCP_OPT (pkt->renew_time, DHCP_RENEW_TIME, htonl (a->m_renew_time));
+
+      // Rebind Time
+      SET_DHCP_OPT (pkt->rebind_time, DHCP_REBIND_TIME, htonl (a->m_rebind_time));
 
       // Netmask
       SET_DHCP_OPT (pkt->netmask, DHCP_NETMASK, a->m_dhcp_netmask);
@@ -308,11 +314,14 @@ SendDHCPNAK (TapAdapterPointer a,
 	     const UDPHDR *udp,
 	     const DHCP *dhcp)
 {
-  DHCP_NAK *pkt = (DHCP_NAK *) MemAllocZeroed (sizeof (DHCP_NAK));
+  DHCP_NAK *pkt = (DHCP_NAK *) MemAlloc (sizeof (DHCP_NAK), TRUE);
 
   if (pkt)
     {
       const int optlen = sizeof (DHCP_NAK) - sizeof (DHCPPRE);
+
+      // reset bad DHCPREQUEST counter
+      a->m_bad_requests = 0;
 
       // Most of the DHCP message gets built here
       BuildDHCPPRE (a, eth, ip, udp, dhcp, &pkt->pre, optlen, FALSE);
@@ -382,10 +391,21 @@ ProcessDHCP (TapAdapterPointer p_Adapter,
     return TRUE;
 
   // Should we reply with DHCPOFFER, DHCPACK, or DHCPNAK?
-  if (msg_type == DHCPREQUEST && dhcp->ciaddr && dhcp->ciaddr != p_Adapter->m_dhcp_addr)
+  if (msg_type == DHCPREQUEST
+      && ((dhcp->ciaddr && dhcp->ciaddr != p_Adapter->m_dhcp_addr)
+	  || !p_Adapter->m_received_discover
+	  || p_Adapter->m_bad_requests >= BAD_DHCPREQUEST_NAK_THRESHOLD))
     SendDHCPNAK (p_Adapter, eth, ip, udp, dhcp);
   else
     SendDHCPOFFERACK (p_Adapter, (msg_type == DHCPDISCOVER), eth, ip, udp, dhcp);
+
+  // Remember if we received a DHCPDISCOVER
+  if (msg_type == DHCPDISCOVER)
+    p_Adapter->m_received_discover = TRUE;
+
+  // Is this a bad DHCPREQUEST?
+  if (msg_type == DHCPREQUEST && dhcp->ciaddr != p_Adapter->m_dhcp_addr)
+    ++p_Adapter->m_bad_requests;
 
   return TRUE;
 }
@@ -453,86 +473,86 @@ DumpDHCP (const ETH_HEADER *eth,
 	  const DHCP *dhcp,
 	  const int optlen)
 {
-  DbgPrint (" %s", message_op_text (dhcp->op));
-  DbgPrint (" %s ", message_type_text (GetDHCPMessageType (dhcp, optlen)));
+  DEBUGP ((" %s", message_op_text (dhcp->op)));
+  DEBUGP ((" %s ", message_type_text (GetDHCPMessageType (dhcp, optlen))));
   PrIP (ip->saddr);
-  DbgPrint (":%s[", port_name (ntohs (udp->source)));
+  DEBUGP ((":%s[", port_name (ntohs (udp->source))));
   PrMac (eth->src);
-  DbgPrint ("] -> ");
+  DEBUGP (("] -> "));
   PrIP (ip->daddr);
-  DbgPrint (":%s[", port_name (ntohs (udp->dest)));
+  DEBUGP ((":%s[", port_name (ntohs (udp->dest))));
   PrMac (eth->dest);
-  DbgPrint ("]");
+  DEBUGP (("]"));
   if (dhcp->ciaddr)
     {
-      DbgPrint (" ci=");
+      DEBUGP ((" ci="));
       PrIP (dhcp->ciaddr);
     }
   if (dhcp->yiaddr)
     {
-      DbgPrint (" yi=");
+      DEBUGP ((" yi="));
       PrIP (dhcp->yiaddr);
     }
   if (dhcp->siaddr)
     {
-      DbgPrint (" si=");
+      DEBUGP ((" si="));
       PrIP (dhcp->siaddr);
     }
   if (dhcp->hlen == sizeof (MACADDR))
     {
-      DbgPrint (" ch=");
+      DEBUGP ((" ch="));
       PrMac (dhcp->chaddr);
     }
 
-  DbgPrint (" xid=0x%08x", ntohl (dhcp->xid));
+  DEBUGP ((" xid=0x%08x", ntohl (dhcp->xid)));
 
   if (ntohl (dhcp->magic) != 0x63825363)
-    DbgPrint (" ma=0x%08x", ntohl (dhcp->magic));
+    DEBUGP ((" ma=0x%08x", ntohl (dhcp->magic)));
   if (dhcp->htype != 1)
-    DbgPrint (" htype=%d", dhcp->htype);
+    DEBUGP ((" htype=%d", dhcp->htype));
   if (dhcp->hops)
-    DbgPrint (" hops=%d", dhcp->hops);
+    DEBUGP ((" hops=%d", dhcp->hops));
   if (ntohs (dhcp->secs))
-    DbgPrint (" secs=%d", ntohs (dhcp->secs));
+    DEBUGP ((" secs=%d", ntohs (dhcp->secs)));
   if (ntohs (dhcp->flags))
-    DbgPrint (" flags=0x%04x", ntohs (dhcp->flags));
+    DEBUGP ((" flags=0x%04x", ntohs (dhcp->flags)));
 
   // extra stuff
   
   if (ip->version_len != 0x45)
-    DbgPrint (" vl=0x%02x", ip->version_len);
+    DEBUGP ((" vl=0x%02x", ip->version_len));
   if (ntohs (ip->tot_len) != sizeof (IPHDR) + sizeof (UDPHDR) + sizeof (DHCP) + optlen)
-    DbgPrint (" tl=%d", ntohs (ip->tot_len));
+    DEBUGP ((" tl=%d", ntohs (ip->tot_len)));
   if (ntohs (udp->len) != sizeof (UDPHDR) + sizeof (DHCP) + optlen)
-    DbgPrint (" ul=%d", ntohs (udp->len));
+    DEBUGP ((" ul=%d", ntohs (udp->len)));
 
   if (ip->tos)
-    DbgPrint (" tos=0x%02x", ip->tos);
+    DEBUGP ((" tos=0x%02x", ip->tos));
   if (ntohs (ip->id))
-    DbgPrint (" id=0x%04x", ntohs (ip->id));
+    DEBUGP ((" id=0x%04x", ntohs (ip->id)));
   if (ntohs (ip->frag_off))
-    DbgPrint (" frag_off=0x%04x", ntohs (ip->frag_off));
+    DEBUGP ((" frag_off=0x%04x", ntohs (ip->frag_off)));
   
-  DbgPrint (" ttl=%d", ip->ttl);
-  DbgPrint (" ic=0x%04x [0x%04x]", ntohs (ip->check),
-	    ip_checksum ((UCHAR*)ip, sizeof (IPHDR)));
-  DbgPrint (" uc=0x%04x [0x%04x/%d]", ntohs (udp->check),
+  DEBUGP ((" ttl=%d", ip->ttl));
+  DEBUGP ((" ic=0x%04x [0x%04x]", ntohs (ip->check),
+	    ip_checksum ((UCHAR*)ip, sizeof (IPHDR))));
+  DEBUGP ((" uc=0x%04x [0x%04x/%d]", ntohs (udp->check),
 	    udp_checksum ((UCHAR *) udp,
 			  sizeof (UDPHDR) + sizeof (DHCP) + optlen,
 			  (UCHAR *) &ip->saddr,
 			  (UCHAR *) &ip->daddr),
-	    optlen);
+	    optlen));
 
   // Options
   {
     const UCHAR *opt = (UCHAR *) (dhcp + 1);
     int i;
 
-    DbgPrint (" OPT");
+    DEBUGP ((" OPT"));
     for (i = 0; i < optlen; ++i)
       {
 	const UCHAR data = opt[i];
-	DbgPrint (".%d", data);
+	DEBUGP ((".%d", data));
       }
   }
 }

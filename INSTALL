@@ -183,6 +183,28 @@ TUN/TAP Driver Configuration:
   http://vtun.sourceforge.net/tun/
   and follow the installation instructions.
 
+* Solaris
+
+  For 64 bit, I used the tun-1.1.tar.gz source and compiled it.
+
+  Of course there is a but :)
+  In the tun-1-1\solaris\Makefile I changed a line so it compiles with 64 bit
+
+  CFLAGS = $(DEFS) -m64 -O2 -Wall -D_KERNEL -I.
+
+  I just added -m64 and it worked.
+
+  The tun driver works fine as said previously, however we noticed there is a
+  minor problem when creating multiple tunnels on Solaris.
+  Mr Tycho Fruru changed the code in tun.c file where he locked the tun device
+  number to -1. This way it is impossible to specify the name of the tun device
+  but it is still possible to have multiple devices.
+  The modification will increment automatically meaning starting from tun0 --->
+  tunX I know you are not responsible for the tun coding but if you think the
+  modification can be useful for you feel free to use it.
+
+  http://openvpn.sourceforge.net/solaris/tun.c
+
 * FreeBSD 4.1.1+:
 
   FreeBSD ships with the TUN/TAP driver, and the device nodes for tap0,

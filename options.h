@@ -23,6 +23,11 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+/*
+ * 2004-01-28: Added Socks5 proxy support
+ *   (Christof Meerwald, http://cmeerw.org)
+ */
+
 #ifndef OPTIONS_H
 #define OPTIONS_H
 
@@ -136,7 +141,10 @@ struct options
   bool up_delay;
   bool up_restart;
   bool daemon;
-  bool inetd;
+
+  /* inetd modes defined in socket.h */
+  int inetd;
+
   bool log;
   int nice;
 #ifdef USE_PTHREAD
@@ -165,6 +173,11 @@ struct options
   const char *http_proxy_auth_method;
   const char *http_proxy_auth_file;
   bool http_proxy_retry;
+
+  /* socks proxy */
+  const char *socks_proxy_server;
+  int socks_proxy_port;
+  bool socks_proxy_retry;
 
   /* Enable options consistency check between peers */
   bool occ;

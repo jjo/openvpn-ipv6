@@ -138,6 +138,10 @@ void setenv_str (const char *name, const char *value);
 void setenv_int (const char *name, int value);
 void setenv_del (const char *name);
 
+/* convert netmasks for iproute2 */
+int count_netmask_bits(const char *);
+unsigned int count_bits(unsigned int );
+
 /* make cp safe to be passed to system() or set as an environmental variable */
 void safe_string (char *cp);
 
@@ -171,3 +175,4 @@ tv_subtract (const struct timeval *tv1, const struct timeval *tv2, bool max_seco
 }
 
 #endif
+

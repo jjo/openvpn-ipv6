@@ -33,6 +33,133 @@
 
 #if DBG
 
+static DebugOutput g_Debug;
+
+BOOLEAN
+NewlineExists (const char *str, int len)
+{
+  while (len-- > 0)
+    {
+      const char c = *str++;
+      if (c == '\n')
+	return TRUE;
+      else if (c == '\0')
+	break;
+    }
+  return FALSE;
+}
+
+VOID
+MyDebugInit (unsigned int bufsiz)
+{
+  NdisZeroMemory (&g_Debug, sizeof (g_Debug));
+  g_Debug.text = (char *) MemAlloc (bufsiz, FALSE);
+  if (g_Debug.text)
+    g_Debug.capacity = bufsiz;
+}
+
+VOID
+MyDebugFree ()
+{
+  if (g_Debug.text)
+    MemFree (g_Debug.text, g_Debug.capacity);
+  NdisZeroMemory (&g_Debug, sizeof (g_Debug));
+}
+
+VOID
+MyDebugPrint (const unsigned char* format, ...)
+{
+  if (g_Debug.text && g_Debug.capacity > 0)
+    {
+      const LONG n = InterlockedIncrement (&g_Debug.use);
+      if (n <= 1)
+	{
+	  const int remaining = (int)g_Debug.capacity - (int)g_Debug.out;
+
+	  if (remaining > 0)
+	    {
+	      va_list args;
+	      NTSTATUS status;
+	      char *end;
+
+	      va_start (args, format);
+	      status = RtlStringCchVPrintfExA (g_Debug.text + g_Debug.out,
+					       remaining,
+					       &end,
+					       NULL,
+					       STRSAFE_NO_TRUNCATION | STRSAFE_IGNORE_NULLS,
+					       format,
+					       args);
+	      va_end (args);
+
+	      if (status == STATUS_SUCCESS)
+		g_Debug.out = end - g_Debug.text;
+	      else
+		g_Debug.error = TRUE;
+	    }
+	  else
+	    g_Debug.error = TRUE;
+	}
+      else
+	g_Debug.error = TRUE;
+      InterlockedDecrement (&g_Debug.use);
+    }
+}
+
+BOOLEAN
+GetDebugLine (char *buf, const int len)
+{
+  static const char *truncated = "[OUTPUT TRUNCATED]\n";
+  BOOLEAN ret = FALSE;
+
+  NdisZeroMemory (buf, len);
+
+  if (g_Debug.text && g_Debug.capacity > 0)
+    {
+      const LONG n = InterlockedIncrement (&g_Debug.use);
+      if (n <= 1)
+	{
+	  int i = 0;
+
+	  if (g_Debug.error || NewlineExists (g_Debug.text + g_Debug.in, (int)g_Debug.out - (int)g_Debug.in))
+	    {
+	      while (i < (len - 1) && g_Debug.in < g_Debug.out)
+		{
+		  const char c = g_Debug.text[g_Debug.in++];
+		  if (c == '\n')
+		    break;
+		  buf[i++] = c;
+		}
+	      if (i < len)
+		buf[i] = '\0';
+	    }
+
+	  if (!i)
+	    {
+	      if (g_Debug.in == g_Debug.out)
+		{
+		  g_Debug.in = g_Debug.out = 0;
+		  if (g_Debug.error)
+		    {
+		      const unsigned int tlen = strlen (truncated);
+		      if (tlen < g_Debug.capacity)
+			{
+			  NdisMoveMemory (g_Debug.text, truncated, tlen+1);
+			  g_Debug.out = tlen;
+			}
+		      g_Debug.error = FALSE;
+		    }
+		}
+	    }
+	  else
+	    ret = TRUE;
+	}
+      
+      InterlockedDecrement (&g_Debug.use);
+    }
+  return ret;
+}
+
 VOID
 MyAssert (const unsigned char *file, int line)
 {
@@ -47,9 +174,9 @@ MyAssert (const unsigned char *file, int line)
 VOID
 PrMac (const MACADDR mac)
 {
-  DbgPrint ("%x:%x:%x:%x:%x:%x",
+  DEBUGP (("%x:%x:%x:%x:%x:%x",
 	    mac[0], mac[1], mac[2],
-	    mac[3], mac[4], mac[5]);
+	    mac[3], mac[4], mac[5]));
 }
 
 VOID
@@ -57,8 +184,8 @@ PrIP (IPADDR ip_addr)
 {
   const unsigned char *ip = (const unsigned char *) &ip_addr;
 
-  DbgPrint ("%d.%d.%d.%d",
-	    ip[0], ip[1], ip[2], ip[3]);
+  DEBUGP (("%d.%d.%d.%d",
+	    ip[0], ip[1], ip[2], ip[3]));
 }
 
 const char *
@@ -82,30 +209,30 @@ PrIPProto (int proto)
 VOID
 DumpARP (const char *prefix, const ARP_PACKET *arp)
 {
-  DbgPrint ("%s ARP src=", prefix);
+  DEBUGP (("%s ARP src=", prefix));
   PrMac (arp->m_MAC_Source);
-  DbgPrint (" dest=");
+  DEBUGP ((" dest="));
   PrMac (arp->m_MAC_Destination);
-  DbgPrint (" OP=0x%04x",
-	    (int)ntohs(arp->m_ARP_Operation));
-  DbgPrint (" M=0x%04x(%d)",
+  DEBUGP ((" OP=0x%04x",
+	    (int)ntohs(arp->m_ARP_Operation)));
+  DEBUGP ((" M=0x%04x(%d)",
 	    (int)ntohs(arp->m_MAC_AddressType),
-	    (int)arp->m_MAC_AddressSize);
-  DbgPrint (" P=0x%04x(%d)",
+	    (int)arp->m_MAC_AddressSize));
+  DEBUGP ((" P=0x%04x(%d)",
 	    (int)ntohs(arp->m_PROTO_AddressType),
-	    (int)arp->m_PROTO_AddressSize);
+	    (int)arp->m_PROTO_AddressSize));
 
-  DbgPrint (" MacSrc=");
+  DEBUGP ((" MacSrc="));
   PrMac (arp->m_ARP_MAC_Source);
-  DbgPrint (" MacDest=");
+  DEBUGP ((" MacDest="));
   PrMac (arp->m_ARP_MAC_Destination);
 
-  DbgPrint (" IPSrc=");
+  DEBUGP ((" IPSrc="));
   PrIP (arp->m_ARP_IP_Source);
-  DbgPrint (" IPDest=");
+  DEBUGP ((" IPDest="));
   PrIP (arp->m_ARP_IP_Destination);
 
-  DbgPrint ("\n");
+  DEBUGP (("\n"));
 }
 
 struct ethpayload {
@@ -113,12 +240,13 @@ struct ethpayload {
   UCHAR payload[DEFAULT_PACKET_LOOKAHEAD];
 };
 
-VOID DumpPacket2 (const char *prefix,
-		  const ETH_HEADER *eth,
-		  const unsigned char *data,
-		  unsigned int len)
+VOID
+DumpPacket2 (const char *prefix,
+	     const ETH_HEADER *eth,
+	     const unsigned char *data,
+	     unsigned int len)
 {
-  struct ethpayload *ep = (struct ethpayload *) MemAllocZeroed (sizeof (struct ethpayload));
+  struct ethpayload *ep = (struct ethpayload *) MemAlloc (sizeof (struct ethpayload), TRUE);
   if (ep)
     {
       if (len > DEFAULT_PACKET_LOOKAHEAD)
@@ -140,7 +268,7 @@ DumpPacket (const char *prefix,
 
   if (len < sizeof (ETH_HEADER))
     {
-      DbgPrint ("%s TRUNCATED PACKET LEN=%d\n", prefix, len);
+      DEBUGP (("%s TRUNCATED PACKET LEN=%d\n", prefix, len));
       return;
     }
 
@@ -160,11 +288,11 @@ DumpPacket (const char *prefix,
       const int blen = len - sizeof (ETH_HEADER);
       BOOLEAN did = FALSE;
 
-      DbgPrint ("%s IPv4 %s[%d]", prefix, PrIPProto (ip->protocol), len);
+      DEBUGP (("%s IPv4 %s[%d]", prefix, PrIPProto (ip->protocol), len));
 
       if (!(ntohs (ip->tot_len) == blen && hlen <= blen))
 	{
-	  DbgPrint (" XXX");
+	  DEBUGP ((" XXX"));
 	  return;
 	}
       
@@ -173,12 +301,12 @@ DumpPacket (const char *prefix,
 	  && blen - hlen >= (sizeof (TCPHDR)))
 	{
 	  const TCPHDR *tcp = (TCPHDR *) (data + sizeof (ETH_HEADER) + hlen);
-	  DbgPrint (" ");
+	  DEBUGP ((" "));
 	  PrIP (ip->saddr);
-	  DbgPrint (":%d", ntohs (tcp->source));
-	  DbgPrint (" -> ");
+	  DEBUGP ((":%d", ntohs (tcp->source)));
+	  DEBUGP ((" -> "));
 	  PrIP (ip->daddr);
-	  DbgPrint (":%d", ntohs (tcp->dest));
+	  DEBUGP ((":%d", ntohs (tcp->dest)));
 	  did = TRUE;
 	}
 
@@ -213,36 +341,36 @@ DumpPacket (const char *prefix,
 
 	  if (!did)
 	    {
-	      DbgPrint (" ");
+	      DEBUGP ((" "));
 	      PrIP (ip->saddr);
-	      DbgPrint (":%d", ntohs (udp->source));
-	      DbgPrint (" -> ");
+	      DEBUGP ((":%d", ntohs (udp->source)));
+	      DEBUGP ((" -> "));
 	      PrIP (ip->daddr);
-	      DbgPrint (":%d", ntohs (udp->dest));
+	      DEBUGP ((":%d", ntohs (udp->dest)));
 	      did = TRUE;
 	    }
 	}
 
       if (!did)
 	{
-	  DbgPrint (" ipproto=%d ", ip->protocol);
+	  DEBUGP ((" ipproto=%d ", ip->protocol));
 	  PrIP (ip->saddr);
-	  DbgPrint (" -> ");
+	  DEBUGP ((" -> "));
 	  PrIP (ip->daddr);
 	}
 
-      DbgPrint ("\n");
+      DEBUGP (("\n"));
       return;
     }
 
   {
-    DbgPrint ("%s ??? src=", prefix);
+    DEBUGP (("%s ??? src=", prefix));
     PrMac (eth->src);
-    DbgPrint (" dest=");
+    DEBUGP ((" dest="));
     PrMac (eth->dest);
-    DbgPrint (" proto=0x%04x len=%d\n",
+    DEBUGP ((" proto=0x%04x len=%d\n",
 	      (int) ntohs(eth->proto),
-	      len);
+	      len));
   }
 }
 

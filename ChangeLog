@@ -3,6 +3,42 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.02.01 -- Version 1.6-beta5
+
+* Added Socks5 proxy support ((Christof Meerwald).
+* IPv6 tun support for FreeBSD (Thomas Glanzmann).
+* Special TAP-Win32 debug mode for Windows self-install that was
+  enabled in beta4 is now turned off.
+* Added some new Solaris notes to INSTALL (Koen Maris).
+* More work on --ip-win32 dynamic.
+
+2004.01.27 -- Version 1.6-beta4
+
+* For this beta, the Windows self-install is a debug version
+  and will run slower -- use only for testing.
+* Reverted the --ip-win32 default back to 'ipapi'
+  from 'dynamic'.
+* Added the offset parameter to '--ip-win32 dynamic' which
+  can be used to control the address of the masqueraded
+  DHCP server which replies to Windows DHCP requests.
+* Added a wait/nowait option to --inetd (nowait can only
+  be used with TCP sockets, TLS authentication, and over
+  a bridged configuration -- see FAQ for more info)
+  (Stefan `Sec` Zehl).
+* Added a build-time capability where TAP-Win32 driver
+  debug messages can be output by OpenVPN at --verb 6
+  or higher.
+
+2004.01.20 -- Version 1.6-beta2
+
+* Added ./configure --enable-iproute2 flag which
+  uses iproute2 instead of route + ifconfig --
+  this is necessary for the LEAF Linux distro
+  (Martin Hejl).
+* Added renewal-time and rebind-time to set of
+  DHCP options returned by the TAP-Win32 driver when
+  "--ip-win32 dynamic" is used.
+	
 2004.01.14 -- Version 1.6-beta1
 
 * Fixed --proxy bug that sometimes caused plaintext

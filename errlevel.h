@@ -73,6 +73,7 @@
 #define D_LOG_RW             LOGLEV(5, 0,  0)        /* Print 'R' or 'W' to stdout for read/write */
 
 #define D_LINK_RW            LOGLEV(6, 60, M_DEBUG)  /* show TCP/UDP reads/writes (terse) */
+#define D_TAP_WIN32_DEBUG    LOGLEV(6, 60, M_DEBUG)  /* show TAP-Win32 driver debug info */
 
 #define D_SHOW_KEYS          LOGLEV(7, 70, M_DEBUG)  /* show data channel encryption keys */
 #define D_SHOW_KEY_SOURCE    LOGLEV(7, 70, M_DEBUG)  /* show data channel key source entropy */

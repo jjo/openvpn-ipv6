@@ -13,8 +13,8 @@ Currently, OpenVPN runs on Win 2000/XP, Linux, Mac OS X,
 Solaris, FreeBSD, NetBSD, and OpenBSD, making it one of the
 most portable VPN packages today.
 
-What's new in 1.6-beta1
------------------------
+What's new in the 1.6 beta series
+---------------------------------
 
 THIS IS A BETA RELEASE.
 

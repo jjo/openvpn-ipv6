@@ -23,6 +23,11 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+/*
+ * 2004-01-28: Added Socks5 proxy support
+ *   (Christof Meerwald, http://cmeerw.org)
+ */
+
 #ifdef WIN32
 #include "config-win32.h"
 #else
@@ -85,6 +90,9 @@ static const char usage_message[] =
   "                  s and port p.  If proxy authentication is required, up is a\n"
   "                  file containing username/password on 2 lines.\n"
   "--http-proxy-retry : Retry indefinitely on HTTP proxy errors.\n"
+  "--socks-proxy s [p]: Connect to remote host through a Socks5 proxy at address\n"
+  "                  s and port p (default port = 1080).\n"
+  "--socks-proxy-retry : Retry indefinitely on Socks proxy errors.\n"
   "--resolv-retry n: If hostname resolve fails for --remote, retry\n"
   "                  resolve for n seconds before failing (disabled by default).\n"
   "                  Set n=\"infinite\" to retry indefinitely.\n"
@@ -182,8 +190,8 @@ static const char usage_message[] =
   "--daemon [name] : Become a daemon after initialization.\n"
   "                  The optional 'name' parameter will be passed\n"
   "                  as the program name to the system logger.\n"
-  "--inetd [name]  : Run as an inetd or xinetd server.  See --daemon\n"
-  "                  above for a description of the 'name' parameter.\n"
+  "--inetd [name] ['wait'|'nowait'] : Run as an inetd or xinetd server.\n"
+  "                  See --daemon above for a description of the 'name' parm.\n"
   "--log file      : Output log to file which is created/truncated on open.\n"
   "--log-append file : Append log to file, or create file if nonexistent.\n"
   "--writepid file : Write main process ID to file.\n"
@@ -303,7 +311,16 @@ static const char usage_message[] =
   "--show-adapters : Show all TAP-Win32 adapters.\n"
   "--ip-win32 method : When using --ifconfig on Windows, set TAP-Win32 adapter\n"
   "                    IP address using method = manual, netsh, ipapi, or\n"
-  "                    dynamic (default = dynamic).\n"
+  "                    dynamic (default = ipapi).\n"
+  "                    Dynamic method allows two optional parameters:\n"
+  "                    offset: DHCP server address offset (> -256 and < 256).\n"
+  "                            If 0, use network address, if >0, take nth\n"
+  "                            address forward from network address, if <0,\n"
+  "                            take nth address backward from broadcast\n"
+  "                            address.\n"
+  "                            Default is 0.\n"
+  "                    lease-time: 'short' (60 seconds) or 'long' (1 month).\n"
+  "                                Default is 'long'.\n"
   "--tap-sleep n   : Sleep for n seconds after TAP adapter open before\n"
   "                  attempting to set adapter properties.\n"
   "--show-valid-subnets : Show valid subnets for --dev tun emulation.\n" 
@@ -350,7 +367,7 @@ init_options (struct options *o)
   o->comp_lzo_adaptive = true;
 #endif
 #ifdef WIN32
-  o->tuntap_flags = (IP_SET_DHCP & IP_SET_MASK);
+  o->tuntap_flags = (IPW32_SET_IPAPI & IPW32_SET_MASK);
 #endif
 #ifdef USE_CRYPTO
   o->ciphername = "BF-CBC";
@@ -480,7 +497,7 @@ show_settings (const struct options *o)
   SHOW_STR (down_script);
   SHOW_BOOL (up_restart);
   SHOW_BOOL (daemon);
-  SHOW_BOOL (inetd);
+  SHOW_INT (inetd);
   SHOW_BOOL (log);
   SHOW_INT (nice);
   SHOW_INT (verbosity);
@@ -495,6 +512,10 @@ show_settings (const struct options *o)
   SHOW_STR (http_proxy_auth_method);
   SHOW_STR (http_proxy_auth_file);
   SHOW_BOOL (http_proxy_retry);
+
+  SHOW_STR (socks_proxy_server);
+  SHOW_INT (socks_proxy_port);
+  SHOW_BOOL (socks_proxy_retry);
 
 #ifdef USE_LZO
   SHOW_BOOL (comp_lzo);
@@ -1205,11 +1226,46 @@ add_option (struct options *options, int i, char *p[],
     {
       if (!options->inetd)
 	{
-	  options->inetd = true;
+	  int z;
+	  const char *name = NULL;
+	  const char *opterr = "Options Error: when --inetd is used with two parameters, one of them must be 'wait' or 'nowait' and the other must be a daemon name to use for system logging";
+
+	  options->inetd = -1;
+
+	  for (z = 1; z <= 2; ++z)
+	    {
+	      if (p[z])
+		{
+		  ++i;
+		  if (streq (p[z], "wait"))
+		    {
+		      if (options->inetd != -1)
+			msg (M_USAGE, opterr);
+		      else
+			options->inetd = INETD_WAIT;
+		    }
+		  else if (streq (p[z], "nowait"))
+		    {
+		      if (options->inetd != -1)
+			msg (M_USAGE, opterr);
+		      else
+			options->inetd = INETD_NOWAIT;
+		    }
+		  else
+		    {
+		      if (name != NULL)
+			msg (M_USAGE, opterr);
+		      name = p[z];
+		    }
+		}
+	    }
+
+	  /* default */
+	  if (options->inetd == -1)
+	    options->inetd = INETD_WAIT;
+
 	  save_inetd_socket_descriptor ();
-	  open_syslog (p[1]);
-	  if (p[1])
-	    ++i;
+	  open_syslog (name);
 	}
     }
   else if (streq (p[0], "log") && p[1])
@@ -1364,6 +1420,27 @@ add_option (struct options *options, int i, char *p[],
     {
       options->http_proxy_retry = true;
     }
+  else if (streq (p[0], "socks-proxy") && p[1])
+    {
+      ++i;
+      options->socks_proxy_server = p[1];
+
+      if (p[2])
+	{
+	  ++i;
+          options->socks_proxy_port = atoi (p[2]);
+          if (options->socks_proxy_port <= 0)
+	    msg (M_USAGE, "Bad socks-proxy port number: %s", p[2]);
+	}
+      else
+	{
+	  options->socks_proxy_port = 1080;
+	}
+    }
+  else if (streq (p[0], "socks-proxy-retry"))
+    {
+      options->socks_proxy_retry = true;
+    }
   else if (streq (p[0], "ping") && p[1])
     {
       ++i;
@@ -1470,14 +1547,49 @@ add_option (struct options *options, int i, char *p[],
     {
       const int index = ascii2ipset (p[1]);
       ++i;
+
+      options->tuntap_flags &= ~(
+	  IPW32_SET_MASK
+	| IPW32_DHCP_MASQ_HIOFF
+	| IPW32_DHCP_MASQ_LEASE_TIME_SHORT
+	| IPW32_DHCP_MASQ_OFFSET_MASK << IPW32_DHCP_MASQ_OFFSET_SHIFT);
+
+      options->tuntap_flags |= IPW32_DEFINED;
+
       if (index < 0)
 	msg (M_USAGE,
 	     "Bad --ip-win32 method: '%s'.  Allowed methods: %s",
 	     p[1],
 	     ipset2ascii_all());
 
-      options->tuntap_flags &= ~IP_SET_MASK;
-      options->tuntap_flags |= (index & IP_SET_MASK);
+      options->tuntap_flags |= (index & IPW32_SET_MASK);
+
+      if ((options->tuntap_flags & IPW32_SET_MASK) == IPW32_SET_DHCP_MASQ)
+	{
+	  if (p[2])
+	    {
+	      int offset = atoi (p[2]);
+	      ++i;
+	      if (!(offset > -256 && offset < 256))
+		msg (M_USAGE, "--ip-win32 dynamic [offset] ['short'|'long']: offset (%d) must be > -256 and < 256", offset);
+	      if (offset < 0)
+		{
+		  options->tuntap_flags |= IPW32_DHCP_MASQ_HIOFF;
+		  offset = -offset;
+		}
+	      options->tuntap_flags |= ((offset & IPW32_DHCP_MASQ_OFFSET_MASK) << IPW32_DHCP_MASQ_OFFSET_SHIFT);
+	      if (p[3])
+		{
+		  ++i;
+		  if (streq (p[3], "short"))
+		    options->tuntap_flags |= IPW32_DHCP_MASQ_LEASE_TIME_SHORT;
+		  else if (streq (p[3], "long"))
+		    ;
+		  else
+		    msg (M_USAGE, "--ip-win32 dynamic [offset] ['short'|'long']: lease time parameter must be 'short' or 'long'");
+		}
+	    }
+	}
     }
   else if (streq (p[0], "show-adapters"))
     {

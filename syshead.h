@@ -223,6 +223,14 @@
 
 #ifdef TARGET_FREEBSD
 
+#ifdef HAVE_NETINET_IN_SYSTM_H
+#include <netinet/in_systm.h>
+#endif
+
+#ifdef HAVE_NETINET_IP_H
+#include <netinet/ip.h>
+#endif
+
 #ifdef HAVE_NET_IF_TUN_H
 #include <net/if_tun.h>
 #endif

@@ -50,6 +50,7 @@
 #include "io.h"
 #include "fragment.h"
 #include "proxy.h"
+#include "socks.h"
 #include "openvpn.h"
 #include "win32.h"
 
@@ -360,6 +361,14 @@ do_open_tun (const struct options *options,
 			       frame,
 			       tuntap->post_open_mtu,
 			       SET_MTU_TUN | SET_MTU_UPPER_BOUND);
+
+      /*
+       * On Windows, it is usually wrong if --tun-mtu != 1500.
+       */
+#ifdef WIN32
+      if (TUN_MTU_SIZE (frame) != 1500)
+	msg (M_WARN, "WARNING: in general you should use '--tun-mtu 1500 --mssfix 1400' on both sides of the connection if at least one side is running Windows, unless you have explicitly modified the TAP-Win32 driver properties");
+#endif
       ret = true;
     }
   else
@@ -386,19 +395,19 @@ do_open_tun (const struct options *options,
  * TCP race.
  */
 static void
-socket_restart_pause (int proto, bool http_proxy)
+socket_restart_pause (int proto, bool http_proxy, bool socks_proxy)
 {
   int sec = 0;
   switch (proto)
     {
     case PROTO_UDPv4:
-      sec = 0;
+      sec = socks_proxy ? 3 : 0;
       break;
     case PROTO_TCPv4_SERVER:
       sec = 1;
       break;
     case PROTO_TCPv4_CLIENT:
-      sec = http_proxy ? 10 : 3;
+      sec = (http_proxy || socks_proxy) ? 10 : 3;
       break;
     }
   if (sec)
@@ -587,6 +596,7 @@ openvpn (const struct options *options,
 	 struct packet_id_persist *pid_persist,
 	 struct route_list *route_list,
 	 struct http_proxy_info *http_proxy,
+	 struct socks_proxy_info *socks_proxy,
 	 bool first_time)
 {
   /*
@@ -787,7 +797,8 @@ openvpn (const struct options *options,
 #endif /* HAVE_SIGNAL_H */
 
   if (!first_time)
-    socket_restart_pause (options->proto, options->http_proxy_server != NULL);
+    socket_restart_pause (options->proto, options->http_proxy_server != NULL,
+			  options->socks_proxy_server != NULL);
 
   wait_init (&event_wait);
   link_socket_reset (&link_socket);
@@ -1180,6 +1191,7 @@ openvpn (const struct options *options,
 			   options->local_port, options->remote_port,
 			   options->proto,
 			   http_proxy->defined ? http_proxy : NULL,
+			   socks_proxy->defined ? socks_proxy : NULL,
 			   options->bind_local,
 			   options->remote_float,
 			   options->inetd,
@@ -1394,6 +1406,12 @@ openvpn (const struct options *options,
       timeval.tv_sec = BIG_TIMEOUT;
       timeval.tv_usec = 0;
       tv = &timeval;
+
+#if defined(WIN32) && defined(TAP_WIN32_DEBUG)
+      timeval.tv_sec = 1;
+      if (check_debug_level (D_TAP_WIN32_DEBUG))
+	tun_show_debug (tuntap);
+#endif
 
 #ifdef USE_CRYPTO
       /* flush current packet-id to file once per 60
@@ -2740,6 +2758,26 @@ main (int argc, char *argv[])
       if (options.inetd && options.proto == PROTO_TCPv4_CLIENT)
 	msg (M_USAGE, "Options error: --proto tcp-client cannot be used with --inetd");
 
+      if (options.inetd == INETD_NOWAIT && options.proto != PROTO_TCPv4_SERVER)
+	msg (M_USAGE, "Options error: --inetd nowait can only be used with --proto tcp-server");
+
+      if (options.inetd == INETD_NOWAIT
+#if defined(USE_CRYPTO) && defined(USE_SSL)
+	  && !(options.tls_server || options.tls_client)
+#endif
+	  )
+	msg (M_USAGE, "Options error: --inetd nowait can only be used in TLS mode");
+
+      if (options.inetd == INETD_NOWAIT && dev != DEV_TYPE_TAP)
+	msg (M_USAGE, "Options error: --inetd nowait only makes sense in --dev tap mode");
+
+      /*
+       * In forking TCP server mode, you don't need to ifconfig
+       * the tap device (the assumption is that it will be bridged).
+       */
+      if (options.inetd == INETD_NOWAIT)
+	options.ifconfig_noexec = true;
+
       /*
        * Sanity check on TCP mode options
        */
@@ -2801,10 +2839,13 @@ main (int argc, char *argv[])
 #ifdef WIN32
       if (dev == DEV_TYPE_TUN && !(options.ifconfig_local && options.ifconfig_remote_netmask))
 	msg (M_USAGE, "Options error: On Windows, --ifconfig is required when --dev tun is used");
+      if ((options.tuntap_flags & IPW32_DEFINED)
+	  && !(options.ifconfig_local && options.ifconfig_remote_netmask))
+	msg (M_USAGE, "Options error: On Windows, --ip-win32 doesn't make sense unless --ifconfig is also used");
       if (options.ifconfig_noexec)
 	{
-	  options.tuntap_flags &= ~IP_SET_MASK;
-	  options.tuntap_flags |= IP_SET_MANUAL;
+	  options.tuntap_flags &= ~IPW32_SET_MASK;
+	  options.tuntap_flags |= IPW32_SET_MANUAL;
 	  options.ifconfig_noexec = false;
 	}
 #endif
@@ -2822,6 +2863,12 @@ main (int argc, char *argv[])
 
       if (options.http_proxy_server && options.proto != PROTO_TCPv4_CLIENT)
 	msg (M_USAGE, "Options error: --http-proxy MUST be used in TCP Client mode (i.e. --proto tcp-client)");
+
+      if (options.http_proxy_server && options.socks_proxy_server)
+	msg (M_USAGE, "Options error: --http-proxy can not be used together with --socks-proxy");
+
+      if (options.socks_proxy_server && options.proto == PROTO_TCPv4_SERVER)
+	msg (M_USAGE, "Options error: --socks-proxy can not be used in TCP Server mode");
 
 #ifdef USE_CRYPTO
 
@@ -2919,6 +2966,7 @@ main (int argc, char *argv[])
 	struct packet_id_persist pid_persist;
 	struct route_list route_list;
 	struct http_proxy_info http_proxy;
+	struct socks_proxy_info socks_proxy;
 
 	/* print version number */
 	msg (M_INFO, "%s", title_string);
@@ -2929,6 +2977,7 @@ main (int argc, char *argv[])
 	packet_id_persist_init (&pid_persist);
 	clear_route_list (&route_list);
 	CLEAR (http_proxy);
+	CLEAR (socks_proxy);
 	if (options.http_proxy_server)
 	  {
 	    init_http_proxy (&http_proxy,
@@ -2939,8 +2988,16 @@ main (int argc, char *argv[])
 			     options.http_proxy_auth_file);
 	  }
 
+	if (options.socks_proxy_server)
+	  {
+	    init_socks_proxy (&socks_proxy,
+			      options.socks_proxy_server,
+			      options.socks_proxy_port,
+			      options.socks_proxy_retry);
+	  }
+
 	do {
-	  sig = openvpn (&options, &usa, &tuntap, &ks, &pid_persist, &route_list, &http_proxy, first_time);
+	  sig = openvpn (&options, &usa, &tuntap, &ks, &pid_persist, &route_list, &http_proxy, &socks_proxy, first_time);
 	  first_time = false;
 	} while (sig == SIGUSR1);
       }
@@ -2981,6 +3038,7 @@ test_crypto_thread (void *arg)
   struct packet_id_persist pid_persist;
   struct route_list route_list;
   struct http_proxy_info http_proxy;
+  struct socks_proxy_info socks_proxy;
   const struct options *opt = (struct options*) arg;
 
   /* print version number */
@@ -2993,7 +3051,8 @@ test_crypto_thread (void *arg)
   packet_id_persist_init (&pid_persist);
   clear_route_list (&route_list);
   CLEAR (http_proxy);
-  openvpn (opt, &usa, &tuntap, &ks, &pid_persist, &route_list, &http_proxy, false);
+  CLEAR (socks_proxy);
+  openvpn (opt, &usa, &tuntap, &ks, &pid_persist, &route_list, &http_proxy, &socks_proxy, false);
   return NULL;
 }
 #endif

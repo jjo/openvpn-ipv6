@@ -251,6 +251,11 @@ create_socket (struct link_socket *sock)
   if (sock->proto == PROTO_UDPv4)
     {
       sock->sd = create_socket_udp ();
+
+      if (sock->socks_proxy)
+	{
+	  sock->ctrl_sd = create_socket_tcp ();
+	}
     }
   else if (sock->proto == PROTO_TCPv4_SERVER
 	   || sock->proto == PROTO_TCPv4_CLIENT)
@@ -274,11 +279,12 @@ socket_listen_accept (socket_descriptor_t sd,
 		      bool *remote_changed,
 		      const struct sockaddr_in *local,
 		      bool do_listen,
+		      bool nowait,
 		      volatile int *signal_received)
 {
   socklen_t remote_len = sizeof (*remote);
   struct sockaddr_in remote_verify = *remote;
-  int new_sd;
+  int new_sd = -1;
 
   if (do_listen)
     {
@@ -314,7 +320,25 @@ socket_listen_accept (socket_descriptor_t sd,
       if (status <= 0)
 	continue;
 
-      new_sd = accept (sd, (struct sockaddr *) remote, &remote_len);
+#ifdef HAVE_GETPEERNAME
+      if (nowait)
+        {
+	  new_sd = getpeername (sd, (struct sockaddr *) remote, &remote_len);
+
+	  if (new_sd == -1)
+	    msg (D_LINK_ERRORS | M_ERRNO_SOCK, "getpeername() failed");
+	  else
+	    new_sd = sd;
+	}
+#else
+      if (nowait)
+	msg (M_WARN, "WARNING: this OS does not provide the getpeername() function");
+#endif
+      else
+        {
+	  new_sd = accept (sd, (struct sockaddr *) remote, &remote_len);
+	}
+
       if (new_sd == -1)
 	{
 	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "accept() failed");
@@ -341,7 +365,7 @@ socket_listen_accept (socket_descriptor_t sd,
       sleep (1);
     }
 
-  if (openvpn_close_socket (sd))
+  if (!nowait && openvpn_close_socket (sd))
     msg (M_SOCKERR, "close socket failed (sd)");
   msg (M_INFO, "TCP connection established with %s", 
        print_sockaddr (remote));
@@ -530,11 +554,66 @@ resolve_remote (struct link_socket *sock,
     }
 }
 
+int
+link_socket_read_socks_udp (struct link_socket *sock,
+			    struct buffer *buf,
+			    struct sockaddr_in *from)
+{
+  int atyp;
+
+  buf_read_u16 (buf);
+  if (buf_read_u8 (buf) != 0)
+    goto error;
+
+  atyp = buf_read_u8 (buf);
+  if (atyp != 1)		/* ATYP == 1 (IP V4) */
+    goto error;
+
+  buf_read (buf, &from->sin_addr, sizeof (from->sin_addr));
+  buf_read (buf, &from->sin_port, sizeof (from->sin_port));
+
+  return BLEN(buf);
+
+ error:
+  return -1;
+}
+
+int
+link_socket_write_socks_udp (struct link_socket *sock,
+			     struct buffer *buf,
+			     struct sockaddr_in *to)
+{
+  int res;
+  struct buffer relay = alloc_buf (buf->len + 10);
+
+  buf_write_u16 (&relay, 0);	/* RSV = 0 */
+  buf_write_u8 (&relay, 0);	/* FRAG = 0 */
+  buf_write_u8 (&relay, '\x01'); /* ATYP = 1 (IP V4) */
+  buf_write (&relay, &to->sin_addr, sizeof (to->sin_addr));
+  buf_write (&relay, &to->sin_port, sizeof (to->sin_port));
+
+  buf_write (&relay, BPTR(buf), BLEN(buf));
+
+#ifdef WIN32
+  res = link_socket_write_win32 (sock, &relay, &sock->socks_relay);
+#else
+  res = link_socket_write_udp_posix (sock, &relay, &sock->socks_relay);
+#endif
+
+  free_buf (&relay);
+
+  if (res > 10)
+    return res - 10;
+
+  return res;
+}
+
 void
 link_socket_reset (struct link_socket *sock)
 {
   CLEAR (*sock);
   sock->sd = -1;
+  sock->ctrl_sd = -1;
 }
 
 /* bind socket if necessary */
@@ -546,9 +625,10 @@ link_socket_init_phase1 (struct link_socket *sock,
 			 int remote_port,
 			 int proto,
 			 struct http_proxy_info *http_proxy,
+			 struct socks_proxy_info *socks_proxy,
 			 bool bind_local,
 			 bool remote_float,
-			 bool inetd,
+			 int inetd,
 			 struct link_socket_addr *lsa,
 			 const char *ipchange_command,
 			 int resolve_retry_seconds,
@@ -560,6 +640,7 @@ link_socket_init_phase1 (struct link_socket *sock,
   sock->local_port = local_port;
   sock->proto = proto;
   sock->http_proxy = http_proxy;
+  sock->socks_proxy = socks_proxy;
   sock->bind_local = bind_local;
   sock->remote_float = remote_float;
   sock->inetd = inetd;
@@ -578,6 +659,19 @@ link_socket_init_phase1 (struct link_socket *sock,
       /* the proxy server */
       sock->remote_host = http_proxy->server;
       sock->remote_port = http_proxy->port;
+
+      /* the OpenVPN server we will use the proxy to connect to */
+      sock->proxy_dest_host = remote_host;
+      sock->proxy_dest_port = remote_port;
+    }
+  /* or in Socks proxy mode? */
+  else if (sock->socks_proxy)
+    {
+      ASSERT (!sock->inetd);
+
+      /* the proxy server */
+      sock->remote_host = socks_proxy->server;
+      sock->remote_port = socks_proxy->port;
 
       /* the OpenVPN server we will use the proxy to connect to */
       sock->proxy_dest_host = remote_host;
@@ -635,9 +729,14 @@ link_socket_init_phase2 (struct link_socket *sock,
     {
       if (sock->proto == PROTO_TCPv4_SERVER)
 	sock->sd =
-	  socket_listen_accept (sock->sd, &sock->lsa->actual,
-				remote_dynamic, &remote_changed,
-				&sock->lsa->local, false, signal_received);
+	  socket_listen_accept (sock->sd,
+				&sock->lsa->actual,
+				remote_dynamic,
+				&remote_changed,
+				&sock->lsa->local,
+				false,
+				sock->inetd == INETD_NOWAIT,
+				signal_received);
       ASSERT (!remote_changed);
       if (*signal_received)
 	return;
@@ -652,9 +751,14 @@ link_socket_init_phase2 (struct link_socket *sock,
       /* TCP client/server */
       if (sock->proto == PROTO_TCPv4_SERVER)
 	{
-	  sock->sd = socket_listen_accept (sock->sd, &sock->lsa->actual,
-					   remote_dynamic, &remote_changed,
-					   &sock->lsa->local, true, signal_received);
+	  sock->sd = socket_listen_accept (sock->sd,
+					   &sock->lsa->actual,
+					   remote_dynamic,
+					   &remote_changed,
+					   &sock->lsa->local,
+					   true,
+					   false,
+					   signal_received);
 	}
       else if (sock->proto == PROTO_TCPv4_CLIENT)
 	{
@@ -675,6 +779,40 @@ link_socket_init_phase2 (struct link_socket *sock,
 					     &sock->stream_buf.residual,
 					     signal_received);
 	    }
+	  else if (sock->socks_proxy)
+	    {
+	      establish_socks_proxy_passthru (sock->socks_proxy,
+					      sock->sd,
+					      sock->proxy_dest_host,
+					      sock->proxy_dest_port,
+					      signal_received);
+	    }
+	}
+      else if (sock->proto == PROTO_UDPv4 && sock->socks_proxy)
+	{
+	  socket_connect (&sock->ctrl_sd, &sock->lsa->actual,
+			  remote_dynamic, &remote_changed,
+			  sock->connect_retry_seconds,
+			  signal_received);
+
+	  if (*signal_received)
+	    return;
+
+	  establish_socks_proxy_udpassoc (sock->socks_proxy,
+					  sock->ctrl_sd,
+					  sock->sd, &sock->socks_relay,
+					  signal_received);
+
+	  sock->remote_host = sock->proxy_dest_host;
+	  sock->remote_port = sock->proxy_dest_port;
+	  sock->did_resolve_remote = false;
+	  sock->lsa->actual.sin_addr.s_addr = 0;
+	  sock->lsa->remote.sin_addr.s_addr = 0;
+
+	  resolve_remote (sock, 1, NULL, signal_received);
+
+	  if (*signal_received)
+	    return;
 	}
       
       if (*signal_received)
@@ -693,6 +831,8 @@ link_socket_init_phase2 (struct link_socket *sock,
   /* set socket file descriptor to not pass across execs, so that
      scripts don't have access to it */
   set_cloexec (sock->sd);
+  if (sock->ctrl_sd != -1)
+    set_cloexec (sock->ctrl_sd);
 
   /* set Path MTU discovery options on the socket */
   set_mtu_discover_type (sock->sd, sock->mtu_discover_type);
@@ -849,6 +989,12 @@ link_socket_close (struct link_socket *sock)
       if (openvpn_close_socket (sock->sd))
 	msg (M_WARN | M_ERRNO_SOCK, "Warning: Close Socket failed");
       sock->sd = -1;
+    }
+  if (sock->ctrl_sd != -1)
+    {
+      if (openvpn_close_socket (sock->ctrl_sd))
+	msg (M_WARN | M_ERRNO_SOCK, "Warning: Close Socket failed");
+      sock->ctrl_sd = -1;
     }
   stream_buf_close (&sock->stream_buf);
   free_buf (&sock->stream_buf_data);

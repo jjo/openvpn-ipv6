@@ -32,7 +32,7 @@
 //------------------
 
 PVOID
-MemAllocZeroed (ULONG p_Size)
+MemAlloc (ULONG p_Size, BOOLEAN zero)
 {
   PVOID l_Return = NULL;
 
@@ -42,7 +42,10 @@ MemAllocZeroed (ULONG p_Size)
       {
 	if (NdisAllocateMemoryWithTag (&l_Return, p_Size, '6PAT')
 	    == NDIS_STATUS_SUCCESS)
-	  NdisZeroMemory (l_Return, p_Size);
+	  {
+	    if (zero)
+	      NdisZeroMemory (l_Return, p_Size);
+	  }
 	else
 	  l_Return = NULL;
       }
@@ -62,7 +65,9 @@ MemFree (PVOID p_Addr, ULONG p_Size)
     {
       __try
       {
+#if DBG
 	NdisZeroMemory (p_Addr, p_Size);
+#endif
 	NdisFreeMemory (p_Addr, p_Size, 0);
       }
       __except (EXCEPTION_EXECUTE_HANDLER)
@@ -103,7 +108,7 @@ QueueInit (ULONG capacity)
   Queue *q;
 
   MYASSERT (capacity > 0);
-  q = (Queue *) MemAllocZeroed (QUEUE_BYTE_ALLOCATION (capacity));
+  q = (Queue *) MemAlloc (QUEUE_BYTE_ALLOCATION (capacity), TRUE);
   if (!q)
     return NULL;
 

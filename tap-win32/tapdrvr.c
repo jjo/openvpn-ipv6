@@ -126,6 +126,13 @@ DriverEntry (IN PDRIVER_OBJECT p_DriverObject,
 {
   NDIS_STATUS l_Status = NDIS_STATUS_FAILURE;
 
+  //==============================
+  // Allocate debugging text space
+  //==============================
+#if DBG
+  MyDebugInit (10000);
+#endif
+
   //========================================================
   // Notify NDIS that a new miniport driver is initializing.
   //========================================================
@@ -494,6 +501,13 @@ AdapterFreeResources (TapAdapterPointer p_Adapter)
 
   NdisZeroMemory ((PVOID) p_Adapter, sizeof (TapAdapter));
   NdisFreeMemory ((PVOID) p_Adapter, sizeof (TapAdapter), 0);
+
+  //==============================
+  // Free debugging text space
+  //==============================
+#if DBG
+  MyDebugFree ();
+#endif
 }
 
 //========================================================================
@@ -1286,7 +1300,9 @@ AdapterTransmit (IN NDIS_HANDLE p_AdapterContext, IN PNDIS_PACKET p_Packet,
 	const UDPHDR *udp = (UDPHDR *) (l_PacketBuffer->m_Data + sizeof (ETH_HEADER) + sizeof (IPHDR));
 
 	// ARP packet?
-	if (l_PacketLength == sizeof (ARP_PACKET) && eth->proto == htons (ETH_P_ARP))
+	if (l_PacketLength == sizeof (ARP_PACKET)
+	    && eth->proto == htons (ETH_P_ARP)
+	    && l_Adapter->m_dhcp_server_arp)
 	  {
 	    if (ProcessARP (l_Adapter,
 			    (PARP_PACKET) l_PacketBuffer->m_Data,
@@ -1604,6 +1620,22 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 	      break;
 	    }
 
+#if DBG
+	  case TAP_IOCTL_GET_LOG_LINE:
+	    {
+	      if (GetDebugLine ((LPTSTR)p_IRP->AssociatedIrp.SystemBuffer,
+				l_IrpSp->Parameters.DeviceIoControl.OutputBufferLength))
+		p_IRP->IoStatus.Status = l_Status = STATUS_SUCCESS;
+	      else
+		p_IRP->IoStatus.Status = l_Status = STATUS_UNSUCCESSFUL;
+
+	      p_IRP->IoStatus.Information
+		= l_IrpSp->Parameters.DeviceIoControl.OutputBufferLength;
+
+	      break;
+	    }
+#endif
+
 #ifdef NEED_TAP_IOCTL_GET_LASTMAC
 	  case TAP_IOCTL_GET_LASTMAC:
 	    {
@@ -1672,6 +1704,8 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 
 		  l_Adapter->m_TapToUser.proto = l_Adapter->m_UserToTap.proto = htons (ETH_P_IP);
 
+		  CheckIfDhcpAndPointToPointMode (l_Adapter);
+
 		  NdisReleaseSpinLock (&l_Adapter->m_Lock);
 
 		  p_IRP->IoStatus.Information = 1; // Simple boolean value
@@ -1710,6 +1744,7 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 		  NdisAcquireSpinLock (&l_Adapter->m_Lock);
 
 		  l_Adapter->m_dhcp_enabled = TRUE;
+		  l_Adapter->m_dhcp_server_arp = TRUE;
 
 		  // Adapter IP addr / netmask
 		  l_Adapter->m_dhcp_addr =
@@ -1725,7 +1760,15 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 		  l_Adapter->m_lease_time =
 		    ((IPADDR*) (p_IRP->AssociatedIrp.SystemBuffer))[3];
 
+		  // Renewal time should be 50% of lease time
+		  l_Adapter->m_renew_time = l_Adapter->m_lease_time / 2;
+
+		  // Rebind time should be 75% of lease time
+		  l_Adapter->m_rebind_time = (l_Adapter->m_lease_time * 3) / 4;
+
 		  GenerateRelatedMAC (l_Adapter->m_dhcp_server_mac, l_Adapter->m_MAC, 2);
+
+		  CheckIfDhcpAndPointToPointMode (l_Adapter);
 
 		  NdisReleaseSpinLock (&l_Adapter->m_Lock);
 
@@ -2290,6 +2333,25 @@ SetMediaStatus (TapAdapterPointer p_Adapter, BOOLEAN state)
     }
 }
 
+
+//======================================================
+// If DHCP mode is used together with Point-to-point
+// mode, consider the fact that the P2P remote endpoint
+// might be equal to the DHCP masq server address.
+//======================================================
+VOID
+CheckIfDhcpAndPointToPointMode (TapAdapterPointer p_Adapter)
+{
+  if (p_Adapter->m_PointToPoint && p_Adapter->m_dhcp_enabled)
+    {
+      if (p_Adapter->m_dhcp_server_ip == p_Adapter->m_remoteIP)
+	{
+	  COPY_MAC (p_Adapter->m_dhcp_server_mac, p_Adapter->m_TapToUser.dest);
+	  p_Adapter->m_dhcp_server_arp = FALSE;
+	}
+    }
+}
+
 //===================================================
 // Generate an ARP reply message for specific kinds
 // ARP queries.
@@ -2316,7 +2378,7 @@ ProcessARP (TapAdapterPointer p_Adapter,
       && src->m_ARP_IP_Source == adapter_ip
       && src->m_ARP_IP_Destination == ip)
     {
-      ARP_PACKET *arp = (ARP_PACKET *) MemAllocZeroed (sizeof (ARP_PACKET));
+      ARP_PACKET *arp = (ARP_PACKET *) MemAlloc (sizeof (ARP_PACKET), TRUE);
       if (arp)
 	{
 	  //----------------------------------------------
@@ -2408,11 +2470,16 @@ VOID ResetTapDevState (TapAdapterPointer p_Adapter)
 
   // DHCP Masq
   p_Adapter->m_dhcp_enabled = FALSE;
+  p_Adapter->m_dhcp_server_arp = FALSE;
   p_Adapter->m_dhcp_addr = 0;
   p_Adapter->m_dhcp_netmask = 0;
   p_Adapter->m_dhcp_server_ip = 0;
   NdisZeroMemory (p_Adapter->m_dhcp_server_mac, sizeof (MACADDR));
   p_Adapter->m_lease_time = 0;
+  p_Adapter->m_renew_time = 0;
+  p_Adapter->m_rebind_time = 0;
+  p_Adapter->m_received_discover = FALSE;
+  p_Adapter->m_bad_requests = 0;
 }
 
 //===================================================================
