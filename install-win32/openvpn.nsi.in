@@ -78,6 +78,7 @@
   !define MUI_UNICON "${HOME}\install-win32\openvpn.ico"
   !define MUI_HEADERIMAGE
   !define MUI_HEADERIMAGE_BITMAP "${HOME}\install-win32\install-whirl.bmp"
+  !define MUI_UNFINISHPAGE_NOAUTOCLOSE
 
   !insertmacro MUI_PAGE_WELCOME
   !insertmacro MUI_PAGE_LICENSE "${HOME}\install-win32\license.txt"
@@ -89,6 +90,7 @@
   !insertmacro MUI_UNPAGE_CONFIRM
   !insertmacro MUI_UNPAGE_INSTFILES  
   !insertmacro MUI_UNPAGE_FINISH
+
 
 ;--------------------------------
 ;Languages

@@ -3,6 +3,13 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.02.20 -- Version 2.0-rc16
+
+* Fixed bug introduced in rc13 where Windows service wrapper
+  would be installed with a startup type of Automatic.
+  This fix restores the previous behavior of installing
+  with a startup type of Manual.
+
 2005.02.19 -- Version 2.0-rc15
 
 * Added warning when --keepalive is not used in a server
