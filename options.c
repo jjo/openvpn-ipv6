@@ -47,7 +47,9 @@ static const char usage_message[] =
   "Tunnel Options:\n"
   "--local host    : Local host name or ip address.\n"
   "--remote host   : Remote host name or ip address.\n"
-  "--float         : Allow remote to change its IP address, such as through\n"
+  "--resolv-retry n: If hostname resolve fails for --local or --remote, retry\n"
+  "                  resolve for n seconds before failing (disabled by default).\n"
+  "--float         : Allow remote to change its IP address/port, such as through\n"
   "                  DHCP (this is the default if --remote is not used).\n"
   "--ipchange cmd  : Execute shell command cmd on remote ip address initial\n"
   "                  setting or change -- execute as: cmd ip-address port#\n"
@@ -73,7 +75,8 @@ static const char usage_message[] =
   "--ping-restart n: Restart if n seconds pass without reception of remote ping.\n"
   "--ping n        : Ping remote once every n seconds over UDP port.\n"
   "--persist-tun   : Keep tun/tap device open across SIGUSR1 or --ping-restart.\n"
-  "--persist-ip    : Keep remote IP address across SIGUSR1 or --ping-restart.\n"
+  "--persist-remote-ip : Keep remote IP address across SIGUSR1 or --ping-restart.\n"
+  "--persist-local-ip  : Keep local IP address across SIGUSR1 or --ping-restart.\n"
   "--tun-mtu n     : Take the tun/tap device MTU to be n and derive the\n"
   "                  UDP MTU from it (default=%d).\n"
   "--udp-mtu n     : Take the UDP device MTU to be n and derive the tun MTU\n"
@@ -282,7 +285,10 @@ show_settings (const struct options *o)
   SHOW_INT (ping_rec_timeout_action);
 
   SHOW_BOOL (persist_tun);
-  SHOW_BOOL (persist_ip);
+  SHOW_BOOL (persist_local_ip);
+  SHOW_BOOL (persist_remote_ip);
+
+  SHOW_INT (resolve_retry_seconds);
 
   SHOW_STR (username);
   SHOW_STR (chroot_dir);
@@ -621,6 +627,11 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
       ++i;
       options->remote = p2;
     }
+  else if (streq (p1, "resolv-retry") && p2)
+    {
+      ++i;
+      options->resolve_retry_seconds = positive (atoi (p2));
+    }
   else if (streq (p1, "ipchange") && p2)
     {
       ++i;
@@ -778,9 +789,13 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       options->persist_tun = true;
     }
-  else if (streq (p1, "persist-ip"))
+  else if (streq (p1, "persist-local-ip"))
     {
-      options->persist_ip = true;
+      options->persist_local_ip = true;
+    }
+  else if (streq (p1, "persist-remote-ip"))
+    {
+      options->persist_remote_ip = true;
     }
 #ifdef USE_LZO
   else if (streq (p1, "comp-lzo"))

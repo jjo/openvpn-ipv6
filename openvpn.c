@@ -49,11 +49,19 @@
 
 static volatile int signal_received = 0;
 
+/* normal signal handler, when we are in event loop */
 static void
 signal_handler (int signum)
 {
   signal_received = signum;
   signal (signum, signal_handler);
+}
+
+/* temporary signal handler, before we are fully initialized */
+static void
+signal_handler_exit (int signum)
+{
+  msg (M_FATAL, "Signal %d received during initialization, exiting", signum);
 }
 
 /*
@@ -125,7 +133,7 @@ static void *test_crypto_thread (void *arg);
  */
 static int
 openvpn (const struct options *options,
-	 struct sockaddr_in *remote_addr,
+	 struct udp_socket_addr *udp_socket_addr,
 	 struct tuntap *tuntap,
 	 bool first_time)
 {
@@ -268,6 +276,17 @@ openvpn (const struct options *options,
   struct buffer read_udp_buf = clear_buf ();
   struct buffer read_tun_buf = clear_buf ();
 
+  /*
+   * Special handling if signal arrives before
+   * we are properly initialized.
+   */
+  signal (SIGINT, signal_handler_exit);
+  signal (SIGTERM, signal_handler_exit);
+  signal (SIGHUP, SIG_IGN);
+  signal (SIGUSR1, SIG_IGN);
+  signal (SIGUSR2, SIG_IGN);
+  signal (SIGPIPE, SIG_IGN);
+
   msg (M_INFO, "%s", TITLE);
 
   CLEAR (udp_socket);
@@ -295,7 +314,8 @@ openvpn (const struct options *options,
     udp_socket_init (&udp_socket, options->local, options->remote,
 		     options->local_port, options->remote_port,
 		     options->bind_local, options->remote_float,
-		     remote_addr, options->ipchange);
+		     udp_socket_addr, options->ipchange,
+		     options->resolve_retry_seconds);
 
 #ifdef USE_CRYPTO
 
@@ -584,7 +604,6 @@ openvpn (const struct options *options,
   signal (SIGHUP, signal_handler);
   signal (SIGUSR1, signal_handler);
   signal (SIGUSR2, signal_handler);
-  signal (SIGPIPE, SIG_IGN);
 
   /* start the TLS thread */
 #if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
@@ -1190,7 +1209,7 @@ openvpn (const struct options *options,
 		   * packet to remote over the UDP port.
 		   */
 		  int size;
-		  ASSERT (ADDR (to_udp_addr));
+		  ASSERT (addr_defined (&to_udp_addr));
 		  /* In gremlin-test mode, we may choose to drop this packet */
 		  if (!options->gremlin || ask_gremlin())
 		    {
@@ -1305,8 +1324,10 @@ openvpn (const struct options *options,
    * Close UDP connection
    */
   udp_socket_close (&udp_socket);
-  if ( !(signal_received == SIGUSR1 && options->persist_ip) )
-    CLEAR (*remote_addr);
+  if ( !(signal_received == SIGUSR1 && options->persist_remote_ip) )
+    CLEAR (udp_socket_addr->actual);
+  if ( !(signal_received == SIGUSR1 && options->persist_local_ip) )
+    CLEAR (udp_socket_addr->local);
 
   /*
    * Close tun/tap device
@@ -1514,12 +1535,12 @@ main (int argc, char *argv[])
 
       /* Do Work */
       {
-	struct sockaddr_in remote_addr;
+	struct udp_socket_addr usa;
 	struct tuntap tuntap;
-	CLEAR (remote_addr);
+	CLEAR (usa);
 	clear_tuntap (&tuntap);
 	do {
-	  sig = openvpn (&options, &remote_addr, &tuntap, first_time);
+	  sig = openvpn (&options, &usa, &tuntap, first_time);
 	  first_time = false;
 	} while (sig == SIGUSR1);
       }
@@ -1546,14 +1567,14 @@ main (int argc, char *argv[])
 static void*
 test_crypto_thread (void *arg)
 {
-  struct sockaddr_in remote_addr;
+  struct udp_socket_addr usa;
   struct tuntap tuntap;
   const struct options *opt = (struct options*) arg;
 
   set_nice (opt->nice_work);
-  CLEAR (remote_addr);
+  CLEAR (usa);
   clear_tuntap (&tuntap);
-  openvpn (opt, &remote_addr, &tuntap, false);
+  openvpn (opt, &usa, &tuntap, false);
   return NULL;
 }
 #endif

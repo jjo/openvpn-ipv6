@@ -29,21 +29,21 @@
 #include "buffer.h"
 #include "common.h"
 
-#define ADDR_P(s) ((s)->sin_addr.s_addr)
-#define ADDR(s) (s.sin_addr.s_addr)
+struct udp_socket_addr
+{
+  struct sockaddr_in local;
+  struct sockaddr_in remote; /* initial remote */
+  struct sockaddr_in actual; /* remote may change due to --float */
+};
 
 struct udp_socket
 {
-  struct sockaddr_in local;
-  struct sockaddr_in remote;
-  bool remote_float;
-  const char *ipchange_command;
-  struct sockaddr_in *actual;
-  int sd;			/* file descriptor for socket */
   bool set_outgoing_initial;
+  bool remote_float;
+  struct udp_socket_addr *addr;
+  const char *ipchange_command;
+  int sd;			/* file descriptor for socket */
 };
-
-in_addr_t getaddr (const char *hostname);
 
 void
 udp_socket_init (struct udp_socket *sock,
@@ -53,7 +53,9 @@ udp_socket_init (struct udp_socket *sock,
 		 int remote_port,
 		 bool bind_local,
 		 bool remote_float,
-		 struct sockaddr_in *actual, const char *ipchange_command);
+		 struct udp_socket_addr *addr,
+		 const char *ipchange_command,
+		 int resolve_retry_seconds);
 
 void
 udp_socket_set_outgoing_addr (const struct buffer *buf,
@@ -78,5 +80,21 @@ print_sockaddr_ex (const struct sockaddr_in *addr, bool do_port, const char* sep
 
 const char *
 print_sockaddr (const struct sockaddr_in *addr);
+
+/*
+ * Inline functions
+ */
+
+static inline bool
+addr_defined (const struct sockaddr_in *addr)
+{
+  return addr->sin_addr.s_addr != 0;
+}
+
+static inline bool
+addr_match (const struct sockaddr_in *a1, const struct sockaddr_in *a2)
+{
+  return a1->sin_addr.s_addr == a2->sin_addr.s_addr && a1->sin_port == a2->sin_port;
+}
 
 #endif /* SOCKET_H */

@@ -69,8 +69,11 @@ struct options
   #define PING_RESTART 2
   int ping_rec_timeout_action;  /* What action to take on ping_rec_timeout (exit or restart)? */
 
-  bool persist_tun;     /* Don't close/reopen tun/tap dev on SIGUSR1 or PING_RESTART */
-  bool persist_ip;      /* Don't re-resolve remote address on SIGUSR1 or PING_RESTART */
+  bool persist_tun;             /* Don't close/reopen tun/tap dev on SIGUSR1 or PING_RESTART */
+  bool persist_local_ip;        /* Don't re-resolve local address on SIGUSR1 or PING_RESTART */
+  bool persist_remote_ip;       /* Don't re-resolve remote address on SIGUSR1 or PING_RESTART */
+
+  int resolve_retry_seconds;    /* If hostname resolve fails, retry for n seconds */
 
   /* Misc parms */
   char *username;

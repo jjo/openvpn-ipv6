@@ -35,17 +35,49 @@
 
 #include "memdbg.h"
 
-/* Translate IP addr or hostname to in_addr_t */
-in_addr_t
-getaddr (const char *hostname)
+static const char*
+h_errno_msg(int h_errno_err)
 {
+  switch (h_errno_err)
+    {
+    case HOST_NOT_FOUND:
+      return "[HOST_NOT_FOUND] The specified host is unknown.";
+    case NO_DATA:
+      return "[NO_DATA] The requested name is valid but does not have an IP address.";
+    case NO_RECOVERY:
+      return "[NO_RECOVERY] A non-recoverable name server error occurred.";
+    case TRY_AGAIN:
+      return "[TRY_AGAIN] A temporary error occurred on an authoritative name server.";
+    }
+  return "[unknown h_errno value]";
+}
+
+/*
+ * Translate IP addr or hostname to in_addr_t.
+ * If resolve error, try again for
+ * resolve_retry_seconds seconds.
+ */
+static in_addr_t
+getaddr (const char *hostname, int resolve_retry_seconds)
+{
+  const int fail_wait_interval = 5; /* seconds */
+  int resolve_retries = resolve_retry_seconds / fail_wait_interval;
   in_addr_t ip = inet_addr (hostname);
 
   if (ip == -1)
     {
-      struct hostent *h = gethostbyname (hostname);
-      if (!h)
-	msg (M_ERR, "Cannot resolve host address: %s", hostname);
+      /*
+       * Resolve hostname
+       */
+      struct hostent *h;
+      while ( !(h = gethostbyname (hostname)) )
+	{
+	  msg ((resolve_retries > 0  ? M_WARN : M_FATAL),
+	       "Cannot resolve host address: %s: %s",
+	       hostname, h_errno_msg (h_errno));
+	  sleep (fail_wait_interval);
+	  --resolve_retries;
+	}
 
       /* potentially more than one address returned, but we take first */
       ip = *(in_addr_t *) (h->h_addr_list[0]);
@@ -68,48 +100,60 @@ udp_socket_init (struct udp_socket *sock,
 		 int remote_port,
 		 bool bind_local,
 		 bool remote_float,
-		 struct sockaddr_in *actual, const char *ipchange_command)
+		 struct udp_socket_addr *usa,
+		 const char *ipchange_command,
+		 int resolve_retry_seconds)
 {
   CLEAR (*sock);
 
   sock->remote_float = remote_float;
-  sock->actual = actual;
+  sock->addr = usa;
   sock->ipchange_command = ipchange_command;
 
   /* create socket */
   if ((sock->sd = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
     msg (M_ERR, "Cannot create socket");
 
-  /* parse local address */
-  sock->local.sin_family = AF_INET;
-  sock->local.sin_addr.s_addr =
-    (local_host ? getaddr (local_host) : htonl (INADDR_ANY));
-  sock->local.sin_port = htons (local_port);
-
-  /* parse remote address */
-  sock->remote.sin_family = AF_INET;
-  sock->remote.sin_addr.s_addr = (remote_host ? getaddr (remote_host) : 0);
-  sock->remote.sin_port = htons (remote_port);
-
-  if (bind_local)
+  /* resolve local address if undefined */
+  if (!addr_defined (&usa->local))
     {
-      if (bind
-	  (sock->sd, (struct sockaddr *) &sock->local, sizeof (sock->local)))
-	msg (M_ERR, "Socket bind failed on local address: %s",
-	     print_sockaddr (&sock->local));
+      usa->local.sin_family = AF_INET;
+      usa->local.sin_addr.s_addr =
+	(local_host ? getaddr (local_host, resolve_retry_seconds) : htonl (INADDR_ANY));
+      usa->local.sin_port = htons (local_port);
     }
 
+  /* bind to local address/port */
+  if (bind_local)
+    {
+      if (bind (sock->sd, (struct sockaddr *) &usa->local, sizeof (usa->local)))
+	msg (M_ERR, "Socket bind failed on local address: %s",
+	     print_sockaddr (&usa->local));
+    }
+
+  /* resolve remote address if undefined */
+  if (!addr_defined (&usa->remote))
+    {
+      usa->remote.sin_family = AF_INET;
+      usa->remote.sin_addr.s_addr =
+	(remote_host ? getaddr (remote_host, resolve_retry_seconds) : 0);
+      usa->remote.sin_port = htons (remote_port);
+    }
+
+  /* should we re-use previous active remote address? */
+  if (addr_defined (&usa->actual))
+    msg (M_INFO, "Preserving recently used remote address: %s", print_sockaddr (&usa->actual));
+  else
+    usa->actual = usa->remote;
+
+  /* set socket to non-blocking mode */
   set_nonblock (sock->sd);
 
-  if (ADDR_P (sock->actual))
-    msg (M_INFO, "Preserving recently used remote address: %s", print_sockaddr (sock->actual));
-  else
-    *sock->actual = sock->remote;
-
+  /* print local and active remote address */
   msg (M_INFO, "UDP link local%s: %s", (bind_local ? " (bound)" : ""),
-       print_sockaddr_ex (&sock->local, bind_local, ":"));
+       print_sockaddr_ex (&usa->local, bind_local, ":"));
   msg (M_INFO, "UDP link remote: %s",
-       print_sockaddr_ex (sock->actual, ADDR_P(sock->actual) != 0, ":"));
+       print_sockaddr_ex (&usa->actual, addr_defined (&usa->actual), ":"));
 }
 
 void
@@ -120,16 +164,18 @@ udp_socket_set_outgoing_addr (const struct buffer *buf,
   mutex_lock (L_SOCK);
   if (!buf || buf->len > 0)
     {
-      ASSERT (ADDR_P (addr));
+      struct udp_socket_addr *usa = sock->addr;
+      ASSERT (addr_defined (addr));
       if ((sock->remote_float
-	   || !ADDR (sock->remote)
-	   || (ADDR_P (addr) == ADDR (sock->remote)))
-	  && (ADDR_P (sock->actual) != ADDR_P (addr) || !sock->set_outgoing_initial))
+	   || !addr_defined (&usa->remote)
+	   || addr_match (addr, &usa->remote))
+	  && (!addr_match (addr, &usa->actual)
+	      || !sock->set_outgoing_initial))
 	{
-	  *sock->actual = *addr;
+	  usa->actual = *addr;
 	  sock->set_outgoing_initial = true;
 	  mutex_unlock (L_SOCK);
-	  msg (D_HANDSHAKE, "Peer Connection Initiated with %s", print_sockaddr (sock->actual));
+	  msg (D_HANDSHAKE, "Peer Connection Initiated with %s", print_sockaddr (&usa->actual));
 	  if (sock->ipchange_command)
 	    {
 	      char command[256];
@@ -137,7 +183,7 @@ udp_socket_set_outgoing_addr (const struct buffer *buf,
 	      buf_set_write (&out, command, sizeof (command));
 	      buf_printf (&out, "%s %s",
 			  sock->ipchange_command,
-			  print_sockaddr_ex (sock->actual, true, " "));
+			  print_sockaddr_ex (&usa->actual, true, " "));
 	      msg (D_TLS_DEBUG, "executing ip-change command: %d", command);
 	      openvpn_system (command);
 	    }
@@ -155,16 +201,19 @@ udp_socket_incoming_addr (struct buffer *buf,
   mutex_lock (L_SOCK);
   if (buf->len > 0)
     {
-      ASSERT (from_addr->sin_family == AF_INET);
-      if (!ADDR_P (from_addr))
+      struct udp_socket_addr *usa = sock->addr;
+      if (from_addr->sin_family != AF_INET)
 	goto bad;
-      if (ADDR_P (from_addr) == ADDR (sock->remote))
+      if (!addr_defined (from_addr))
+	goto bad;
+      if (!addr_defined (&usa->remote) || sock->remote_float)
 	goto good;
-      if (!ADDR (sock->remote) || sock->remote_float)
+      if (addr_match (from_addr, &usa->remote))
 	goto good;
     }
 bad:
-  msg (D_LINK_ERRORS, "IP Address failed from %s",
+  msg (D_LINK_ERRORS,
+       "IP Address failed from %s (allow this incoming address/port by removing --remote or adding --float)",
        print_sockaddr (from_addr));
   buf->len = 0;
   mutex_unlock (L_SOCK);
@@ -185,9 +234,10 @@ udp_socket_get_outgoing_addr (struct buffer *buf,
   mutex_lock (L_SOCK);
   if (buf->len > 0)
     {
-      if (ADDR_P (sock->actual))
+      struct udp_socket_addr *usa = sock->addr;
+      if (addr_defined (&usa->actual))
 	{
-	  *addr = *sock->actual;
+	  *addr = usa->actual;
 	}
       else
 	{
@@ -221,7 +271,7 @@ print_sockaddr_ex (const struct sockaddr_in *addr, bool do_port, const char* sep
   const int port = ntohs (addr->sin_port);
 
   mutex_lock (L_INET_NTOA);
-  buf_printf (&out, "%s", (ADDR_P(addr) ? inet_ntoa (addr->sin_addr) : "[undef]"));
+  buf_printf (&out, "%s", (addr_defined (addr) ? inet_ntoa (addr->sin_addr) : "[undef]"));
   mutex_unlock (L_INET_NTOA);
 
   if (do_port && port)

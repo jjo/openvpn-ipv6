@@ -1058,7 +1058,7 @@ write_control_auth (struct tls_session *session,
   uint8_t *header;
   struct buffer null = clear_buf ();
 
-  ASSERT (ADDR (ks->remote_addr));
+  ASSERT (addr_defined (&ks->remote_addr));
   ASSERT (reliable_ack_write
 	  (&ks->rec_ack, buf, &ks->session_id_remote, max_ack, prepend_ack));
   ASSERT (session_id_write_prepend (&session->session_id, buf));
@@ -1538,8 +1538,8 @@ tls_multi_process (struct tls_multi *multi,
       struct key_state *ks_lame = &session->key[KS_LAME_DUCK];
 
       /* set initial remote address */
-      if (i == TM_ACTIVE && ks->state == S_INITIAL && ADDR_P (to_udp_socket->actual))
-	ks->remote_addr = *to_udp_socket->actual;
+      if (i == TM_ACTIVE && ks->state == S_INITIAL && addr_defined (&to_udp_socket->addr->actual))
+	ks->remote_addr = to_udp_socket->addr->actual;
 
       msg (D_TLS_DEBUG,
 	   "tls_multi_process: i=%d state=%s, mysid=%s, stored-sid=%s, stored-ip=%s",
@@ -1549,7 +1549,7 @@ tls_multi_process (struct tls_multi *multi,
 	   session_id_print (&ks->session_id_remote),
 	   print_sockaddr (&ks->remote_addr));
 
-      if (ks->state >= S_INITIAL && ADDR (ks->remote_addr))
+      if (ks->state >= S_INITIAL && addr_defined (&ks->remote_addr))
 	{
 	  current = time (NULL);
 
@@ -1893,8 +1893,9 @@ tls_pre_decrypt (struct tls_multi *multi,
 	      struct key_state *ks = multi->key_scan[i];
 	      if (DECRYPT_KEY_ENABLED (multi, ks)
 		  && key_id == ks->key_id
-		  && ADDR_P(from) == ADDR(ks->remote_addr))
+		  && addr_match(from, &ks->remote_addr))
 		{
+		  /* return appropriate data channel decrypt key in opt */
 		  opt->key_ctx_bi = &ks->key;
 		  opt->packet_id = multi->opt.packet_id ? &ks->packet_id : NULL;
 		  opt->packet_id_long_form = multi->opt.packet_id_long_form;
@@ -2057,7 +2058,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 	      /*
 	       * Verify remote IP address
 	       */
-	      if (!new_link && ADDR(ks->remote_addr) != ADDR_P(from))
+	      if (!new_link && !addr_match (&ks->remote_addr, from))
 		{
 		  msg(D_TLS_ERRORS, "TLS Error: Received control packet from unexpected IP addr: %s",
 		      print_sockaddr (from));
@@ -2120,7 +2121,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 		ks->session_id_remote = sid;
 		ks->remote_addr = *from;
 	      }
-	    else if (ADDR(ks->remote_addr) != ADDR_P(from))
+	    else if (!addr_match (&ks->remote_addr, from))
 	      {
 		msg (D_TLS_ERRORS,
 		     "TLS Error: Existing session control channel packet from unknown IP address: %s",
