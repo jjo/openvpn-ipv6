@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.2.25], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.2.26], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -116,6 +116,10 @@ AC_DEFINE_UNQUOTED(TARGET_ALIAS, "$openvpn_target", [A string representing our t
 case "$target" in
 *linux*)
 	AC_DEFINE(TARGET_LINUX, 1, [Are we running on Linux?])
+	dnl RH9 SSL headers workaround
+        if test -z $CS_HDR_DIR && test "$CRYPTO" = "yes"; then
+           CPPFLAGS="$CPPFLAGS $(pkg-config --cflags openssl 2>/dev/null)"
+        fi
 	;;
 *solaris*)
 	AC_DEFINE(TARGET_SOLARIS, 1, [Are we running on Solaris?])

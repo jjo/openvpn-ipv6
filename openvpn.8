@@ -28,7 +28,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "15 March 2003"
+.TH openvpn 8 "25 April 2003"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -1035,7 +1035,7 @@ than the main thread.
 Set output verbosity to
 .B n
 (default=1).  Each level shows all info from the previous levels.
-Level 5 is recommended if you want a good summary
+Level 3 is recommended if you want a good summary
 of what's happening without being swamped by output.
 
 .B 0 --
@@ -1045,27 +1045,19 @@ no output except fatal errors
 show startup information + connection initiated messages + non-fatal encryption & net errors
 .br
 .B 2 --
-show all parameter settings
+show SSL/TLS negotiations
 .br
 .B 3 --
-show key negotiations +
+show extra SSL/TLS info +
 .B --gremlin
-net outages
+net outages + adaptive compression state changes (on or off)
 .br
 .B 4 --
-show partial TLS debug info
+show all parameter settings
 .br
-.B 5 --
-show adaptive compression state changes (on or off)
-.br
-.B 6 --
-show hex representation of keys
-.br
-.B 7 --
-show verbose key negotiations
-.br
-.B 8 --
-show all debug info
+.B 5 to 11 --
+show debug info of increasing verbosity (see errlevel.h for additional
+information on debug levels)
 .TP
 .B --mute n
 Log at most

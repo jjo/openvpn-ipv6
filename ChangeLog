@@ -64,7 +64,10 @@ Upcoming version 1.4.0
   between peers when SSL/TLS negotiation is used,
   but should only be used when both OpenVPN peers
   are of the same version.
-* Reorganization of debugging levels >= 5.
+* Reorganization of debugging levels.
+* Added a workaround in configure.ac for
+  default SSL header location on Linux
+  to fix RH9 build problem.
 
 2002.10.23 -- Version 1.3.2
 

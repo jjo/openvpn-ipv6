@@ -635,7 +635,7 @@ openvpn (const struct options *options,
 #endif
 
   max_rw_size_udp = MAX_RW_SIZE_UDP (&frame);
-  frame_print (&frame, D_SHOW_PARMS, "Data Channel MTU parms");
+  frame_print (&frame, D_MTU_INFO, "Data Channel MTU parms");
 #ifdef FRAGMENT_ENABLE
   if (fragment)
     frame_print (&frame_fragment, D_FRAG_DEBUG, "Fragmentation MTU parms");
@@ -650,7 +650,7 @@ openvpn (const struct options *options,
       size = MAX_RW_SIZE_UDP (&tls_multi->opt.frame);
       if (size > max_rw_size_udp)
 	max_rw_size_udp = size;
-      frame_print (&tls_multi->opt.frame, D_SHOW_PARMS, "Control Channel MTU parms");
+      frame_print (&tls_multi->opt.frame, D_MTU_INFO, "Control Channel MTU parms");
     }
 #endif
 
