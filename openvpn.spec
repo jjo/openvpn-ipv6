@@ -1,6 +1,6 @@
 Summary:	A Secure UDP Tunneling Daemon
 Name:		openvpn
-Version:	1.2.1.4
+Version:	1.2.1.5
 Release:	1
 URL:		http://sourceforge.net/projects/openvpn/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
@@ -67,8 +67,12 @@ service %{name} stop
 /etc
 
 %changelog
+
+* Mon Jun 17 2002 bishop clark (LC957) <bishop@platypus.bc.ca> 1.2.2-1
+- Added condrestart to openvpn.spec & openvpn.init.
+
 * Wed May 22 2002 James Yonan <jim@yonan.net> 1.2.0-1
--- Added mknod for Linux 2.4
+- Added mknod for Linux 2.4.
 
 * Wed May 15 2002 Doug Keller <dsk@voidstar.dyndns.org> 1.1.1.16-2
 - Added init scripts

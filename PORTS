@@ -4,31 +4,32 @@ Copyright 2002 by James Yonan <jim@yonan.net>
   OpenVPN has been written to try to avoid features
   that are not standardized well across different
   OSes, so porting OpenVPN itself will probably be
-  straightforward if a tun driver already exists.
+  straightforward if a tun or tap driver already exists.
 
   Where special OS features are used, they are usually
   bracketed with #ifdef HAVE_SOME_FUNCTION.
 
-CURRENTLY SUPPORTED PLATFORMS:
+PLATFORM STATUS:
 
-  * Linux 2.2+
-  * Solaris
-  * OpenBSD 3.0
-  * Max OS X Darwin (experimental)
+  * Linux 2.2+ (supported)
+  * Solaris (supported)
+  * OpenBSD 3.0 (supported)
+  * Max OS X Darwin (supported but still experimental)
   * FreeBSD (experimental)
+  * Windows (under development -- OpenVPN daemon has been
+    ported to Cygwin, still need a tun or tap driver).
 
 PORTING NOTES:
 
   * Make sure that OpenSSL will build on your
     platform.
-  * Make sure that a tun device module exists
-    for your platform.  See
+  * Make sure that a tun or tap virtual device
+    driver exists for your platform.  See
     http://vtun.sourceforge.net/tun/ for examples
     of tun and tap drivers that have been written
     for Linux, Solaris, and FreeBSD.
-  * Make sure you have version 2.50 or higher
-    of autoconf.  You will need a matching automake
-    as well.
+  * Make sure you have autoconf 2.50+ and
+    automake 1.6+.
   * Edit configure.ac, adding platform specific
     config code, and a TARGET_YOUROS define.
   * Add platform-specific includes to syshead.h.
@@ -37,23 +38,23 @@ PORTING NOTES:
     command for your platform.
   * Add a ifconfig_order() variant for your OS so
     openvpn knows whether to call ifconfig before
-    or after tun dev open.
+    or after tun/tap dev open.
   * Add an #ifdef TARGET_YOUROS block in tun.c and define
     the open_tun, close_tun, read_tun, and write_tun
-    functions.  See the TARGET_GENERIC block for an
-    example of interfacing to the simplest kind of
-    tun device.
+    functions.  If your tun/tap virtual device is sufficiently
+    generic, you may be able to use the default case.
   * After you successfully build OpenVPN, try:
       (1) ./openvpn --genkey --secret key
       (2) ./openvpn --test-crypto --secret key
+    to test the crypto subsystem.
   * For the next test, confirm that the UDP socket
     functionality is working independently of the
     tun device, by doing something like:
       ./openvpn --remote localhost --verb 8 --ping 1 --dev null
   * Now try with --remote [a real host]
-  * Now try with a real tun device, you will
+  * Now try with a real tun/tap device, you will
     need to figure out the appropriate ifconfig
-    command to use once openvpn has opened the tun
+    command to use once openvpn has opened the tun/tap
     device.
   * Once you have simple tests working on the tun device,
     try more complex tests such as using TLS mode.
@@ -65,4 +66,4 @@ PORTING NOTES:
     test in TLS mode.
   * When it's working, submit your patch to
     <openvpn-devel@lists.sourceforge.net>
-    and rejoice.
+    and rejoice :)

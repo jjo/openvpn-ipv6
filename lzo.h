@@ -27,6 +27,7 @@
 
 #include "lzo1x.h"
 #include "buffer.h"
+#include "mtu.h"
 #include "common.h"
 
 /*

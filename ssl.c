@@ -44,6 +44,7 @@
 #include "thread.h"
 #include "misc.h"
 #include "fdmisc.h"
+#include "interval.h"
 
 #include "memdbg.h"
 

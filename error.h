@@ -43,22 +43,42 @@ extern int msg_line_num;
 
 /* msg() flags */
 
-#define M_INFO      0		/* default behavior */
-#define M_DEBUG     (0x0F)	/* debug level mask */
-#define M_FATAL     (1<<4)	/* exit program */
-#define M_WARN	    (1<<5)	/* call syslog with LOG_WARNING, otherwise use LOG_INFO,
-				   or LOG_ERR if E_FATAL is defined, or LOG_DEBUG if debug
-				   level > 0 */
-#define M_ERRNO     (1<<6)	/* show errno description */
-#define M_SSL       (1<<7)	/* show SSL error */
-#define M_NOLOCK    (1<<8)      /* don't lock/unlock mutex */      
-#define M_NOMUTE    (1<<9)      /* don't do mute processing */      
+#define M_DEBUG_LEVEL     (0x0F)	 /* debug level mask */
+
+#define M_FATAL           (1<<4)	 /* exit program */
+#define M_NONFATAL        (1<<5)	 /* non-fatal error */
+#define M_WARN	          (1<<6)	 /* call syslog with LOG_WARNING */
+#define M_DEBUG           (1<<7)
+
+#define M_ERRNO           (1<<8)	 /* show errno description */
+#define M_SSL             (1<<9)	 /* show SSL error */
+#define M_NOLOCK          (1<<10)        /* don't lock/unlock mutex */      
+#define M_NOMUTE          (1<<11)        /* don't do mute processing */      
 
 #define M_ERR     (M_FATAL | M_ERRNO)
 #define M_SSLERR  (M_FATAL | M_SSL)
 
+/*
+ * Mute levels are designed to avoid large numbers of
+ * mostly similar messages clogging the log file.
+ *
+ * A mute level of 0 is always printed.
+ */
+#define MUTE_LEVEL_SHIFT 16
+#define MUTE_LEVEL_MASK 0xFF
+
+#define ENCODE_MUTE_LEVEL(mute_level) (((mute_level) & MUTE_LEVEL_MASK) << MUTE_LEVEL_SHIFT)
+#define DECODE_MUTE_LEVEL(flags) (((flags) >> MUTE_LEVEL_SHIFT) & MUTE_LEVEL_MASK)
+
+/*
+ * log_level:  verbosity level n (--verb n) must be >= log_level to print.
+ * mute_level: don't print more than n (--mute n) consecutive messages at
+ *             a given mute level, or if 0 disable muting and print everything.
+ */
+#define LOGLEV(log_level, mute_level, other) (((log_level)-1) | ENCODE_MUTE_LEVEL(mute_level) | other)
+
 #define msg(flags, args...) \
-    do { if (((flags) & M_DEBUG) < _debug_level || ((flags) & M_FATAL)) \
+    do { if (((flags) & M_DEBUG_LEVEL) < _debug_level || ((flags) & M_FATAL)) \
     _msg((flags), args); } while (false)
 
 void _msg (unsigned int flags, const char *format, ...); /* should be called via msg above */
@@ -97,4 +117,6 @@ is_daemon ()
 
 void become_daemon (bool daemon_flag, const char *cd);
 
-#endif /* ERROR_H */
+#include "errlevel.h"
+
+#endif

@@ -36,6 +36,7 @@
 #include "session_id.h"
 #include "reliable.h"
 #include "socket.h"
+#include "mtu.h"
 
 /*
  * Openvpn Protocol.

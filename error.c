@@ -165,14 +165,12 @@ _msg (unsigned int flags, const char *format, ...)
     }
 #endif
 
-  if (flags & M_FATAL)
+  if (flags & (M_FATAL|M_NONFATAL))
     level = LOG_ERR;
   else if (flags & M_WARN)
     level = LOG_WARNING;
-  else if ((flags & M_DEBUG) > 0)
-    level = LOG_INFO;
   else
-    level = LOG_INFO;
+    level = LOG_NOTICE;
 
   if (_is_daemon)
     {
@@ -215,7 +213,7 @@ become_daemon (bool daemon_flag, const char *cd)
 #if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
       if (daemon (cd != NULL, 0) < 0)
 	msg (M_ERR, "daemon() failed");
-      openlog ("openvpn", LOG_PID, 0);
+      openlog ("openvpn", LOG_PID, LOG_DAEMON);
 #else
       msg (M_WARN, "Warning: this operating system lacks daemon logging features, therefore when I become a daemon, I won't be able to log status or error messages");
       if (daemon (cd != NULL, 0) < 0)

@@ -36,7 +36,7 @@
 #include "basic.h"
 #include "buffer.h"
 #include "packet_id.h"
-#include "common.h"
+#include "mtu.h"
 
 /*
  * Workarounds for incompatibilites between OpenSSL libraries.
@@ -130,6 +130,29 @@ cipher_ok (const char* name)
 #undef DES_check_key_parity
 #define DES_check_key_parity(x) 1
 #endif
+
+/*
+ * Max size in bytes of any cipher key that might conceivably be used.
+ *
+ * This value is checked at compile time in crypto.c to make sure
+ * it is always at least EVP_MAX_KEY_LENGTH.
+ *
+ * We define our own value, since this parameter
+ * is used to control the size of static key files.
+ * If the OpenSSL library increases EVP_MAX_KEY_LENGTH,
+ * we don't want our key files to be suddenly rendered
+ * unusable.
+ */
+#define MAX_CIPHER_KEY_LENGTH 64 
+
+/*
+ * Max size in bytes of any HMAC key that might conceivably be used.
+ *
+ * This value is checked at compile time in crypto.c to make sure
+ * it is always at least EVP_MAX_MD_SIZE.  We define our own value
+ * for the same reason as above.
+ */
+#define MAX_HMAC_KEY_LENGTH 64
 
 /*
  * Defines a key type and key length for both cipher and HMAC.

@@ -37,6 +37,7 @@
 #include "buffer.h"
 #include "packet_id.h"
 #include "session_id.h"
+#include "mtu.h"
 
 #define RELIABLE_ACK_SIZE 8
 

@@ -34,6 +34,10 @@
 
 #include "memdbg.h"
 
+/*
+ * Check for key size creepage.
+ */
+
 #if MAX_CIPHER_KEY_LENGTH < EVP_MAX_KEY_LENGTH
 #warning Some OpenSSL EVP ciphers now support key lengths greater than MAX_CIPHER_KEY_LENGTH -- consider increasing MAX_CIPHER_KEY_LENGTH
 #endif

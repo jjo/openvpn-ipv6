@@ -164,7 +164,7 @@ key_schedule_free(struct key_schedule* ks)
  * Called after command line has been parsed.
  *
  * first_time is true during our first call -- we may
- * be called multiple times due to SIGHUP.
+ * be called multiple times due to SIGHUP or SIGUSR1.
  */
 static int
 openvpn (const struct options *options,

@@ -25,7 +25,11 @@
 
 #include "buffer.h"
 #include "error.h"
-#include "common.h"
+#include "mtu.h"
+
+/*
+ * Define a tun/tap dev.
+ */
 
 struct tuntap
 {

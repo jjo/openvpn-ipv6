@@ -1,21 +1,24 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.06.18 -- Version 1.2.1.4
+2002.06.25 -- Version 1.2.1.5
 
 * Added --dev-node option to allow explicit selection of
   tun/tap device node.
 * Removed mlockall call from child thread, as it doesn't
   appear to be necessary (child thread inherits mlockall
   state from parent).
-* Timer for --ping-exit and --ping-restart
-  now doesn't run unless we have a remote
-  IP address.  --ping-nopeer reverts to
-  old behaviour.
-* Added condrestart to openvpn.init and
-  openvpn.spec (Bishop Clark).
-* All changes maintain protocol compatibility
-  with OpenVPN versions since 1.1.0.
+* Timer for --ping-exit and --ping-restart now doesn't
+  run unless we have a remote IP address.
+  --ping-nopeer reverts to old behaviour (i.e. timer runs
+  always).
+* Added condrestart to openvpn.init and openvpn.spec
+  (Bishop Clark).
+* Added --ifconfig case for FreeBSD (Matthias Andree).
+* Call openlog with facility=LOG_DAEMON (Matthias Andree).
+* Changed LOG_INFO messages to LOG_NOTICE.
+* All changes maintain protocol compatibility with OpenVPN
+  versions since 1.1.0.
 
 2002.06.12 -- Version 1.2.1
 

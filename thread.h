@@ -29,6 +29,16 @@
 #include "basic.h"
 #include "common.h"
 
+/*
+ * OpenVPN static mutex locks, by mutex type
+ */
+#define L_MSG       0
+#define L_TLS       1
+#define L_SOCK      2
+#define L_INET_NTOA 3
+#define L_CTIME     4
+#define N_MUTEXES   5
+
 #ifdef USE_PTHREAD
 
 extern pthread_t _main_thread_id;

@@ -31,7 +31,9 @@
 #include "error.h"
 #include "openvpn.h"
 #include "common.h"
+#include "mtu.h"
 #include "shaper.h"
+#include "crypto.h"
 #include "options.h"
 
 #include "memdbg.h"
@@ -200,7 +202,7 @@ static const char usage_message[] =
 #endif				/* USE_CRYPTO */
 #ifdef TUNSETPERSIST
   "\n"
-  "tun/tap config mode (available with linux 2.4+):\n"
+  "Tun/Tap config mode (available with linux 2.4+):\n"
   "--mktun         : Create a persistent tunnel.\n"
   "--rmtun         : Remove a persistent tunnel.\n"
   "--dev tunX|tapX : tun/tap device\n"

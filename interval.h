@@ -35,6 +35,11 @@
  * per I_INTERVAL seconds.
  */
 
+/* TLS time constants */
+
+#define TLS_MULTI_REFRESH 15    /* seconds */
+#define TLS_MULTI_HORIZON 60    /* seconds */
+
 /*
  * Interval test is true at least once per n seconds.
  */
