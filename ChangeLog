@@ -7,6 +7,15 @@ $Id$
 	
 * Allow scheduling priority increase (--nice) together
   with UID/GID downgrade (--user/--group).
+* Code that causes SIGUSR1 restart on TLS errors in TCP
+  mode was not activated in pthread builds.
+* Save the certificate serial number in an environmental
+  variable called tls_serial_{n} prior to calling the
+  --tls-verify script.  n is the current cert chain level.
+* Added NetBSD IPv6 tunnel capability (also requires
+  a kernel patch) (Horst Laschinsky).
+* Fixed bug in checking the return value of the nice()
+  function (Ian Pilcher).
 
 2004.02.05 -- Version 1.6-beta6
 

@@ -2784,6 +2784,15 @@ to execution of
 .B --tls-verify
 script.
 .TP
+.B tls_serial_{n}
+The serial number of the certificate from the remote peer,
+where
+.B n
+is the verification level.  Only set for TLS connections.  Set prior
+to execution of
+.B --tls-verify
+script.
+.TP
 .B tun_mtu
 The MTU of the TUN/TAP device.
 Set prior to

@@ -1227,6 +1227,51 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
     return read (tt->fd, buf, len);
 }
 
+#elif defined(TARGET_NETBSD)
+
+/*
+ * NetBSD does not support IPv6 on tun out of the box,
+ * but there exists a patch. When this patch is applied,
+ * only two things are left to openvpn:
+ * 1. Activate multicasting (this has already been done
+ *    before by the kernel, but we make sure that nobody
+ *    has deactivated multicasting inbetween.
+ * 2. Deactivate "link layer mode" (otherwise NetBSD 
+ *    prepends the address family to the packet, and we
+ *    would run into the same trouble as with OpenBSD.
+ */
+
+void
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, struct tuntap *tt)
+{
+    open_tun_generic (dev, dev_type, dev_node, ipv6, true, true, tt);
+    if (tt->fd >= 0)
+      {
+        int i = IFF_POINTOPOINT|IFF_MULTICAST;
+        ioctl (tt->fd, TUNSIFMODE, &i);  /* multicast on */
+        i = 0;
+        ioctl (tt->fd, TUNSLMODE, &i);   /* link layer mode off */
+      }
+}
+
+void
+close_tun (struct tuntap* tt)
+{
+  close_tun_generic (tt);
+}
+
+int
+write_tun (struct tuntap* tt, uint8_t *buf, int len)
+{
+    return write (tt->fd, buf, len);
+}
+
+int
+read_tun (struct tuntap* tt, uint8_t *buf, int len)
+{
+    return read (tt->fd, buf, len);
+}
+
 #elif defined(TARGET_FREEBSD)
 
 static inline int

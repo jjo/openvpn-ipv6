@@ -1456,19 +1456,21 @@ openvpn (const struct options *options,
 	      timeval.tv_sec = wakeup;
 	      timeval.tv_usec = 0;
 	    }
-
-	  if (link_socket_connection_oriented (&link_socket) && tls_multi->n_errors)
-	    {
-	      /* TLS errors are fatal in TCP mode */
-	      signal_received = SIGUSR1;
-	      msg (D_STREAM_ERRORS, "Fatal decryption error, restarting");
-	      signal_text = "tls-error";
-	      break;
-	    }
 	}
 #endif
 
       current = time (NULL);
+
+#if defined(USE_CRYPTO) && defined(USE_SSL)
+      if (tls_multi && link_socket_connection_oriented (&link_socket) && tls_multi->n_errors)
+	{
+	  /* TLS errors are fatal in TCP mode */
+	  signal_received = SIGUSR1;
+	  msg (D_STREAM_ERRORS, "Fatal decryption error, restarting");
+	  signal_text = "tls-error";
+	  break;
+	}
+#endif
 
       /*
        * Things that need to happen immediately after connection initiation should go here.
@@ -2656,6 +2658,14 @@ main (int argc, char *argv[])
     set_mute_cutoff (options.mute);
 
     /*
+     * Possibly set --dev based on --dev-node.
+     * For example, if --dev-node /tmp/foo/tun, and --dev undefined,
+     * set --dev to tun.
+     */
+    if (!options.dev)
+      options.dev = dev_component_in_dev_node (options.dev_node);
+
+    /*
      * OpenSSL info print mode?
      */
 #ifdef USE_CRYPTO
@@ -2678,14 +2688,6 @@ main (int argc, char *argv[])
 	free_ssl_lib ();
 	goto exit;
       }
-
-    /*
-     * Possibly set --dev based on --dev-node.
-     * For example, if --dev-node /tmp/foo/tun, and --dev undefined,
-     * set --dev to tun.
-     */
-    if (!options.dev)
-      options.dev = dev_component_in_dev_node (options.dev_node);
 
     /*
      * Static pre-shared key generation mode?

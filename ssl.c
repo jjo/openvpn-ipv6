@@ -322,6 +322,13 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
   verify_maxlevel = max_int (verify_maxlevel, ctx->error_depth);
   openvpn_snprintf (envname, sizeof(envname), "tls_id_%d", ctx->error_depth);
   setenv_str (envname, txt);
+
+  /* export serial number as environmental variable */
+  {
+    const int serial = (int) ASN1_INTEGER_get (X509_get_serialNumber (ctx->current_cert));
+    openvpn_snprintf (envname, sizeof(envname), "tls_serial_%d", ctx->error_depth);
+    setenv_int (envname, serial);
+  }
   
   if (verify_x509name)
     if (ctx->error_depth == 0)

@@ -139,7 +139,9 @@ set_nice (int niceval)
   if (niceval)
     {
 #ifdef HAVE_NICE
-      if (nice (niceval) < 0)
+      errno = 0;
+      nice (niceval);
+      if (errno != 0)
 	msg (M_WARN | M_ERRNO, "WARNING: nice %d failed", niceval);
       else
 	msg (M_INFO, "nice %d succeeded", niceval);
