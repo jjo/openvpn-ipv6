@@ -25,6 +25,9 @@
 #
 #   ms\mw
 #
+# See additional .bat scripts in install-win32 for OpenSSL
+# build setup.
+#
 # If you are building with dmalloc debugging support
 # see windbg.h for additional dmalloc notes.
 
@@ -32,7 +35,7 @@
 # Change these to point to your OpenSSL, LZO, and
 # (optionally) dmalloc top-level directories.
 
-OPENSSL = /c/src/openssl-0.9.7e
+OPENSSL = /c/src/openssl-0.9.7f
 LZO = /c/src/lzo-1.08
 DMALLOC = /c/src/dmalloc-5.4.2
 

@@ -3,6 +3,11 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.03.28 -- Version 2.0-rc18
+
+* Packaged Windows installer with OpenSSL 0.9.7f.
+* Built Windows installer with NSIS 2.06.
+
 2005.03.12 -- Version 2.0-rc17
 
 * "MANAGEMENT: CMD" log file output will now only occur
