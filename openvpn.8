@@ -681,10 +681,10 @@ Certificate authority (CA) file in .pem format.  This file can have multiple
 certificates in .pem format, concatenated together.  You can construct your own
 certificate authority certificate and private key by using a command such as:
 
-.B openssl req -nodes -new -x509 -keyout test-ca.key -out test-ca.crt
+.B openssl req -nodes -new -x509 -keyout tmp-ca.key -out tmp-ca.crt
 
 For testing purposes only, the OpenVPN distribution includes a sample
-CA certificate (test-ca.crt).
+CA certificate (tmp-ca.crt).
 Of course you should never use
 the test certificates and test keys distributed with OpenVPN in a
 production environment, since by virtue of the fact that
