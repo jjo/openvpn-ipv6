@@ -37,5 +37,13 @@ void
 set_nonblock (int fd)
 {
   if (fcntl (fd, F_SETFL, O_NONBLOCK) < 0)
-    msg (M_ERR, "Set to non-blocking failed");
+    msg (M_ERR, "Set file descriptor to non-blocking failed");
+}
+
+/* Set a file descriptor to not be passed across execs */
+void
+set_cloexec (int fd)
+{
+  if (fcntl (fd, F_SETFD, FD_CLOEXEC) < 0)
+    msg (M_ERR, "Set file descriptor to FD_CLOEXEC failed");
 }

@@ -210,6 +210,10 @@ void packet_id_persist_load_obj (const struct packet_id_persist *p, struct packe
 /* return an ascii string representing a packet_id_persist object */
 const char *packet_id_persist_print (const struct packet_id_persist *p);
 
+/*
+ * Inline functions.
+ */
+
 /* are we in enabled state? */
 static inline bool
 packet_id_persist_enabled (const struct packet_id_persist *p)
@@ -247,10 +251,6 @@ const char* packet_id_net_print(const struct packet_id_net *pin);
 #ifdef PID_TEST
 void packet_id_interactive_test();
 #endif
-
-/*
- * Inline functions.
- */
 
 static inline int
 packet_id_size (bool long_form)

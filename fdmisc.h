@@ -24,3 +24,4 @@
  */
 
 void set_nonblock (int fd);
+void set_cloexec (int fd);

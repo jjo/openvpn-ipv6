@@ -32,8 +32,13 @@ SUPPORTED PLATFORMS:
   (2) Solaris
   (3) OpenBSD 3.0+ (Comes with OpenSSL and TUN devices by default)
   (4) Mac OS X Darwin (Experimental)
-  (5) FreeBSD (Experimental)
+  (5) FreeBSD
   (6) NetBSD (Experimental)
+
+SUPPORTED PROCESSOR ARCHITECTURES:
+   In general, OpenVPN is word size and endian independent, so
+   most processors should be supported.  Architectures known to
+   work include Intel x86, Alpha, and Sparc.
 
 REQUIRES:
   (1) TUN and/or TAP driver to allow user-space programs to control

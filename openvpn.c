@@ -583,8 +583,7 @@ openvpn (const struct options *options,
 #endif
 
   /*
-   * Make space for a uint32 to be removed from incoming TUN packets
-   * and added to outgoing TUN packets.
+   * Adjust frame size based on the --tun-mtu-extra parameter.
    */
   tun_adjust_frame_parameters (&frame, options->tun_mtu_extra);
 
@@ -656,7 +655,7 @@ openvpn (const struct options *options,
       msg (M_INFO, "Preserving previous tun/tap instance: %s", tuntap->actual);
     }
 
-  /* initialize traffic shaper */
+  /* initialize traffic shaper (i.e. transmit bandwidth limiter) */
   if (options->shaper)
     shaper_init (&shaper, options->shaper);
 
@@ -1016,7 +1015,7 @@ openvpn (const struct options *options,
 	      /* check recvfrom status */
 	      check_status (buf.len, "read from UDP");
 
-	      /* possibly corrupt packet if we are in gremlin test mode */
+	      /* take action to corrupt packet if we are in gremlin test mode */
 	      if (options->gremlin) {
 		if (!ask_gremlin())
 		  buf.len = 0;
@@ -1048,7 +1047,7 @@ openvpn (const struct options *options,
 		       * will deal with the packet and set buf.len to 0 so downstream
 		       * stages ignore it.
 		       *
-		       * It the packet is a data channel packet, tls_pre_decrypt
+		       * If the packet is a data channel packet, tls_pre_decrypt
 		       * will load crypto_options with the correct encryption key
 		       * and return false.
 		       */

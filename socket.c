@@ -160,6 +160,10 @@ udp_socket_init (struct udp_socket *sock,
   /* set socket to non-blocking mode */
   set_nonblock (sock->sd);
 
+  /* set socket file descriptor to not pass across execs, so that scripts don't have
+     access to it */
+  set_cloexec (sock->sd);
+
   /* print local and active remote address */
   if (sock->sd == INETD_SOCKET_DESCRIPTOR)
     msg (M_INFO, "UDP link local: [inetd]");

@@ -15,13 +15,13 @@ PLATFORM STATUS:
   * Solaris (supported)
   * OpenBSD 3.0 (supported but pthreads are broken)
   * Max OS X Darwin (experimental)
-  * FreeBSD (experimental)
+  * FreeBSD
   * NetBSD (experimental)
   * Windows (under development -- OpenVPN daemon has been
     ported to Cygwin, but we still need a tun or tap
     driver to be written for windows).
   * 64 bit platforms -- I have heard reports that
-    OpenVPN runs on alpha linux.
+    OpenVPN runs on Alpha Linux and FreeBSD.
 
 PORTING NOTES:
 

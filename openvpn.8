@@ -615,7 +615,7 @@ Assume that the TUN/TAP device might return as many as
 bytes more than the
 .B --tun-mtu
 size on read.  This parameter defaults to 0, which is sufficient for
-most TUN devices.  TAP devices introduce additional overhead in excess
+most TUN devices.  TAP devices may introduce additional overhead in excess
 of the MTU size, and a setting of 64 would be a conservative choice for
 TAP device usage.  This parameter only controls internal OpenVPN buffer sizing,
 so there is no transmission overhead associated with using a larger value.

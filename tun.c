@@ -271,6 +271,7 @@ open_tun_generic (const char *dev, const char *dev_node,
       if ((tt->fd = open (tunname, O_RDWR)) < 0)
 	msg (M_ERR, "Cannot open tun/tap dev %s", tunname);
       set_nonblock (tt->fd);
+      set_cloexec (tt->fd);
       msg (M_INFO, "tun/tap device %s opened", tunname);
       strncpynt (tt->actual, dev, sizeof (tt->actual));
     }
@@ -341,6 +342,7 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 	msg (M_ERR, "Cannot ioctl TUNSETIFF %s", dev);
 
       set_nonblock (tt->fd);
+      set_cloexec (tt->fd);
       msg (M_INFO, "tun/tap device %s opened", ifr.ifr_name);
       strncpynt (tt->actual, ifr.ifr_name, sizeof (tt->actual));
     }
@@ -530,6 +532,8 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
     }
 
   set_nonblock (tt->fd);
+  set_cloexec (tt->fd);
+  set_cloexec (tt->ip_fd);
 }
 
 /*

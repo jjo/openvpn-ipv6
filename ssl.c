@@ -1897,6 +1897,8 @@ tls_thread_create (struct tls_multi *multi,
   if (socketpair (PF_UNIX, SOCK_DGRAM, 0, sd) == -1)
     msg (M_ERR, "socketpair call failed");
   set_nonblock (sd[0]);
+  set_cloexec (sd[0]);
+  set_cloexec (sd[1]);
   tp->sd = sd[1];
   work_thread_create (thread_func, (void*)tp);
   return sd[0];
