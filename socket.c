@@ -65,11 +65,11 @@ set_check_status (unsigned int info_level, unsigned int verbose_level)
 void
 x_check_status (int status, const char *description, struct udp_socket *sock)
 {
-  const int errno_save = errno;
+  const int my_errno = errno;
   msg (x_cs_verbose_level, "%s returned %d", description, status);
   if (status < 0 && check_debug_level (x_cs_info_level))
     {
-      const unsigned int lev = x_cs_info_level | EMBEDDED_ERRNO_MASK (errno_save);
+      const unsigned int lev = x_cs_info_level | EMBEDDED_ERRNO_MASK (my_errno);
       if (sock)
 	{
 	  struct buffer out = alloc_buf_gc (512);

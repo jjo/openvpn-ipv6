@@ -75,6 +75,7 @@
 #define D_PID_DEBUG          LOGLEV(9, 70, M_DEBUG)  /* show packet-id debugging info */
 #define D_PID_PERSIST_DEBUG  LOGLEV(9, 70, M_DEBUG)  /* show packet-id persist debugging info */
 #define D_UDP_RW_VERBOSE     LOGLEV(9, 70, M_DEBUG)  /* show UDP reads/writes with greater verbosity */
+#define D_TLS_THREAD_DEBUG   LOGLEV(5, 70, M_DEBUG)  /* CHANGEME show detailed info from TLS thread routines */
 
 #define D_SHAPER_DEBUG       LOGLEV(10, 70, M_DEBUG)  /* show traffic shaper info */
 

@@ -148,6 +148,11 @@
 #define TLS_MULTI_REFRESH 15    /* call tls_multi_process once every n seconds */
 #define TLS_MULTI_HORIZON 2     /* call tls_multi_process frequently for n seconds after
 				   every packet sent/received action */
+
+/* The SSL/TLS worker thread will wait at most this many seconds for the interprocess
+   communication pipe to the main thread to be ready to accept writes. */
+#define TLS_MULTI_THREAD_SEND_TIMEOUT 5
+
 /*
  * Buffer sizes (also see mtu.h).
  */
@@ -157,7 +162,7 @@
 /*
  * Measure success rate of TLS handshakes, for debugging only
  */
-/* #define MEASURE_TLS_HANDSHAKE_STATS */
+#define MEASURE_TLS_HANDSHAKE_STATS // CHANGEME
 
 /*
  * Represents a single instantiation of a TLS negotiation and
@@ -396,22 +401,29 @@ struct tt_ret
 
 struct thread_parms
 {
+# define TLS_THREAD_MAIN   0 
+# define TLS_THREAD_WORKER 1 
+# define TLS_THREAD_SOCKET(x) ((x)->sd[TLS_THREAD_MAIN])
+  int sd[2];
+
   struct tls_multi *multi;
   struct udp_socket *udp_socket;
   int nice;
   bool mlock;
-  int sd;
 };
 
-int tls_thread_create (struct tls_multi *multi,
-		       struct udp_socket *udp_socket,
-		       int nice, bool mlock);
+void tls_thread_create (struct thread_parms *state,
+			struct tls_multi *multi,
+			struct udp_socket *udp_socket,
+			int nice, bool mlock);
 
-int tls_thread_process (int sd);
+int tls_thread_process (struct thread_parms *state);
 
-void tls_thread_close (int sd);
+void tls_thread_close (struct thread_parms *state);
 
-int tls_thread_rec_buf (int sd, struct tt_ret* ttr, bool do_check_status);
+int tls_thread_rec_buf (struct thread_parms *state,
+			struct tt_ret* ttr,
+			bool do_check_status);
 
 #endif
 

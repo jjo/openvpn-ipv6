@@ -272,8 +272,8 @@ openvpn (const struct options *options,
 
 #ifdef USE_PTHREAD
 
-  /* local socket descriptor used to communicate with TLS thread */
-  int tls_thread_socket = 0;
+  /* object containing TLS thread state */
+  struct thread_parms thread_parms;
 
   /* object sent to us by TLS thread */
   struct tt_ret tt_ret;
@@ -731,8 +731,8 @@ openvpn (const struct options *options,
   /* start the TLS thread */
 #if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
   if (tls_multi)
-    tls_thread_socket = tls_thread_create (tls_multi, &udp_socket,
-					   options->nice_work, options->mlock);
+    tls_thread_create (&thread_parms, tls_multi, &udp_socket,
+		       options->nice_work, options->mlock);
 #endif
 
   /* change scheduling priority if requested */
@@ -774,8 +774,8 @@ openvpn (const struct options *options,
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
 #ifdef USE_PTHREAD
-  if (tls_multi && tls_thread_socket > fm)
-    fm = tls_thread_socket;
+  if (tls_multi && TLS_THREAD_SOCKET (&thread_parms) > fm)
+    fm = TLS_THREAD_SOCKET (&thread_parms);
 #else
   /* initialize tmp_int optimization that limits the number of times we call
      tls_multi_process in the main event loop */
@@ -792,6 +792,7 @@ openvpn (const struct options *options,
   while (true)
     {
       int stat = 0;
+      int errno_save = 0;
       struct timeval *tv = NULL;
       struct timeval timeval;
 
@@ -1046,7 +1047,7 @@ openvpn (const struct options *options,
 	    FD_SET (tuntap->fd, &reads);
 #if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
 	  if (tls_multi)
-	    FD_SET (tls_thread_socket, &reads);
+	    FD_SET (TLS_THREAD_SOCKET (&thread_parms), &reads);
 #endif
 	}
 
@@ -1074,8 +1075,10 @@ openvpn (const struct options *options,
       /*
        * Wait for something to happen.
        */
-      if (!signal_received)
+      if (!signal_received) {
 	stat = select (fm, &reads, &writes, NULL, tv);
+	check_status (stat, "select", NULL);
+      }
 
       /* current should always be a reasonably up-to-date timestamp */
       current = time (NULL);
@@ -1126,7 +1129,6 @@ openvpn (const struct options *options,
       if (!stat) /* timeout? */
 	continue;
 
-      check_status (stat, "select", NULL);
       if (stat > 0)
 	{
 	  /* Incoming data on UDP port */
@@ -1192,7 +1194,7 @@ openvpn (const struct options *options,
 			{
 #ifdef USE_PTHREAD
 			  /* tell TLS thread a packet is waiting */
-			  if (tls_thread_process (tls_thread_socket) == -1)
+			  if (tls_thread_process (&thread_parms) == -1)
 			    {
 			      msg (M_WARN, "TLS thread is not responding, exiting (1)");
 			      signal_received = 0;
@@ -1256,12 +1258,12 @@ openvpn (const struct options *options,
 
 #if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
 	  /* Incoming data from TLS background thread */
-	  else if (tls_multi && FD_ISSET (tls_thread_socket, &reads))
+	  else if (tls_multi && FD_ISSET (TLS_THREAD_SOCKET (&thread_parms), &reads))
 	    {
 	      int s;
 	      ASSERT (!to_udp.len);
 
-	      s = tls_thread_rec_buf (tls_thread_socket, &tt_ret, true);
+	      s = tls_thread_rec_buf (&thread_parms, &tt_ret, true);
 	      if (s == 1)
 		{
 		  /*
@@ -1531,7 +1533,7 @@ openvpn (const struct options *options,
     
 #if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
   if (tls_multi)
-    tls_thread_close (tls_thread_socket);
+    tls_thread_close (&thread_parms);
 #endif
 
   free_buf (&read_udp_buf);

@@ -68,6 +68,9 @@ Upcoming version 1.4.0
 * Added a workaround in configure.ac for
   default SSL header location on Linux
   to fix RH9 build problem.
+* Fixed potential deadlock when pthread support
+  is used on OSes that allocate a small socketpair()
+  message buffer.
 
 2002.10.23 -- Version 1.3.2
 

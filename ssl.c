@@ -1732,9 +1732,9 @@ tls_multi_process (struct tls_multi *multi,
  * Errors are fatal if they are of these types.
  */
 static inline bool
-local_sock_fatal (void)
+local_sock_fatal (int status)
 {
-  return errno == ENOTCONN || errno == ECONNREFUSED;
+  return status < 0 && (errno == ENOTCONN || errno == ECONNREFUSED);
 }
 
 /*
@@ -1744,10 +1744,7 @@ static void *
 thread_func (void *arg)
 {
   const int gc_level = gc_new_level ();
-  const struct thread_parms parm = *(struct thread_parms*) arg;
-  fd_set reads;
-  time_t current;
-  bool fatal;
+  const struct thread_parms *parm = (struct thread_parms*) arg;
 
 #if 0
   /*
@@ -1756,44 +1753,68 @@ thread_func (void *arg)
    * if we restart after having downgraded privileges with
    * --user or group.
    */
-  if (parm.mlock) /* should we disable paging? */
+  if (parm->mlock) /* should we disable paging? */
     do_mlockall (true);  
 #endif
 
   /* change thread priority if requested */
-  set_nice (parm.nice);
+  set_nice (parm->nice);
 
   /* event loop */
-  current = time (NULL);
   while (true)
     {
       int stat;
       interval_t wakeup;
       struct tt_ret ret;
       struct buffer buf;
+      fd_set reads;
+
+      msg (D_TLS_THREAD_DEBUG, "TLS_THREAD: thread event loop");
 
       /*
        * Call tls_multi_process repeatedly as long
        * as it has data to forward to the UDP port.
        */
-      do {
+      do {	
+	time_t current = time (NULL);
+	
 	CLEAR (ret);
 	CLEAR (buf);
 	wakeup = TLS_MULTI_REFRESH;   /* maximum timeout */
-	
-	/* do one TLS process pass */
-	if (tls_multi_process (parm.multi, &buf, &ret.to_udp_addr,
-			       parm.udp_socket, &wakeup, current))
+
+	/* do one SSL/TLS process pass */
+	if (tls_multi_process (parm->multi, &buf, &ret.to_udp_addr,
+			       parm->udp_socket, &wakeup, current))
 	  {
+	    /* wait for foreground thread to be ready to accept data */
+	    {
+	      fd_set writes;
+	      struct timeval tv;
+	      tv.tv_sec = TLS_MULTI_THREAD_SEND_TIMEOUT;
+	      tv.tv_usec = 0;
+	      FD_ZERO (&writes);
+	      FD_SET (parm->sd[TLS_THREAD_WORKER], &writes);
+	      stat = select (parm->sd[TLS_THREAD_WORKER] + 1, NULL, &writes, NULL, &tv);
+	      if (!stat) /* timeout? */
+		break;
+	    }
+
 	    /* make a fresh copy of buf in ret */
-	    ret.to_udp = clone_buf(&buf);
+	    ret.to_udp = clone_buf (&buf);
 
 	    /* send buffer to foreground where it will be forwarded to remote */
-	    stat = write (parm.sd, &ret, sizeof (ret));
-	    fatal = local_sock_fatal();
-	    check_status (stat, "write to foreground", NULL);
-	    if (fatal)
-	      goto exit;
+	    {
+	      int fatal;
+
+	      stat = write (parm->sd[TLS_THREAD_WORKER], &ret, sizeof (ret));
+	      fatal = local_sock_fatal (stat);
+	      check_status (stat, "write to foreground", NULL);
+	      if (stat < 0)
+		free_buf (&ret.to_udp);
+	      if (fatal)
+		goto exit;
+	      msg (D_TLS_THREAD_DEBUG, "TLS_THREAD: write to TLS_THREAD_WORKER");
+	    }
 	  }
       } while (ret.to_udp.len);
 
@@ -1806,59 +1827,82 @@ thread_func (void *arg)
 	tv.tv_sec = wakeup;
 	tv.tv_usec = 0;
 	FD_ZERO (&reads);
-	FD_SET (parm.sd, &reads);
-	stat = select (parm.sd + 1, &reads, NULL, NULL, &tv);
+	FD_SET (parm->sd[TLS_THREAD_WORKER], &reads);
+	stat = select (parm->sd[TLS_THREAD_WORKER] + 1, &reads, NULL, NULL, &tv);
+
+	/* received a message from foreground */
+	check_status (stat, "select", NULL);
       }
-
-      /* update current time */
-      current = time (NULL);
-
-      /* received a message from foreground */
-      check_status (stat, "select", NULL);
 
       /* timeout? */
       if (!stat)
 	continue;
 
-      /* process message from foreground */
-      if (stat > 0 && FD_ISSET (parm.sd, &reads))
+      /* process message(s) from foreground */
+      if (stat > 0 && FD_ISSET (parm->sd[TLS_THREAD_WORKER], &reads))
 	{
-	  struct tt_cmd tc;
-	  stat = read (parm.sd, &tc, sizeof (tc));
-	  fatal = local_sock_fatal();
-	  check_status (stat, "read from foreground", NULL);
-	  if (stat == sizeof (tc))
-	    {
-	      if (tc.cmd == TTCMD_PROCESS)
-		;
-	      else if (tc.cmd == TTCMD_EXIT)
-		break;
-	      else
-		msg (D_TLS_DEBUG, "TLS_THREAD: Unknown TTCMD code: %d", tc.cmd);
-	    }
-	  else if (fatal)
-	    break;
+	  int err;
+	  do {
+	    struct tt_cmd tc;
+	    int fatal;
+
+	    stat = read (parm->sd[TLS_THREAD_WORKER], &tc, sizeof (tc));
+	    err = errno;
+	    fatal = local_sock_fatal (stat);
+	    check_status (stat, "read from foreground", NULL);
+	    if (stat == sizeof (tc))
+	      {
+		if (tc.cmd == TTCMD_PROCESS)
+		  {
+		    msg (D_TLS_THREAD_DEBUG, "TLS_THREAD: TTCMD_PROCESS");
+		  }
+		else if (tc.cmd == TTCMD_EXIT)
+		  {
+		    msg (D_TLS_THREAD_DEBUG, "TLS_THREAD: TTCMD_EXIT");
+		    goto exit;
+		  }
+		else
+		  msg (D_TLS_THREAD_DEBUG, "TLS_THREAD: Unknown TTCMD code: %d", tc.cmd);
+	      }
+	    else if (fatal)
+	      goto exit;
+	  } while (stat > 0);
 	}
     }
  exit:
-  close (parm.sd);
+  close (parm->sd[TLS_THREAD_WORKER]);
   gc_free_level (gc_level);
   return NULL;
 }
 
 /*
+ * All tls_thread functions below this point operate in the context of the main
+ * thread.
+ */
+
+/*
  * Send a command to TLS thread.
  */
 static int
-tls_thread_send_command (int sd, int cmd)
+tls_thread_send_command (struct thread_parms *state, int cmd, bool wait_if_necessary)
 {
   struct tt_cmd tc;
   int stat;
   bool fatal;
 
   tc.cmd = cmd;
-  stat = write (sd, &tc, sizeof (tc));
-  fatal = local_sock_fatal();
+  while (true)
+    {
+      stat = write (state->sd[TLS_THREAD_MAIN], &tc, sizeof (tc));
+      if (wait_if_necessary && stat < 0 && errno == EAGAIN)
+	{
+	  msg (D_TLS_THREAD_DEBUG, "TLS_THREAD: tls_thread_send_command WAIT");
+	  sleep (1);
+	}
+      else
+	break;
+    }
+  fatal = local_sock_fatal (stat);
   check_status (stat, "write command to tls thread", NULL);
   if (stat == sizeof (tc))
     return 1;
@@ -1871,19 +1915,17 @@ tls_thread_send_command (int sd, int cmd)
 /*
  * Create the TLS thread.
  */
-int
-tls_thread_create (struct tls_multi *multi,
+void
+tls_thread_create (struct thread_parms *state,
+		   struct tls_multi *multi,
 		   struct udp_socket *udp_socket,
 		   int nice, bool mlock)
 {
-  struct thread_parms *tp = (struct thread_parms *) malloc (sizeof (struct thread_parms));
-  int sd[2];
-
-  ASSERT (tp);
-  tp->multi = multi;
-  tp->udp_socket = udp_socket;
-  tp->nice = nice;
-  tp->mlock = mlock;
+  CLEAR (*state);
+  state->multi = multi;
+  state->udp_socket = udp_socket;
+  state->nice = nice;
+  state->mlock = mlock;
 
   /*
    * Make a socket for foreground and background threads
@@ -1891,14 +1933,13 @@ tls_thread_create (struct tls_multi *multi,
    * end to blocking, while the foreground will set its
    * end to non-blocking.
    */
-  if (socketpair (PF_UNIX, SOCK_DGRAM, 0, sd) == -1)
+  if (socketpair (PF_UNIX, SOCK_DGRAM, 0, state->sd) == -1)
     msg (M_ERR, "socketpair call failed");
-  set_nonblock (sd[0]);
-  set_cloexec (sd[0]);
-  set_cloexec (sd[1]);
-  tp->sd = sd[1];
-  work_thread_create (thread_func, (void*)tp);
-  return sd[0];
+  set_nonblock (state->sd[TLS_THREAD_MAIN]);
+  set_nonblock (state->sd[TLS_THREAD_WORKER]);
+  set_cloexec (state->sd[TLS_THREAD_MAIN]);
+  set_cloexec (state->sd[TLS_THREAD_WORKER]);
+  work_thread_create (thread_func, (void*)state);
 }
 
 /*
@@ -1907,32 +1948,32 @@ tls_thread_create (struct tls_multi *multi,
  * is data to process.
  */
 int
-tls_thread_process (int sd)
+tls_thread_process (struct thread_parms *state)
 {
-  return tls_thread_send_command (sd, TTCMD_PROCESS);
+  return tls_thread_send_command (state, TTCMD_PROCESS, false);
+}
+
+/* free any unprocessed buffers sent from background to foreground */
+static void
+tls_thread_flush (struct thread_parms *state)
+{
+  struct tt_ret ttr;
+  while (tls_thread_rec_buf (state, &ttr, false) == 1)
+    {
+      free_buf (&ttr.to_udp);
+    }
 }
 
 /*
  * Close the TLS thread
  */
 void
-tls_thread_close (int sd)
+tls_thread_close (struct thread_parms *state)
 {
-  if (sd)
-    {
-      struct tt_ret ttr;
-
-      tls_thread_send_command (sd, TTCMD_EXIT);
-      work_thread_join ();
-
-      /* free any unprocessed buffers sent from background to foreground */
-      while (tls_thread_rec_buf (sd, &ttr, false) == 1)
-	{
-	  free_buf (&ttr.to_udp);
-	}
-
-      close (sd);
-    }
+  tls_thread_send_command (state, TTCMD_EXIT, true);
+  work_thread_join ();
+  tls_thread_flush (state);
+  close (state->sd[TLS_THREAD_MAIN]);
 }
 
 /*
@@ -1946,13 +1987,13 @@ tls_thread_close (int sd)
  *  -1 if fatal error
  */
 int
-tls_thread_rec_buf (int sd, struct tt_ret* ttr, bool do_check_status)
+tls_thread_rec_buf (struct thread_parms *state, struct tt_ret* ttr, bool do_check_status)
 {
   int stat;
   bool fatal;
 
-  stat = read (sd, ttr, sizeof (*ttr));
-  fatal = local_sock_fatal();
+  stat = read (state->sd[TLS_THREAD_MAIN], ttr, sizeof (*ttr));
+  fatal = local_sock_fatal (stat);
   if (do_check_status)
     check_status (stat, "read buffer from tls thread", NULL);
   if (stat == sizeof (*ttr))
