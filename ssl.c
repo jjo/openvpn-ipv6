@@ -1699,7 +1699,7 @@ tls_multi_process (struct tls_multi *multi,
    */
   if (lame_duck_must_die (&multi->session[TM_LAME_DUCK], wakeup, current)) {
     tls_session_free(&multi->session[TM_LAME_DUCK], true);
-    msg (D_TLS_DEBUG_LOW, "tls_multi_process: killed lame duck session");
+    msg (D_TLS_DEBUG_LOW, "tls_multi_process: killed expiring key");
   }
 
   /*

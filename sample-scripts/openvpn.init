@@ -11,6 +11,41 @@
 #              UDP port.
 #
 
+# Contributed to the OpenVPN project by
+# Douglas Keller <doug@voidstar.dyndns.org>
+# 2002.05.15
+
+# To install:
+#   copy this file to /etc/rc.d/init.d/openvpn
+#   shell> chkconfig --add openvpn
+#   shell> mkdir /etc/openvpn
+#   make .conf or .sh files in /etc/openvpn (see below)
+
+# To uninstall:
+#   run: chkconfig --del openvpn
+
+# Author's Notes:
+#
+# I have created an /etc/init.d init script and enhanced openvpn.spec to
+# automatically register the init script.  Once the RPM is installed you
+# can start and stop OpenVPN with "service openvpn start" and "service
+# openvpn stop".
+#
+# The init script does the following:
+#
+# - Starts an openvpn process for each .conf file it finds in
+#   /etc/openvpn.
+#
+# - If /etc/openvpn/xxx.sh exists for a xxx.conf file then it executes
+#   it before starting openvpn (useful for doing openvpn --mktun...).
+#
+# - In addition to start/stop you can do:
+#
+#   service openvpn reload - SIGHUP
+#   service openvpn reopen - SIGUSR1
+#   service openvpn status - SIGUSR2
+#
+
 # Source function library.
 . /etc/rc.d/init.d/functions
 
@@ -25,7 +60,7 @@
 # See how we were called.
 case "$1" in
   start)
-	gprintf "Starting openvpn: "
+	echo -n $"Starting openvpn: "
 
 	/sbin/modprobe tun
 	echo 1 > /proc/sys/net/ipv4/ip_forward
@@ -61,7 +96,7 @@ case "$1" in
 	touch /var/lock/subsys/openvpn
 	;;
   stop)
-	gprintf "Shutting down openvpn: "
+	echo -n $"Shutting down openvpn: "
 	for pidf in `/bin/ls /var/run/openvpn/*.pid 2>/dev/null`; do
 	  kill `cat $pidf`
 	  rm -f $pidf
@@ -71,6 +106,7 @@ case "$1" in
 	;;
   restart)
 	$0 stop
+	sleep 1
 	$0 start
 	;;
   reload)
@@ -83,6 +119,14 @@ case "$1" in
 	  kill -USR1 `cat $pidf`
 	done
 	;;
+  condrestart)
+       if [ -f /var/lock/subsys/openvpn ] ; then
+               $0 stop
+               # avoid race
+               sleep 3
+               $0 start
+       fi
+       ;;
   status)
 	for pidf in `/bin/ls /var/run/openvpn/*.pid 2>/dev/null`; do
 	  kill -USR2 `cat $pidf`
@@ -90,7 +134,7 @@ case "$1" in
 	echo "Status written to /var/log/messages"
 	;;
   *)
-	gprintf "Usage: %s {start|stop|restart|reload|reopen|status}\n" "$0"
+	echo "Usage: openvpn {start|stop|restart|condrestart|reload|reopen|status}"
 	exit 1
 esac
 
