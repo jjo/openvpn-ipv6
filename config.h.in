@@ -96,8 +96,8 @@
 /* Define to 1 if you have the `openlog' function. */
 #undef HAVE_OPENLOG
 
-/* Define to 1 if you have the `pthread_create' function. */
-#undef HAVE_PTHREAD_CREATE
+/* Define if you have POSIX threads libraries and header files. */
+#undef HAVE_PTHREAD
 
 /* Define to 1 if you have the <pwd.h> header file. */
 #undef HAVE_PWD_H
@@ -213,6 +213,10 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
+/* Define to the necessary symbol if this constant uses a non-standard name on
+   your system. */
+#undef PTHREAD_CREATE_JOINABLE
+
 /* Define as the return type of signal handlers (`int' or `void'). */
 #undef RETSIGTYPE
 
@@ -254,9 +258,6 @@
 
 /* Version number of package */
 #undef VERSION
-
-/* Use thread-safe versions of library functions */
-#undef _REENTRANT
 
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const

@@ -6,4 +6,4 @@
 # all timestamps are up-to-date.  It is not
 # necessary when building from a tarball.
 
-touch aclocal.m4 config.h.in configure Makefile.in
+touch acinclude.m4 aclocal.m4 config.h.in configure Makefile.in

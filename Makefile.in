@@ -99,6 +99,9 @@ CC = @CC@
 DEPDIR = @DEPDIR@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 PACKAGE = @PACKAGE@
+PTHREAD_CC = @PTHREAD_CC@
+PTHREAD_CFLAGS = @PTHREAD_CFLAGS@
+PTHREAD_LIBS = @PTHREAD_LIBS@
 STRIP = @STRIP@
 VERSION = @VERSION@
 am__include = @am__include@
@@ -156,8 +159,9 @@ DIST_SOURCES = $(openvpn_SOURCES)
 NROFF = nroff
 MANS = $(man_MANS)
 DIST_COMMON = README AUTHORS COPYING ChangeLog INSTALL Makefile.am \
-	Makefile.in NEWS aclocal.m4 config.guess config.h.in config.sub \
-	configure configure.ac depcomp install-sh missing mkinstalldirs
+	Makefile.in NEWS acinclude.m4 aclocal.m4 config.guess \
+	config.h.in config.sub configure configure.ac depcomp \
+	install-sh missing mkinstalldirs
 SOURCES = $(openvpn_SOURCES)
 
 all: config.h
@@ -176,7 +180,7 @@ $(top_builddir)/config.status: $(srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 $(srcdir)/configure:  $(srcdir)/configure.ac $(ACLOCAL_M4) $(CONFIGURE_DEPENDENCIES)
 	cd $(srcdir) && $(AUTOCONF)
 
-$(ACLOCAL_M4):  configure.ac 
+$(ACLOCAL_M4):  configure.ac acinclude.m4
 	cd $(srcdir) && $(ACLOCAL) $(ACLOCAL_AMFLAGS)
 
 config.h: stamp-h1

@@ -152,7 +152,7 @@ TUN/TAP Driver Configuration:
 
 *************************************************************************
 
-BUGS:
+CAVEATS & BUGS:
 
 * OpenVPN works fine with the 1.1 TUN/TAP driver in the Linux 2.2 kernels,
   and with the integrated 1.4 TUN/TAP driver in the Linux 2.4 kernels, but
@@ -169,3 +169,14 @@ BUGS:
   sent from Linux hosts if they are fragmented. This is usually seen as
   tunnels where small packets and pings get through but large packets
   and "regular traffic" don't.
+
+* Mixing OFB or CFB cipher modes with static key mode is not recommended,
+  and is flagged as an error on OpenVPN versions 1.2.1 and greater.
+  If you use the --cipher option to explicitly select an OFB or CFB
+  cipher AND you are using static key mode, it is possible that there
+  could be an IV collision if the OpenVPN daemons on both sides
+  of the connection are started at exactly the same time, since
+  OpenVPN uses a timestamp combined with a sequence number as the cipher
+  IV for OFB and CFB modes.  This is not an issue if you are
+  using CBC cipher mode (the default), or if you are using OFB or CFB
+  cipher mode with SSL/TLS authentication.

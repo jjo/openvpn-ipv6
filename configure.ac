@@ -25,56 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-dnl Special Macros
-
-dnl OPENVPN_ADD_LIBS(LIB)
-AC_DEFUN(OPENVPN_ADD_LIBS, [
-  LIBS="$1 $LIBS"
-])
-
-dnl -- The following is taken from curl's acinclude.m4 --
-dnl Check for socklen_t: historically on BSD it is an int, and in
-dnl POSIX 1g it is a type of its own, but some platforms use different
-dnl types for the argument to getsockopt, getpeername, etc.  So we
-dnl have to test to find something that will work.
-AC_DEFUN([TYPE_SOCKLEN_T],
-[
-   AC_CHECK_TYPE([socklen_t], ,[
-      AC_MSG_CHECKING([for socklen_t equivalent])
-      AC_CACHE_VAL([curl_cv_socklen_t_equiv],
-      [
-         # Systems have either "struct sockaddr *" or
-         # "void *" as the second argument to getpeername
-         curl_cv_socklen_t_equiv=
-         for arg2 in "struct sockaddr" void; do
-            for t in int size_t unsigned long "unsigned long"; do
-               AC_TRY_COMPILE([
-                  #include <sys/types.h>
-                  #include <sys/socket.h>
-
-                  int getpeername (int, $arg2 *, $t *);
-               ],[
-                  $t len;
-                  getpeername(0,0,&len);
-               ],[
-                  curl_cv_socklen_t_equiv="$t"
-                  break
-               ])
-            done
-         done
-
-         if test "x$curl_cv_socklen_t_equiv" = x; then
-            AC_MSG_ERROR([Cannot find a type to use in place of socklen_t])
-         fi
-      ])
-      AC_MSG_RESULT($curl_cv_socklen_t_equiv)
-      AC_DEFINE_UNQUOTED(socklen_t, $curl_cv_socklen_t_equiv,
-			[type to use in place of socklen_t if not defined])],
-      [#include <sys/types.h>
-#include <sys/socket.h>])
-])
-
-AC_INIT([OpenVPN], [1.2.0.2], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.2.0.3], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 
 AC_ARG_ENABLE(lzo,
@@ -272,37 +223,24 @@ dnl check libraries
 dnl
 
 if test "$PTHREAD" = "yes"; then
-   AC_CHECKING([for pthread Library and Header files])
-   AC_CHECK_HEADER(pthread.h, 
-        [
-	  case "$target" in
-	  *solaris*)
-		CFLAGS="$CFLAGS -pthreads"
-		;;
-	  *openbsd*)
-		AC_MSG_RESULT([WARNING: running OpenVPN with pthread support on OpenBSD is still unstable])
+   AC_CHECKING([for pthread support])
+   ACX_PTHREAD(
+	[
+	    case "$target" in
+	    *openbsd*)
+		AC_MSG_RESULT([WARNING: pthread support on OpenBSD is still unstable!])
 		CFLAGS="$CFLAGS -pthread"
 		;;
-	  *)
-		CFLAGS="$CFLAGS -pthread"
-		;;
-	  esac
-	  AC_CHECK_FUNCS(pthread_create,
-	    [
-	       AC_DEFINE(USE_PTHREAD, 1, [Use pthread-based multithreading])
-	       AC_DEFINE(_REENTRANT, 1, [Use thread-safe versions of library functions])
-	    ],
-	    [
-	       AC_MSG_RESULT([pthread headers were found but pthread library was not found.])
-	       AC_MSG_ERROR([try ./configure --disable-pthread])
-	    ]
-	  )
+	    esac
+	    LIBS="$PTHREAD_LIBS $LIBS"
+	    CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+	    CC="$PTHREAD_CC"
+	    AC_DEFINE(USE_PTHREAD, 1, [Use pthread-based multithreading])
 	],
 	[
-          AC_MSG_RESULT([pthread library and headers not found.])
-	  AC_MSG_ERROR([try ./configure --disable-pthread])
-	]
-   )
+	    AC_MSG_RESULT([I don't know how to build with pthread support on this platform.])
+	    AC_MSG_ERROR([try ./configure --disable-pthread])
+	])
 fi
 
 if test "$LEAK" = "dmalloc"; then

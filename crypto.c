@@ -89,6 +89,7 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
       if (ctx->cipher)
 	{
 	  uint8_t *iv = opt->iv;
+	  uint8_t *residual_iv;
 	  const int iv_size = EVP_CIPHER_CTX_iv_length (ctx->cipher);
 	  const unsigned int mode = EVP_CIPHER_CTX_mode (ctx->cipher);  
 	  int outlen;
@@ -142,8 +143,9 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 	  work.len += outlen;
 
 	  /* Flush the encryption buffer */
-	  ASSERT (EVP_CipherFinal (ctx->cipher, BPTR (&work) + outlen, &outlen));
+	  ASSERT (EVP_CipherFinal (ctx->cipher, (residual_iv = BPTR (&work) + outlen), &outlen));
 	  work.len += outlen;
+	  ASSERT (outlen == iv_size);
 
 	  /* prepend the IV to the ciphertext */
 	  if (iv)
@@ -153,12 +155,11 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 	      memcpy (output, iv, iv_size);
 
 	      /* save the residual IV */
-	      memcpy (iv, ctx->cipher->iv, iv_size);
+	      memcpy (iv, residual_iv, iv_size);
 	    }
 
 	  msg (D_PACKET_CONTENT, "ENCRYPT TO: %s",
 	       format_hex (BPTR (&work), BLEN (&work), 80));
-
 	}
       else				/* No Encryption */
 	{
@@ -438,7 +439,8 @@ init_hmac (HMAC_CTX * ctx, const EVP_MD * digest,
 void
 init_key_type (struct key_type *kt, const char *ciphername,
 	       bool ciphername_defined, const char *authname,
-	       bool authname_defined, int keysize)
+	       bool authname_defined, int keysize,
+	       bool cfb_ofb_allowed)
 {
   CLEAR (*kt);
   if (ciphername && ciphername_defined)
@@ -451,8 +453,9 @@ init_key_type (struct key_type *kt, const char *ciphername,
       /* check legal cipher mode */
       {
 	const unsigned int mode = EVP_CIPHER_mode (kt->cipher);
-	if (!(mode == EVP_CIPH_CBC_MODE || mode == EVP_CIPH_CFB_MODE || mode == EVP_CIPH_OFB_MODE))
-	  msg (M_FATAL, "Cipher %s uses a mode not supported by OpenVPN.  Only CBC, CFB, or OFB modes are supported.", ciphername);
+	if (!(mode == EVP_CIPH_CBC_MODE
+	      || (cfb_ofb_allowed && (mode == EVP_CIPH_CFB_MODE || mode == EVP_CIPH_OFB_MODE))))
+	  msg (M_FATAL, "Cipher %s uses a mode not supported by OpenVPN in your current configuration.  CBC mode is always supported, while CFB and OFB modes are supported only when using SSL/TLS authentication and key exchange mode.", ciphername);
       }
     }
   else
@@ -1043,7 +1046,8 @@ show_available_ciphers ()
 	  "for use with OpenVPN.  Each cipher shown below may be\n"
 	  "used as a parameter to the --cipher option.  The default\n"
 	  "key size is shown as well as whether or not it can be\n"
-          "changed with the --keysize directive.\n\n");
+          "changed with the --keysize directive.  Using a CBC mode\n"
+	  "is recommended.\n\n");
 
   for (nid = 0; nid < 10000; ++nid)	/* is there a better way to get the size of the nid list? */
     {

@@ -183,7 +183,8 @@ struct crypto_options
 
 void init_key_type (struct key_type *kt, const char *ciphername,
 		    bool ciphername_defined, const char *authname,
-		    bool authname_defined, int keysize);
+		    bool authname_defined, int keysize,
+		    bool cfb_ofb_allowed);
 
 void read_key_file (struct key *key, const char *filename);
 

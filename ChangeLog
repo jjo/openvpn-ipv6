@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.05.27 -- Version 1.2.0.2
+2002.05.29 -- Version 1.2.0.3
 
 * Added --ping-restart option to restart
   connection on ping timeout using SIGUSR1
@@ -11,7 +11,19 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   and --ping-restart restarts.  To
   replicate previous SIGUSR1 functionality,
   use --persist-ip.
+* Changed residual IV fetching code to take
+  IV from tail of ciphertext.
+* Added check to make sure that CFB or OFB
+  cipher modes are only used with SSL/TLS
+  authentication mode, and added a caveat
+  to INSTALL.
 * Added RPM notes to INSTALL.
+* Added ACX_PTHREAD (from the autoconf
+  macro archive) to configure.ac
+  to figure out the right pthread
+  options for a given platform.
+* Broke out macro definitions from
+  configure.ac to acinclude.m4.
 
 2002.05.22 -- Version 1.2.0
 

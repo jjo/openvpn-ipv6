@@ -329,7 +329,8 @@ openvpn (const struct options *options,
       /* Get cipher & hash algorithms */
       init_key_type (&key_type, options->ciphername,
 		     options->ciphername_defined, options->authname,
-		     options->authname_defined, options->keysize);
+		     options->authname_defined, options->keysize,
+		     false);
 
       /* Compute MTU parameters */
       crypto_adjust_frame_parameters(&frame,
@@ -394,7 +395,8 @@ openvpn (const struct options *options,
       /* Get cipher & hash algorithms */
       init_key_type (&key_type, options->ciphername,
 		     options->ciphername_defined, options->authname,
-		     options->authname_defined, options->keysize);
+		     options->authname_defined, options->keysize,
+		     true);
 
       check_replay_iv_consistency(&key_type, options->packet_id, options->iv);
 
