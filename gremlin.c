@@ -183,7 +183,7 @@ void corrupt_gremlin(struct buffer* buf) {
 	    }
 	  else
 	    break;
-	} while (flip (2));
+	} while (flip (2)); /* a 50% chance we will corrupt again */
     }
 #endif
 }

@@ -41,22 +41,28 @@
 
 #include "memdbg.h"
 
-/* add the packet ID of buf to ack, advance buf ptr, and return packet ID */
-packet_id_type
-reliable_ack_read_packet_id (struct reliable_ack *ack, struct buffer *buf)
+/*
+ * Add the packet ID of buf to ack, advance buf ptr, place packet ID in *pid.
+ * Return true if we were successful, false if ack is full.
+ */
+bool
+reliable_ack_read_packet_id (struct reliable_ack *ack, struct buffer *buf, packet_id_type *pid)
 {
   packet_id_type net_pid;
-  packet_id_type ret = -1;
 
   if (buf_read (buf, &net_pid, sizeof (net_pid)))
     {
       if (ack->len < RELIABLE_ACK_SIZE)
-	ret = ack->packet_id[ack->len++] = ntohpid (net_pid);
+	{
+	  *pid = ack->packet_id[ack->len++] = ntohpid (net_pid);
+	  msg (D_REL_DEBUG, "ACK ID %lu (buf->len=%d, ack->len=%d)",
+	       (unsigned long)*pid, buf->len, ack->len);
+	  return true;
+	}
     }
 
-  msg (D_REL_DEBUG, "ACK ID %d (buf->len=%d, ack->len=%d)", ret, buf->len,
-       ack->len);
-  return ret;
+  msg (D_REL_LOW, "ACK ID FAILED (buf->len=%d, ack->len=%d)", buf->len, ack->len);
+  return false;
 }
 
 /* read a packet ID acknowledgement record from buf into ack */
@@ -88,7 +94,7 @@ reliable_ack_read (struct reliable_ack * ack,
       if (!session_id_defined (&session_id_remote) ||
 	  !session_id_equal (&session_id_remote, sid))
 	{
-	  msg (D_REL_DEBUG,
+	  msg (D_REL_LOW,
 	       "ACK read BAD SESSION-ID FROM REMOTE, local=%s, remote=%s",
 	       session_id_print (sid), session_id_print (&session_id_remote));
 	  goto error;
@@ -125,7 +131,7 @@ reliable_ack_write (struct reliable_ack * ack,
       packet_id_type pid = ack->packet_id[i];
       packet_id_type net_pid = htonpid (pid);
       ASSERT (buf_write (&sub, &net_pid, sizeof (net_pid)));
-      msg (D_REL_DEBUG, "ACK write %u (ack->len=%d, n=%d)", pid, ack->len, n);
+      msg (D_REL_DEBUG, "ACK write %lu (ack->len=%d, n=%d)", (unsigned long)pid, ack->len, n);
     }
   if (n)
     {
@@ -146,7 +152,7 @@ error:
 void
 reliable_ack_adjust_frame_parameters (struct frame* frame, int max)
 {
-  frame->extra_frame += ACK_SIZE(max);
+  frame->extra_frame += ACK_SIZE (max);
 }
 
 /* print a reliable ACK record coming off the wire */
@@ -167,7 +173,7 @@ reliable_ack_print(struct buffer* buf)
       if (!buf_read (buf, &pid, sizeof (pid)))
 	goto done;
       pid = ntohpid (pid);
-      buf_printf (&out, " %u", pid);
+      buf_printf (&out, " %lu", (unsigned long)pid);
     }
   if (n_ack)
     {
@@ -261,12 +267,13 @@ reliable_send_purge (struct reliable *rel, struct reliable_ack *ack)
 	  struct reliable_entry *e = &rel->array[j];
 	  if (e->active && e->packet_id == pid)
 	    {
-	      msg (D_REL_DEBUG, "ACK received for pid %d, deleting from send buffer", pid);
+	      msg (D_REL_DEBUG, "ACK received for pid %lu, deleting from send buffer",
+		   (unsigned long)pid);
 #if 0
 	      /* DEBUGGING -- how close were we timing out on ACK failure and resending? */
 	      {
 		const int wake = e->next_try - time(NULL);
-		msg (M_INFO, "ACK %d, wake=%d", pid, wake);
+		msg (M_INFO, "ACK %lu, wake=%d", (unsigned long)pid, wake);
 	      }
 #endif
 	      e->active = false;
@@ -375,9 +382,13 @@ reliable_schedule_now (struct reliable *rel, time_t current)
     }
 }
 
-/* enable a buffer previously returned by a get function as active */
+/*
+ * Enable an incoming buffer previously returned by a get function as active.
+ */
+
 void
-reliable_mark_active (struct reliable *rel, struct buffer *buf, int pid, int opcode)
+reliable_mark_active_incoming (struct reliable *rel, struct buffer *buf,
+			       packet_id_type pid, int opcode)
 {
   int i;
   for (i = 0; i < RELIABLE_SIZE; ++i)
@@ -385,27 +396,45 @@ reliable_mark_active (struct reliable *rel, struct buffer *buf, int pid, int opc
       struct reliable_entry *e = &rel->array[i];
       if (buf == &e->buf)
 	{
-	  /* Read mode, packets may not arrive in sequential order */
-	  if (pid >= 0)
-	    {
-	      e->packet_id = pid;
+	  /* packets may not arrive in sequential order */
+	  e->packet_id = pid;
 
-	      /* throw away old, previously received packets */
-	      e->active = (pid >= rel->packet_id);
-	    }
-	  else
-	    {
-	      /* Write mode, increment packet_id (i.e. sequence number)
-		 linearly and prepend id to packet */
-	      packet_id_type net_pid;
-	      e->packet_id = rel->packet_id++;
-	      net_pid = htonpid (e->packet_id);
-	      ASSERT (buf_write_prepend (buf, &net_pid, sizeof (net_pid)));
-	      e->active = true;
-	    }
+	  /* throw away old, previously received packets */
+	  e->active = (pid >= rel->packet_id);
+
 	  e->opcode = opcode;
 	  e->next_try = 0;
-	  msg (D_REL_DEBUG, "ACK Mark Active ID %d", e->packet_id);
+	  msg (D_REL_DEBUG, "ACK Mark Active Incoming ID %lu", (unsigned long)e->packet_id);
+	  return;
+	}
+    }
+  ASSERT (0);			/* buf not found in rel */
+}
+
+/*
+ * Enable an outgoing buffer previously returned by a get function as active.
+ */
+
+void
+reliable_mark_active_outgoing (struct reliable *rel, struct buffer *buf, int opcode)
+{
+  int i;
+  for (i = 0; i < RELIABLE_SIZE; ++i)
+    {
+      struct reliable_entry *e = &rel->array[i];
+      if (buf == &e->buf)
+	{
+	  /* Write mode, increment packet_id (i.e. sequence number)
+	     linearly and prepend id to packet */
+	  packet_id_type net_pid;
+	  e->packet_id = rel->packet_id++;
+	  net_pid = htonpid (e->packet_id);
+	  ASSERT (buf_write_prepend (buf, &net_pid, sizeof (net_pid)));
+	  e->active = true;
+
+	  e->opcode = opcode;
+	  e->next_try = 0;
+	  msg (D_REL_DEBUG, "ACK Mark Active Outgoing ID %lu", (unsigned long)e->packet_id);
 	  return;
 	}
     }
@@ -442,7 +471,7 @@ reliable_ack_debug_print (const struct reliable_ack *ack, char *desc)
   printf ("********* struct reliable_ack %s\n", desc);
   for (i = 0; i < ack->len; ++i)
     {
-      printf ("  %d: %d\n", i, ack->packet_id[i]);
+      printf ("  %d: %lu\n", i, (unsigned long)ack->packet_id[i]);
     }
 }
 
@@ -454,15 +483,15 @@ reliable_debug_print (const struct reliable *rel, char *desc)
 
   printf ("********* struct reliable %s\n", desc);
   printf ("  timeout=%d\n", rel->timeout);
-  printf ("  packet_id=%d\n", rel->packet_id);
-  printf ("  current=%u\n", current);
+  printf ("  packet_id=%lu\n", (unsigned long)rel->packet_id);
+  printf ("  current=%lu\n", (unsigned long)current);
   for (i = 0; i < RELIABLE_SIZE; ++i)
     {
       const struct reliable_entry *e = &rel->array[i];
       if (e->active)
 	{
-	  printf ("  %d: packet_id=%d len=%d", i, e->packet_id, e->buf.len);
-	  printf (" next_try=%u", e->next_try);
+	  printf ("  %d: packet_id=%lu len=%d", i, (unsigned long)e->packet_id, e->buf.len);
+	  printf (" next_try=%lu", (unsigned long)e->next_try);
 	  printf ("\n");
 	}
     }

@@ -70,7 +70,7 @@ mutex_unlock (int type)
       pthread_mutex_unlock (&(_lock_cs[type]));
 
 #if 0
-      /* DEBUGGING -- if lock bugs exist, make them more likely to occur */
+      /* DEBUGGING -- if race conditions exist, make them more likely to occur */
       {
 	if (thread_number() == WORK_THREAD)
 	  sleep (0);

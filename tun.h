@@ -33,7 +33,7 @@ struct tuntap
 #ifdef TARGET_SOLARIS
   int ip_fd;
 #endif
-  char actual[64];
+  char actual[64]; /* actual name of tun/tap dev, usually including unit number */
 };
 
 #define IS_TUN(dev) (!strncmp (dev, "tun", 3)) 

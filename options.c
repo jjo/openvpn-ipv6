@@ -435,6 +435,15 @@ parse_line (char *line, char *p[], int n, const char *file, int line_num)
   int ret = 0;
   char *c = line;
   char *start = NULL;
+
+  /*
+   * Parse states:
+   * 0 -- Initial
+   * 1 -- Reading non-quoted parm
+   * 2 -- Leading quote
+   * 3 -- Reading quoted parm
+   * 4 -- First char after parm
+   */
   int state = 0;
 
   do

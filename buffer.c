@@ -194,8 +194,8 @@ debug_gc_check_corrupt (const char *file, int line)
   while (e = stack)
     {
       if (e->level > thread->gc_level)
-	printf ("GC CORRUPT 0x%08zx lev=%d back=0x%08zx file=%s line=%d\n", e,
-		e->level, e->back, file, line);
+	printf ("GC CORRUPT 0x%08zx lev=%d back=0x%08zx file=%s line=%d\n",
+		(size_t)e, e->level, (size_t)e->back, file, line);
       stack = e->back;
     }
 }

@@ -13,6 +13,7 @@ For the latest version of OpenVPN, go to:
 SUPPORTED PLATFORMS:
   (1) Linux 2.2 or higher.
   (2) Solaris.
+  (3) Mac OS X Darwin (Experimental).
   (3) OpenBSD (experimental).
   (4) FreeBSD (experimental).
 

@@ -53,9 +53,12 @@ reliable_ack_empty (struct reliable_ack *ack)
   return !ack->len;
 }
 
-/* add the packet ID of buf to ack, advance buf ptr, and return packet ID */
-packet_id_type reliable_ack_read_packet_id (struct reliable_ack *ack,
-					   struct buffer *buf);
+/*
+ * Add the packet ID of buf to ack, advance buf ptr, place packet ID in *pid.
+ * Return true if we were successful, false if ack is full.
+ */
+bool
+reliable_ack_read_packet_id (struct reliable_ack *ack, struct buffer *buf, packet_id_type *pid);
 
 /* read a packet ID acknowledgement record from buf */
 bool
@@ -135,8 +138,12 @@ struct buffer *reliable_send (struct reliable *rel, int *opcode, time_t current)
 /* schedule all pending packets for immediate retransmit */
 void reliable_schedule_now (struct reliable *rel, time_t current);
 
-/* enable a buffer previously returned by a get function as active */
-void reliable_mark_active (struct reliable *rel, struct buffer *buf, int pid, int opcode);
+/* enable an incoming buffer previously returned by a get function as active */
+void reliable_mark_active_incoming (struct reliable *rel, struct buffer *buf,
+				    packet_id_type pid, int opcode);
+
+/* enable an outgoing buffer previously returned by a get function as active. */
+void reliable_mark_active_outgoing (struct reliable *rel, struct buffer *buf, int opcode);
 
 /* delete a buffer previously activated by reliable_mark_active() */
 void reliable_mark_deleted (struct reliable *rel, struct buffer *buf, bool inc_pid);

@@ -173,7 +173,7 @@ become_daemon (bool daemon_flag, const char *cd)
 	msg (M_ERR, "daemon() failed");
       openlog ("openvpn", LOG_PID, 0);
 #else
-      msg (M_WARN, "Warning: this operating system lacks daemon logging features, therefore if I become a daemon, I won't be able to log status or error messages");
+      msg (M_WARN, "Warning: this operating system lacks daemon logging features, therefore when I become a daemon, I won't be able to log status or error messages");
       if (daemon (cd != NULL, 0) < 0)
 	msg (M_ERR, "daemon() failed");
 #endif

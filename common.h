@@ -165,6 +165,7 @@ struct frame {
 #define D_GREMLIN_VERBOSE    7  /* show verbose info from gremlin module */
 #define D_TLS_NO_SEND_KEY    7  /* show when no data channel send-key is available */
 #define D_THREAD_DEBUG       7  /* show debug information from the pthread code */
+#define D_REL_LOW            7	/* show low frequency info from reliable routines */
 
 #define D_SHAPER             8  /* show traffic shaper info */
 

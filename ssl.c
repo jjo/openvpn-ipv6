@@ -1217,7 +1217,7 @@ tls_process (struct tls_multi *multi,
 		  ks->must_negotiate = current + session->opt->handshake_window;
 	      
 		  /* null buffer */
-		  reliable_mark_active (&ks->send_reliable, buf, -1, ks->initial_opcode);
+		  reliable_mark_active_outgoing (&ks->send_reliable, buf, ks->initial_opcode);
 	      
 		  ks->state = S_PRE_START;
 		  state_change = true;
@@ -1451,7 +1451,7 @@ tls_process (struct tls_multi *multi,
 		    }
 		  if (status == 1)
 		    {
-		      reliable_mark_active (&ks->send_reliable, buf, -1, P_CONTROL_V1);
+		      reliable_mark_active_outgoing (&ks->send_reliable, buf, P_CONTROL_V1);
 		      state_change = true;
 		      msg (D_TLS_DEBUG, "Outgoing Ciphertext -> Reliable");
 		    }
@@ -2174,19 +2174,17 @@ tls_pre_decrypt (struct tls_multi *multi,
 	    /* Process outgoing acknowledgment for packet just received */
 	    if (op != P_ACK_V1 && reliable_can_get (&ks->rec_reliable))
 	      {
-		long id = reliable_ack_read_packet_id (&ks->rec_ack, buf);
+		packet_id_type id;
 
 		/* Save incoming ciphertext packet to reliable buffer */
-		if (id >= 0)
+		if (reliable_ack_read_packet_id (&ks->rec_ack, buf, &id))
 		  {
-		    struct buffer *in =
-		      reliable_get_buf (&ks->rec_reliable);
+		    struct buffer *in = reliable_get_buf (&ks->rec_reliable);
 		    ASSERT (in);
 		    ASSERT (buf_copy (in, buf));
-		    reliable_mark_active (&ks->rec_reliable, in, id, op);
+		    reliable_mark_active_incoming (&ks->rec_reliable, in, id, op);
 		  }
 	      }
-	      
 	  }
 	}
     }
