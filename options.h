@@ -299,6 +299,7 @@ struct options
   const char *tmp_dir;
   const char *client_config_dir;
   bool ccd_exclusive;
+  bool disable;
   int n_bcast_buf;
   int tcp_queue_limit;
   struct iroute *iroutes;

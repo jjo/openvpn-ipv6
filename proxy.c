@@ -283,7 +283,7 @@ new_http_proxy (const struct http_proxy_options *o,
 		     o->auth_file,
 		     false,
 		     "HTTP Proxy",
-		     0);
+		     GET_USER_PASS_MANAGEMENT);
       p->up = static_proxy_user_pass;
     }
 

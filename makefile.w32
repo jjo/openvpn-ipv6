@@ -32,7 +32,7 @@
 # Change these to point to your OpenSSL, LZO, and
 # (optionally) dmalloc top-level directories.
 
-OPENSSL = /c/src/openssl-0.9.7d
+OPENSSL = /c/src/openssl-0.9.7e
 LZO = /c/src/lzo-1.08
 DMALLOC = /c/src/dmalloc-5.4.2
 
@@ -50,7 +50,7 @@ LIBS = -llzo -lcrypt32 -lws2_32 -lgdi32 -liphlpapi -lwinmm
 
 LIBS_DMALLOC = ${LIBS} -ldmalloc
 
-LIB_DIRS = -L${OPENSSL}/out -L${LZO}/src/.libs
+LIB_DIRS = -L${OPENSSL}/out -L${LZO}
 
 LIB_DIRS_DMALLOC = ${LIB_DIRS} -L${DMALLOC}
 

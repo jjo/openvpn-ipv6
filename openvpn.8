@@ -131,6 +131,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-dhcp\-release\fR\ ]
 [\ \fB\-\-dhcp\-renew\fR\ ]
 [\ \fB\-\-disable\-occ\fR\ ]
+[\ \fB\-\-disable\fR\ ]
 [\ \fB\-\-down\-pre\fR\ ]
 [\ \fB\-\-down\fR\ \fIcmd\fR\ ]
 [\ \fB\-\-duplicate\-cn\fR\ ]
@@ -2243,6 +2244,23 @@ as with a
 configuration file.  This option will ignore
 .B --push
 options at the global config file level.
+.\"*********************************************************
+.TP
+.B --disable
+Disable a particular client (based on the common name)
+from connecting.  Don't use this option to disable a client
+due to key or password compromise.  Use a CRL (certificate
+revocation list) instead (see the
+.B --crl-verify
+option).
+
+This option must be associated with a specific client instance,
+which means that it must be specified either in a client
+instance config file using
+.B --client-config-dir
+or dynamically generated using a
+.B --client-connect
+script.
 .\"*********************************************************
 .TP
 .B --ifconfig-pool start-IP end-IP [netmask]

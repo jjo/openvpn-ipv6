@@ -3,6 +3,25 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.01.15 -- Version 2.0-rc8
+
+* Fixed bug introduced in rc7 where options error
+  "--auth-user-pass requires --pull" might occur even
+  if --pull was correctly specified.
+* Changed management interface code to bind once
+  to TCP socket, rather than rebinding after every
+  client disconnect.
+* Added "disable" directive for client-config-dir
+  files.
+* Windows binary install is now distributed with
+  OpenSSL 0.9.7e.
+* Query the management interface for --http-proxy
+  username/password if authfile is set to "stdin".
+* Added current OpenVPN version number to "Unrecognized
+  option or missing parameter" error message.
+* Added "-extensions server" to "openssl req" command
+  in easy-rsa/build-key-server (Nir Yeffet).
+	
 2005.01.10 -- Version 2.0-rc7
 
 * Fixed bug in management interface which could cause
@@ -1412,7 +1431,7 @@ $Id$
   style, (b) ISO C 1999 style, and (c) no support.
 * Removed generated files from CVS.  Note INSTALL
   file for new CVS build commands.
-* Changed all internal _* symbols to x_*
+* Changed certain internal symbol names
   for C standards compliance.
 * Added TUN/TAP open code to cycle dynamically
   through unit numbers until it finds a free

@@ -758,8 +758,6 @@ man_accept (struct management *man)
 #ifdef WIN32
 	  man_stop_ne32 (man);
 #endif
-	  man_close_socket (man, man->connection.sd_top);
-	  man->connection.sd_top = SOCKET_UNDEFINED;
 	}
 
       /*
@@ -803,34 +801,37 @@ man_listen (struct management *man)
    * Initialize state
    */
   man->connection.state = MS_LISTEN;
-
-  /*
-   * Initialize socket
-   */
   man->connection.sd_cli = SOCKET_UNDEFINED;
-  man->connection.sd_top = create_socket_tcp ();
 
   /*
-   * Bind socket
+   * Initialize listening socket
    */
-  if (bind (man->connection.sd_top, (struct sockaddr *) &man->settings.local, sizeof (man->settings.local)))
-    msg (M_SOCKERR, "MANAGEMENT: Cannot bind TCP socket on %s",
-	 print_sockaddr (&man->settings.local, &gc));
+  if (man->connection.sd_top == SOCKET_UNDEFINED)
+    {
+      man->connection.sd_top = create_socket_tcp ();
 
-  /*
-   * Listen for connection
-   */
-  if (listen (man->connection.sd_top, 1))
-    msg (M_SOCKERR, "MANAGEMENT: listen() failed");
+      /*
+       * Bind socket
+       */
+      if (bind (man->connection.sd_top, (struct sockaddr *) &man->settings.local, sizeof (man->settings.local)))
+	msg (M_SOCKERR, "MANAGEMENT: Cannot bind TCP socket on %s",
+	     print_sockaddr (&man->settings.local, &gc));
 
-  /*
-   * Set misc socket properties
-   */
-  set_nonblock (man->connection.sd_top);
-  set_cloexec (man->connection.sd_top);
+      /*
+       * Listen for connection
+       */
+      if (listen (man->connection.sd_top, 1))
+	msg (M_SOCKERR, "MANAGEMENT: listen() failed");
 
-  msg (D_MANAGEMENT, "MANAGEMENT: TCP Socket listening on %s",
-       print_sockaddr (&man->settings.local, &gc));
+      /*
+       * Set misc socket properties
+       */
+      set_nonblock (man->connection.sd_top);
+      set_cloexec (man->connection.sd_top);
+
+      msg (D_MANAGEMENT, "MANAGEMENT: TCP Socket listening on %s",
+	   print_sockaddr (&man->settings.local, &gc));
+    }
 
 #ifdef WIN32
   man_start_ne32 (man);
