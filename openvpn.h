@@ -23,4 +23,17 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifndef OPENVPN_H
+#define OPENVPN_H
+
 #define TITLE PACKAGE_STRING " " TARGET_ALIAS " built on " __DATE__
+
+/*
+ * Exit status codes
+ */
+
+#define OPENVPN_EXIT_STATUS_GOOD  0
+#define OPENVPN_EXIT_STATUS_ERROR 1
+#define OPENVPN_EXIT_STATUS_USAGE 1
+
+#endif

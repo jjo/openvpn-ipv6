@@ -1716,7 +1716,7 @@ main (int argc, char *argv[])
   /* pop our garbage collection level */
   gc_free_level (gc_level);
 
-  return 0;
+  return OPENVPN_EXIT_STATUS_GOOD; /* exit point */
 }
 
 /*

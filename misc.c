@@ -31,6 +31,7 @@
 #include "misc.h"
 #include "tun.h"
 #include "error.h"
+#include "openvpn.h"
 
 #include "memdbg.h"
 
@@ -193,7 +194,7 @@ daemon(int nochdir, int noclose)
     case 0:
       break;
     default:
-      _exit(0);
+      _exit (OPENVPN_EXIT_STATUS_GOOD); /* exit point */
     }
 
   if (setsid() == -1)

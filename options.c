@@ -35,6 +35,7 @@
 #include "shaper.h"
 #include "crypto.h"
 #include "options.h"
+#include "openvpn.h"
 
 #include "memdbg.h"
 
@@ -447,21 +448,21 @@ usage ()
 	  o.verbosity);
 #endif
 
-  exit (1);
+  exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
 
 void
 usage_small ()
 {
   msg (M_WARN, "Use --help for more information");
-  exit (1);
+  exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
 
 void
 usage_version ()
 {
   printf ("%s\nCopyright (C) 2002 James Yonan <jim@yonan.net>\n", TITLE);
-  exit (1);
+  exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
 
 void

@@ -30,6 +30,7 @@
 #include "error.h"
 #include "thread.h"
 #include "misc.h"
+#include "openvpn.h"
 
 #ifdef USE_CRYPTO
 #include <openssl/err.h>
@@ -196,7 +197,7 @@ _msg (unsigned int flags, const char *format, ...)
     mutex_unlock (L_MSG);
   
   if (flags & M_FATAL)
-    exit (1);
+    exit (OPENVPN_EXIT_STATUS_ERROR); /* exit point */
 }
 
 void
