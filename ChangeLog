@@ -1,5 +1,41 @@
 OpenVPN
-Copyright 2002 by James Yonan <jim@yonan.net>
+Copyright (C) 2002 James Yonan <jim@yonan.net>
+
+2002.04.20 -- Version 1.1.0.8
+	
+* Added --ifconfig option to automatically configure
+  TUN device.
+* Added inactivity disconnect (--inactive
+  and --ping-exit options).
+* Added --ping option to keep stateful firewalls
+  from timing out.
+* Added sanity check to command line parser to
+  err if any TLS options are used in non-TLS mode.
+* Fixed build problem with compiler environments that
+  define printf as a macro.
+* Fixed build problem on linux systems that have
+  an integrated TUN/TAP driver but lack the persistent
+  tunnel feature (TUNSETPERSIST).  Some linux kernels
+  >= 2.4.0 and < 2.4.7 fall into this category.
+* Changed all calls to EVP_CipherInit to use explicit
+  encrypt/decrypt mode in order to fix problem with
+  IDEA-CBC and AES-256-CBC ciphers.
+* Minor changes to control channel transmit limiter
+  algorithm to fix problem where TLS control channel
+  might not renegotiate within the default 60 second window.
+* Simplified man page examples by taking advantage
+  of the new --ifconfig option.
+* Minor changes to configure.in to check more
+  rigourously for OpenSSL 0.9.6 or greater.
+* Put back openvpn.spec, eliminated
+  openvpn.spec.in.
+* Modified openvpn.spec to reflect new automake-based
+  build environment (Bishop Clark).
+* Other documentation changes.
+* Added --test-crypto option for debugging.
+* Added "missing" and "mkinstalldirs" automake
+  support files.
+
 
 2002.04.09 -- Version 1.1.0
 

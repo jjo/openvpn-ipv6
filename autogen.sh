@@ -10,9 +10,6 @@ PROJECT=openvpn
 TEST_TYPE=-f
 FILE=openvpn.c
 
-# check local directory (openvpn.m4) for CHECK_INET macro
-ACLOCAL_FLAGS="-I ."
-
 DIE=0
 
 (autoconf --version) < /dev/null > /dev/null 2>&1 || {
@@ -49,5 +46,5 @@ autoconf || exit 1
 cd $ORIGDIR || exit 1
 
 echo 
-echo "Now type 'configure' and 'make' to compile $PROJECT. You can do this" 
+echo "Now type './configure' and 'make' to compile $PROJECT. You can do this" 
 echo "in a separate build directory if you wish"

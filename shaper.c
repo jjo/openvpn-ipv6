@@ -80,13 +80,12 @@ shaper_delay (struct shaper* s)
  * than delay, set timeval to delay.
  */
 void
-shaper_soonest_event (struct timeval *tv, int delay, bool *changed_tv)
+shaper_soonest_event (struct timeval *tv, int delay)
 {
   if (!tv->tv_usec && delay < 1000000)
     {
       tv->tv_usec = delay;
       tv->tv_sec = 0;
-      *changed_tv = true;
     }
   else
     {
@@ -97,19 +96,17 @@ shaper_soonest_event (struct timeval *tv, int delay, bool *changed_tv)
 	{
 	  tv->tv_sec = sec;
 	  tv->tv_usec = usec;
-	  *changed_tv = true;
 	}
       else if (sec == tv->tv_sec)
 	{
 	  if (usec < tv->tv_usec)
 	    {
 	      tv->tv_usec = usec;
-	      *changed_tv = true;
 	    }
 	}
     }
-  msg (D_SHAPER, "shaper_soonest_event changed_tv=%d sec=%d usec=%d",
-       *changed_tv, tv->tv_sec, tv->tv_usec);
+  msg (D_SHAPER, "shaper_soonest_event sec=%d usec=%d",
+       tv->tv_sec, tv->tv_usec);
 }
 
 /*

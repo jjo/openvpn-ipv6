@@ -68,11 +68,11 @@ open_tun (const char *dev, char *actual, int size)
 
   memset (&ifr, 0, sizeof (ifr));
   ifr.ifr_flags = IFF_NO_PI;
-  if (!strncmp (dev, "tun", 3))
+  if (IS_TUN (dev))
     {
       ifr.ifr_flags |= IFF_TUN;
     }
-  else if (!strncmp (dev, "tap", 3))
+  else if (IS_TAP (dev))
     {
       ifr.ifr_flags |= IFF_TAP;
     }
@@ -93,6 +93,8 @@ open_tun (const char *dev, char *actual, int size)
   return fd;
 }
 
+#ifdef TUNSETPERSIST
+
 void
 tuncfg (const char *dev, int persist_mode)
 {
@@ -105,4 +107,7 @@ tuncfg (const char *dev, int persist_mode)
   close (td);
   msg (M_INFO, "Persist state set to: %s", (persist_mode ? "ON" : "OFF"));
 }
+
+#endif /* TUNSETPERSIST */
+
 #endif /* OLD_TUN_TAP */

@@ -1,6 +1,6 @@
 Summary:	A Secure UDP Tunneling Daemon
 Name:		openvpn
-Version:	@VERSION@
+Version:	1.1.0.8
 Release:	1
 URL:		http://sourceforge.net/projects/openvpn/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
@@ -22,6 +22,7 @@ UDP port.
 %setup -q
 
 %build
+./autogen.sh
 %configure
 %__make
 
@@ -39,7 +40,8 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-%doc CHANGES COPYING README PORTS {client,server,tmp-ca}.{crt,key} dh1024.pem verify-cn
+%doc AUTHORS COPYING COPYRIGHT.GPL INSTALL NEWS PORTS README 
+%doc {client,server,tmp-ca}.{crt,key} dh1024.pem verify-cn
 %{_mandir}/man8/%{name}.8*
 %{_sbindir}/%{name}
 

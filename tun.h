@@ -27,6 +27,9 @@
 #include "error.h"
 #include "common.h"
 
+#define IS_TUN(dev) (!strncmp (dev, "tun", 3)) 
+#define IS_TAP(dev) (!strncmp (dev, "tap", 3)) 
+
 int open_tun (const char *dev, char *actual, int size);
 void tuncfg (const char *dev, int persist_mode);
 

@@ -43,5 +43,5 @@ struct shaper
 
 void shaper_init (struct shaper *s, int bytes_per_second);
 int shaper_delay (struct shaper* s);
-void shaper_soonest_event (struct timeval *tv, int delay, bool *changed_tv);
+void shaper_soonest_event (struct timeval *tv, int delay);
 void shaper_wrote_bytes (struct shaper* s, int nbytes);

@@ -6,6 +6,10 @@ it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
 
+For the latest version of OpenVPN, go to:
+
+	http://openvpn.sourceforge.net/
+
 To Build and Install,
 
 	./autogen.sh
@@ -20,9 +24,3 @@ For detailed information on OpenVPN, including examples,
 
 For a description of OpenVPN's underlying protocol,
   see the file ssl.h included in the source distribution.
-
-Known bugs:
-
-* Some problems have been reported in making tunnels between
-  Linux and OpenBSD due to incompatibilities in the tun
-  implementation.

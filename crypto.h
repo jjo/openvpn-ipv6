@@ -33,10 +33,6 @@
 #include <openssl/hmac.h>
 #include <openssl/des.h>
 
-#if 0
-#include <openssl/engine.h>
-#endif
-
 #include "basic.h"
 #include "buffer.h"
 #include "packet_id.h"
@@ -108,7 +104,6 @@ struct key_ctx_bi
   struct key_ctx decrypt;
 };
 
-
 /*
  * Options for encrypt/decrypt.
  */
@@ -143,10 +138,15 @@ void write_key (const struct key *key, const struct key_type *kt,
 
 int read_key (struct key *key, const struct key_type *kt, struct buffer *buf);
 
-bool cfb_ofb_mode(const struct key_type* kt);
+bool cfb_ofb_mode (const struct key_type* kt);
+
+/* enc parameter in init_key_ctx */
+#define DO_ENCRYPT 1
+#define DO_DECRYPT 0
 
 void init_key_ctx (struct key_ctx *ctx, struct key *key,
-		   const struct key_type *kt, const char *prefix);
+		   const struct key_type *kt, int enc,
+		   const char *prefix);
 
 void free_key_ctx (struct key_ctx *ctx);
 void free_key_ctx_bi (struct key_ctx_bi *ctx);
@@ -169,11 +169,13 @@ void crypto_adjust_frame_parameters (struct frame *frame,
 				     bool packet_id,
 				     bool packet_id_long_form);
 
+void test_crypto (const struct crypto_options *co, struct frame* f);
+
 void show_available_ciphers ();
 
 void show_available_digests ();
 
-void init_crypto_lib();
+void init_crypto_lib ();
 
 #ifdef USE_SSL
 

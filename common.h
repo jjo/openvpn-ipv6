@@ -57,6 +57,11 @@
 /*
  * Default MTU of network over which tunnel data will pass by UDP.
  */
+#define DEFAULT_UDP_MTU 1500
+
+/*
+ * Default MTU of tunnel device.
+ */
 #define DEFAULT_TUN_MTU 1450
 
 struct frame {

@@ -39,6 +39,8 @@ struct options
   char *ipchange;
   bool bind_local;
   char *dev;
+  char *ifconfig_local;
+  char *ifconfig_remote;
   int shaper;
   int tun_mtu;          /* MTU of tun device */
   int udp_mtu;          /* MTU of device over which tunnel packets pass via UDP */
@@ -48,6 +50,9 @@ struct options
 #ifdef _POSIX_MEMLOCK
   bool mlock;
 #endif
+  int inactivity_timeout;
+  int ping_send_timeout;        /* Send a UDP ping to remote every n seconds */
+  int ping_rec_timeout;         /* Expect a UDP ping from remote at least once every n seconds */
 
   /* Misc parms */
   char *username;
@@ -74,6 +79,7 @@ struct options
   int keysize;
   bool packet_id;
   bool iv;
+  bool test_crypto;
 
 #ifdef USE_SSL
   /* TLS (control channel) parms */

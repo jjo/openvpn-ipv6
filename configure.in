@@ -23,6 +23,27 @@ dnl  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 dnl Process this file with autoconf to produce a configure script.
 
+dnl Special Macros
+
+dnl AC_CHECK_INET_TYPE(TYPE, DEFAULT)
+AC_DEFUN(AC_CHECK_INET_TYPE, [
+AC_CHECK_HEADERS(sys/socket.h netinet/in.h arpa/inet.h)
+AC_MSG_CHECKING(for $1)
+AC_CACHE_VAL(ac_cit_type_$1,
+[AC_EGREP_CPP(dnl
+changequote(<<,>>)dnl
+<<(^|[^a-zA-Z_0-9])$1[^a-zA-Z_0-9]>>dnl
+changequote([,]), [
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+], ac_cit_type_$1=yes, ac_cit_type_$1=no)])dnl
+AC_MSG_RESULT($ac_cit_type_$1)
+if test $ac_cit_type_$1 = no; then
+AC_DEFINE($1, $2)
+fi
+])
+
 AC_INIT(openvpn.c)
 
 AM_CONFIG_HEADER(config.h)
@@ -75,7 +96,7 @@ AC_ARG_WITH(leak-check,
 dnl Guess host type.
 AC_CANONICAL_HOST
 AC_CANONICAL_SYSTEM
-AM_INIT_AUTOMAKE(openvpn, 1.1.0)
+AM_INIT_AUTOMAKE(openvpn, 1.1.0.8)
 
 dnl Checks for programs.
 AC_PROG_CC
@@ -104,10 +125,10 @@ AC_CHECK_INET_TYPE(in_addr_t, uint32_t)
 
 AC_CHECKING( for TUN/TAP driver version ... )
 AC_CHECK_HEADER(linux/if_tun.h,
-	[],
+	AC_MSG_RESULT( if_tun.h found -- assuming TUN/TAP driver 1.4. ),
 	[
 	  AC_DEFINE(OLD_TUN_TAP)
-	  AC_MSG_RESULT( if_tun.h not found -- assuming old TUN/TAP driver. )
+	  AC_MSG_RESULT( if_tun.h not found -- assuming TUN/TAP driver 1.1 or earlier. )
 	]
 )
 
@@ -131,13 +152,17 @@ if test "$CRYPTO" = "yes"; then
 		         yes
 		       #endif
 		     ],
-		     [],
-		     AC_MSG_ERROR( OpenSSL Library is too old. )
+		     AC_MSG_RESULT( Found OpenSSL crypto library. ),
+		     AC_MSG_ERROR( OpenSSL crypto Library is too old. )
 		   )
 	    ],
 	    AC_MSG_ERROR( OpenSSL Crypto library not found. )
 	),
 	AC_MSG_ERROR( OpenSSL Crypto headers not found. )
+   )
+   AC_CHECK_LIB(crypto, EVP_CIPHER_CTX_set_key_length,
+	AC_MSG_RESULT( OpenSSL crypto library contains EVP_CIPHER_CTX_set_key_length. ),
+	AC_MSG_ERROR( Required function EVP_CIPHER_CTX_set_key_length not found in OpenSSL crypto library )
    )
 
    if test "$SSL" = "yes"; then
@@ -171,9 +196,13 @@ if test "$LZO" = "yes"; then
 	       LIBS="$LIBS -llzo"
 	       AC_DEFINE(USE_LZO)
 	    ],
-	    AC_MSG_ERROR( LZO library not found. )
+	    AC_MSG_ERROR( LZO headers were found but LZO library was not found. )
 	),
-        AC_MSG_ERROR( LZO headers not found. )
+	[
+	  AC_MSG_RESULT( LZO library available from http://www.oberhumer.com/opensource/lzo/ )
+	  AC_MSG_RESULT( Or try ./configure --disable-lzo )
+          AC_MSG_ERROR( LZO library and headers not found. )
+	]
    )
 fi
 
@@ -191,4 +220,4 @@ if test "$LEAK" = "dmalloc"; then
    )
 fi
 
-AC_OUTPUT(Makefile openvpn.spec)
+AC_OUTPUT(Makefile)

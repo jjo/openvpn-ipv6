@@ -132,12 +132,12 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 	       format_hex (BPTR (buf), BLEN (buf), 80));
 
 	  /* cipher_ctx was already initialized with key & keylen */
-	  ASSERT (EVP_CipherInit (ctx->cipher, NULL, NULL, iv, 1));
+	  ASSERT (EVP_CipherInit (ctx->cipher, NULL, NULL, iv, DO_ENCRYPT));
 
 	  /* Buffer overflow check (should never happen) */
 	  ASSERT (buf_safe (&work, buf->len + EVP_CIPHER_CTX_block_size (ctx->cipher)));
 
-	  /* Encrypt time stamp, packet id, payload */
+	  /* Encrypt packet ID, payload */
 	  ASSERT (EVP_CipherUpdate (ctx->cipher, BPTR (&work), &outlen, BPTR (buf), BLEN (buf)));
 	  work.len += outlen;
 
@@ -266,14 +266,14 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
 	    CRYPT_ERROR ("missing payload");
 
 	  /* ctx->cipher was already initialized with key & keylen */
-	  if (!EVP_CipherInit (ctx->cipher, NULL, NULL, iv, 0))
+	  if (!EVP_CipherInit (ctx->cipher, NULL, NULL, iv, DO_DECRYPT))
 	    CRYPT_ERROR ("cipher init failed");
 
 	  /* Buffer overflow check (should never happen) */
 	  if (!buf_safe (&work, buf->len))
 	    CRYPT_ERROR ("buffer overflow");
 
-	  /* Decrypt time stamp, packet id, payload */
+	  /* Decrypt packet ID, payload */
 	  if (!EVP_CipherUpdate (ctx->cipher, BPTR (&work), &outlen, BPTR (buf), BLEN (buf)))
 	    CRYPT_ERROR ("cipher update failed");
 	  work.len += outlen;
@@ -385,14 +385,15 @@ get_md (const char *digest)
 
 static void
 init_cipher (EVP_CIPHER_CTX * ctx, const EVP_CIPHER * cipher,
-	     struct key *key, const struct key_type *kt, const char *prefix)
+	     struct key *key, const struct key_type *kt, int enc,
+	     const char *prefix)
 {
   EVP_CIPHER_CTX_init (ctx);
-  if (!EVP_CipherInit (ctx, cipher, NULL, NULL, -1))
+  if (!EVP_CipherInit (ctx, cipher, NULL, NULL, enc))
     msg (M_SSLERR, "EVP cipher init #1");
   if (!EVP_CIPHER_CTX_set_key_length (ctx, kt->cipher_length))
     msg (M_SSLERR, "EVP set key size");
-  if (!EVP_CipherInit (ctx, NULL, key->cipher, NULL, -1))
+  if (!EVP_CipherInit (ctx, NULL, key->cipher, NULL, enc))
     msg (M_SSLERR, "EVP cipher init #2");
 
   msg (D_HANDSHAKE, "%s: Cipher '%s' initialized with %d bit key",
@@ -405,6 +406,10 @@ init_cipher (EVP_CIPHER_CTX * ctx, const EVP_CIPHER * cipher,
 
   msg (D_SHOW_KEYS, "%s: CIPHER KEY: %s", prefix,
        format_hex (key->cipher, kt->cipher_length, 0));
+  msg (D_CRYPTO_DEBUG, "%s: CIPHER block_size=%d iv_size=%d",
+       prefix,
+       EVP_CIPHER_CTX_block_size (ctx),
+       EVP_CIPHER_CTX_iv_length (ctx));
 }
 
 static void
@@ -421,6 +426,10 @@ init_hmac (HMAC_CTX * ctx, const EVP_MD * digest,
 
   msg (D_SHOW_KEYS, "%s: HMAC KEY: %s", prefix,
        format_hex (key->hmac, kt->hmac_length, 0));
+  msg (D_CRYPTO_DEBUG, "%s: HMAC size=%d block_size=%d",
+       prefix,
+       EVP_MD_size (digest),
+       EVP_MD_block_size (digest));
 }
 
 /* build a key_type */
@@ -464,13 +473,14 @@ init_key_type (struct key_type *kt, const char *ciphername,
 /* given a key and key_type, build a key_ctx */
 void
 init_key_ctx (struct key_ctx *ctx, struct key *key,
-	      const struct key_type *kt, const char *prefix)
+	      const struct key_type *kt, int enc,
+	      const char *prefix)
 {
   CLEAR (*ctx);
   if (kt->cipher && kt->cipher_length > 0)
     {
       ASSERT (ctx->cipher = (EVP_CIPHER_CTX *) malloc (sizeof (EVP_CIPHER_CTX)));
-      init_cipher (ctx->cipher, kt->cipher, key, kt, prefix);
+      init_cipher (ctx->cipher, kt->cipher, key, kt, enc, prefix);
     }
   if (kt->digest && kt->hmac_length > 0)
     {
@@ -692,6 +702,58 @@ randomize_iv (unsigned char *iv)
     msg (M_SSLERR, "RAND_bytes failed");
 }
 
+void
+test_crypto (const struct crypto_options *co, struct frame* frame)
+{
+  int i, j;
+  struct buffer src = alloc_buf_gc (MTU_SIZE (frame));
+  struct buffer work = alloc_buf_gc (BUF_SIZE (frame));
+  struct buffer encrypt_workspace = alloc_buf_gc (BUF_SIZE (frame));
+  struct buffer decrypt_workspace = alloc_buf_gc (BUF_SIZE (frame));
+  struct buffer buf = clear_buf();
+
+  /* init work */
+  ASSERT (buf_init (&work, EXTRA_FRAME (frame)));
+
+  msg (M_INFO, "Entering OpenVPN crypto self-test mode.");
+  for (i = 1; i <= MTU_SIZE (frame); ++i)
+    {
+      const time_t current = time (NULL);
+
+      msg (M_INFO, "TESTING ENCRYPT/DECRYPT of packet length=%d", i);
+
+      /*
+       * Load src with random data.
+       */
+      ASSERT (buf_init (&src, 0));
+      ASSERT (i <= src.capacity);
+      src.len = i;
+      ASSERT (RAND_pseudo_bytes (BPTR (&src), BLEN (&src)));
+
+      /* copy source to input buf */
+      buf = work;
+      memcpy (buf_write_alloc (&buf, BLEN (&src)), BPTR (&src), BLEN (&src));
+
+      /* encrypt */
+      openvpn_encrypt (&buf, encrypt_workspace, co, frame, current);
+
+      /* decrypt */
+      openvpn_decrypt (&buf, decrypt_workspace, co, frame, current);
+
+      /* compare */
+      if (buf.len != src.len)
+	msg (M_FATAL, "SELF TEST FAILED, src.len=%d buf.len=%d", src.len, buf.len);
+      for (j = 0; j < i; ++j)
+	{
+	  const unsigned char in = *(BPTR (&src) + j);
+	  const unsigned char out = *(BPTR (&buf) + j);
+	  if (in != out)
+	    msg (M_FATAL, "SELF TEST FAILED, pos=%d in=%d out=%d", j, in, out);
+	}
+    }
+  msg (M_INFO, "OpenVPN crypto self-test mode SUCCEEDED.");
+}
+
 #ifdef USE_SSL
 void
 get_tls_handshake_key (const struct key_type *key_type,
@@ -752,8 +814,10 @@ get_tls_handshake_key (const struct key_type *key_type,
 
       /* use same hmac key in both directions */
 
-      init_key_ctx (&ctx->encrypt, &key, &kt, "Outgoing Control Channel Authentication");
-      init_key_ctx (&ctx->decrypt, &key, &kt, "Incoming Control Channel Authentication");
+      init_key_ctx (&ctx->encrypt, &key, &kt, DO_ENCRYPT,
+		    "Outgoing Control Channel Authentication");
+      init_key_ctx (&ctx->decrypt, &key, &kt, DO_DECRYPT,
+		    "Incoming Control Channel Authentication");
 
       CLEAR (key);
     }
@@ -1018,7 +1082,7 @@ show_available_digests ()
  * This routine should have additional OpenSSL crypto library initialisations
  * used by both crypto and ssl components of OpenVPN.
  */
-void init_crypto_lib()
+void init_crypto_lib ()
 {
 }
 

@@ -242,6 +242,14 @@ buf_read (struct buffer *src, void *dest, int size)
   return true;
 }
 
+static inline bool
+buf_string_match (struct buffer *src, const void *match, int size)
+{
+  if (size != src->len)
+    return false;
+  return memcmp (BPTR (src), match, size) == 0;
+}
+
 /*
  * Very basic garbage collection, mostly for routines that return
  * char ptrs to malloced strings.  Not multi-thread safe unless you

@@ -1,16 +1,28 @@
 OpenVPN
 Copyright 2002 by James Yonan <jim@yonan.net>
 
-Currently Supported Platforms:
-	Linux 2.2+ (Tested on RedHat 6.2 through 7.2)
-	OpenBSD 3.0 -- maintained by Janne Johansson <icepic@users.sourceforge.net>
+CURRENTLY SUPPORTED PLATFORMS:
 
-I think a windows port of OpenVPN would be awesome.
+  * Linux 2.2+ (Tested on RedHat 6.2 through 7.2)
 
-I've written OpenVPN to try to avoid features
-that are not standardized well across multiple
-OSes such as forking and multi-threading,
-so I don't think porting OpenVPN itself will be much
-of a problem.  I would probably do it in a weekend
-if somebody got the TUN/TAP driver ported over
-first. -- James
+  * OpenBSD 3.0 (experimental) -- maintained
+    by Janne Johansson <icepic@users.sourceforge.net>
+
+PORTING NOTES:
+
+  * Add platform-specific includes to syshead.h.
+
+  * #ifdef the do_ifconfig() function in misc.c to generate
+    a correct "ifconfig" command for your platform.
+
+WISHLIST:
+
+  I think a windows port of OpenVPN would be awesome.
+
+  I've written OpenVPN to try to avoid features
+  that are not standardized well across different
+  OSes such as forking and multi-threading,
+  so I don't think porting OpenVPN itself will be much
+  of a problem.  I would probably do it in a weekend
+  if somebody got the TUN/TAP driver ported over
+  first. -- James

@@ -5,7 +5,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "22 March 2002"
+.TH openvpn 8 "18 April 2002"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -24,10 +24,14 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-rport\fR\ \fIport\fR\ ]
 [\ \fB\-\-nobind\fR\ ]
 [\ \fB\-\-dev\fR\ \fITUNx\ |\ TAPx\fR\ ]
-[\ \fB\-\-shaper\fR\ \fIn\fR\ ]
-[\ \fB\-\-mlock\fR\ ]
-[\ \fB\-\-tun\-mtu\fR\ \fIn\fR\ ]
+[\ \fB\-\-ifconfig\fR\ \fIl\ r\fR\ ]
 [\ \fB\-\-udp\-mtu\fR\ \fIn\fR\ ]
+[\ \fB\-\-tun\-mtu\fR\ \fIn\fR\ ]
+[\ \fB\-\-shaper\fR\ \fIn\fR\ ]
+[\ \fB\-\-inactive\fR\ \fIn\fR\ ]
+[\ \fB\-\-ping\fR\ \fIn\fR\ ]
+[\ \fB\-\-ping\-exit\fR\ \fIn\fR\ ]
+[\ \fB\-\-mlock\fR\ ]
 [\ \fB\-\-tun\-af\-inet\fR\ ]
 [\ \fB\-\-up\fR\ \fIcmd\fR\ ]
 [\ \fB\-\-down\fR\ \fIcmd\fR\ ]
@@ -45,6 +49,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-keysize\fR\ \fIn\fR\ ]
 [\ \fB\-\-no\-replay\fR\ ]
 [\ \fB\-\-no\-iv\fR\ ]
+[\ \fB\-\-test\-crypto\fR\ ]
 [\ \fB\-\-tls\-server\fR\ ]
 [\ \fB\-\-tls\-client\fR\ ]
 [\ \fB\-\-ca\fR\ \fIfile\fR\ ]
@@ -205,7 +210,8 @@ even if it is busy trying to communicate with
 an old IP address that just got disconnected.
 
 An OpenVPN peer will try to stay connected indefinitely, even under conditions of
-high network error frequency, until it receives a SIGINT or SIGTERM signal.
+high network error frequency, until it receives a SIGINT or SIGTERM signal,
+or a time-out condition.
 A major design goal of OpenVPN is that it should be as responsive, in terms of both normal
 operations and error recovery, as the underlying IP layer that it is tunneling over.
 That means that if the IP layer goes down for 5 minutes, when it comes back up,
@@ -313,8 +319,110 @@ option.
 tun/tap virtual network device (
 .B x
 can be omitted for dynamic device in
-Linux 2.4+).  See examples section below
+Linux 2.4.7+).  See examples section below
 for an example on setting up a TUN device.
+.TP
+.B --ifconfig l r
+Configure the TUN device to use IP address
+.B l
+as a local endpoint and
+.B r
+as a remote endpoint.
+.B l
+&
+.B r
+should be swapped on the other peer.
+.B l
+&
+.B r
+must be private
+addresses outside of the subnets used by either peer.
+This option implies
+.B --udp-mtu 1500
+if neither
+.B --udp-mtu
+or
+.B --tun-mtu
+is explicitly specified.
+
+This option will
+configure the tunnel endpoints using the
+.BR ifconfig (8)
+command, eliminating the need to have an
+.B --up
+script.  However, you will still need an
+.B --up
+script if you will be adding routes
+to the tunnel.
+
+The
+.B --ifconfig
+option can be used in conjunction with an
+.B --up
+script in which case the local and remote
+endpoints will be passed as parameters to
+the script.
+
+In addition, the
+.B --ifconfig
+option will set the UDP MTU to 1500
+and derive the tunnel MTU automatically.  You can
+override the UDP MTU value of 1500 by using
+the
+.B --udp-mtu
+option to explicitly specify a different value.
+
+Note: The
+.B --ifconfig
+option requires that the
+.BR ifconfig (8)
+executable be accessible in the current
+.B PATH.
+.TP
+.B --udp-mtu n
+Take the UDP device MTU to be n and derive the TUN MTU
+from it (default=1500 when the
+.B --ifconfig
+option is used).
+
+The MTU (Maximum Transmission Units) is
+the maximum datagram size in bytes that can be sent unfragmented
+over a particular network interface.  OpenVPN requires that packets
+on the control or data channels be sent unfragmented.  OpenVPN
+adds a small amount of overhead to each tunnel packet before
+it is forwarded from the TUN device over the secure UDP channel.
+This overhead consists of data fields such as the HMAC signature,
+packet ID, encryption block padding, etc.  Because of this overhead,
+the TUN device MTU should be slightly smaller than the UDP device
+MTU to make room for the extra bytes which OpenVPN adds to every
+data channel packet.  OpenVPN allows you to explicitly specify either
+the TUN MTU or the UDP MTU (but not both).  OpenVPN will then
+compute the value you didn't specify based on the value you did.
+OpenVPN will compute exactly how much overhead it will need to add
+to each packet, based on the other options you specify.  If you
+specify an
+.B --up
+script, OpenVPN will pass the TUN MTU and UDP MTU values on the command line
+to the script.
+.TP
+.B --tun-mtu n
+Take the TUN device MTU to be
+.B n
+and derive the UDP MTU
+from it (default=1450).
+
+See
+.B --udp-mtu
+above more more information on MTU.
+
+Using this option is discouraged because it defeats
+OpenVPN's ability to automatically set the TUN MTU based
+on the UDP MTU.
+
+Using the
+.B --ifconfig
+option is the recommended method of configuring the
+TUN device MTU automatically.
 .TP
 .B --shaper n
 Limit bandwidth of outgoing tunnel data to
@@ -342,7 +450,7 @@ over the full-speed tunnel.
 
 Also note that for low bandwidth tunnels
 (under 1000 bytes per second), you should probably
-use lower MTU values as well (see below), otherwise
+use lower MTU values as well (see above), otherwise
 the packet latency will grow so large as to trigger
 timeouts in the TLS layer and TCP connections running
 over the tunnel.
@@ -350,6 +458,57 @@ over the tunnel.
 OpenVPN allows
 .B n
 to be between 100 bytes/sec and 100 Mbytes/sec.
+.TP
+.B --inactive n
+Causes OpenVPN to exit after
+.B n
+seconds of inactivity on the TUN/TAP device.  The time length
+of inactivity is measured since the last incoming tunnel packet.
+.TP
+.B --ping n
+Ping remote over the UDP control channel
+if no packets have been sent for at least
+.B n
+seconds (specify
+.B --ping
+on both peers to cause ping packets to be sent in both directions).
+When used in one of OpenVPN's secure modes (where
+.B --secret, --tls-server,
+or
+.B --tls-client
+is specified), the ping packet
+will be cryptographically secure.
+
+This option has two intended uses:
+
+(1) Compatibility
+with stateful firewalls.  The periodic ping will ensure that
+a stateful firewall rule which allows OpenVPN UDP packets to
+pass will not time out.
+
+(2) To provide a basis for the remote to test the existence
+of its peer using the
+.B --ping-exit
+option.
+.TP
+.B --ping-exit n
+Causes OpenVPN to exit after
+.B n
+seconds pass without reception of a ping
+or other packet from remote.
+This option can be combined with
+.B --inactive, --ping,
+and
+.B --ping-exit
+to create a two-tiered inactivity disconnect.
+
+For example,
+
+.B openvpn [options...] --inactive 3600 --ping 10 --ping-exit 60
+
+when used on both peers will cause OpenVPN to exit within 60
+seconds if its peer disconnects, but will exit after one
+hour if no actual tunnel data is exchanged.
 .TP
 .B --mlock
 Disable paging by calling the POSIX mlockall function.
@@ -376,62 +535,6 @@ of using
 is that it will reduce the amount of physical
 memory available to other applications.
 .TP
-.B --tun-mtu n
-Take the TUN device MTU to be
-.B n
-and derive the UDP MTU
-from it (default=1450).
-
-Note: It's not necessary to define this option if you are
-using an MTU size of 1450 when you
-.BR ifconfig (8)
-the TUN/TAP device, however see
-.B --udp-mtu
-below for more information on having the TUN MTU be set
-automatically.
-
-The MTU (Maximum Transmission Units) is
-the maximum packet size in bytes that can be sent unfragmented
-over a particular network interface.  OpenVPN requires that packets
-on the control or data channels be sent unfragmented.  OpenVPN
-adds a small amount of overhead to each tunnel packet before
-it is forwarded from the TUN device over the secure UDP channel.
-This overhead consists of data fields such as the HMAC signature,
-packet ID, encryption block padding, etc.  Because of this overhead,
-the TUN device MTU should be slightly smaller than the UDP device
-MTU to make room for the extra bytes which OpenVPN adds to every
-data channel packet.  OpenVPN allows you to explicitly specify either
-the TUN MTU or the UDP MTU (but not both).  OpenVPN will then
-compute the value you didn't specify based on the value you did.
-OpenVPN will compute exactly how much overhead it will need to add
-to each packet, based on the other options you specify.  If you
-specify an
-.B --up
-script, OpenVPN will pass the TUN MTU and UDP MTU values on the command line
-to the script.
-.TP
-.B --udp-mtu n
-Take the UDP device MTU to be n and derive the TUN MTU
-from it (disabled by default).  See
-.B --tun-mtu
-above more more information on MTU.
-
-Note: It's not necessary to define this option if you are
-using an MTU size of 1450 when you
-.BR ifconfig (8)
-the TUN/TAP device. However, the recommended configuration of
-MTU is to use
-.B --udp-mtu n
-where
-.B n
-is usually 1500 for internet tunnels and then use the
-.B --up
-script and the
-.B $2
-parameter to set the TUN/TAP MTU.  See the
-.B --up
-option below.
-.TP
 .B --tun-af-inet
 Remove a leading htonl(AF_INET) from incoming tunnel
 data and add it onto outgoing tunnel data.
@@ -441,7 +544,7 @@ OpenBSD <-> Linux tunnel.
 This option is necessary to work around an incompatibility
 between the Linux and OpenBSD TUN/TAP drivers.
 
-Note: As of OpenVPN 1.1, this option should be considered experimental.
+Note: Currently, this option should be considered experimental.
 .TP
 .B --up cmd
 Shell command to run after successful TUN/TAP device open
@@ -451,22 +554,34 @@ UID change).
 
 Execute as:
 
-.B cmd tun/tap-dev tun-mtu udp-mtu
+.B cmd tun-tap-dev tun-mtu udp-mtu ifconfig-local-ip ifconfig-remote-ip
 
 Typically,
 .B cmd
 will run a script such as:
 
-.B ifconfig $1 10.1.0.1 pointopoint 10.1.0.2 mtu $2
+.B ifconfig $1 10.4.0.1 pointopoint 10.4.0.2 mtu $2
 
 (Note: remove "pointopoint" from command line on OpenBSD).
 
-If you use
-.B --udp-mtu 1500
-in conjunction with the script above, OpenVPN
-will pass as $2 the precise MTU value to configure
-the TUN/TAP device for transport over an internet
-tunnel.
+Note that OpenVPN also provides the
+.B --ifconfig
+option to automatically ifconfig the TUN device,
+eliminating the need to define an
+.B --up
+script, unless you also want to configure routes
+in the
+.B --up
+script.
+
+If
+.B --ifconfig
+is also specified, OpenVPN will pass the ifconfig local
+and remote endpoints on the command line to the
+.B --up
+script so that they can be used to configure routes such as:
+
+.B route add -net 10.0.0.0 netmask 255.255.255.0 gw $5
 .TP
 .B --down cmd
 Shell command to run after TUN/TAP device close
@@ -474,9 +589,9 @@ Shell command to run after TUN/TAP device close
 .B --user
 UID change and/or
 .B --chroot
-).  Called with the same parameters as
+).  Called with the same parameters as the
 .B --up
-above.
+option above.
 .TP
 .B --user user
 Drop privileges to
@@ -517,9 +632,7 @@ The caveat here is that every file that
 OpenVPN might possibly need must exist within the chroot directory tree,
 including special files such
 .B /dev/random
-(which is necessary in TLS mode or if
-.B --rand-iv
-is specified).
+(which is used by OpenVPN to generate random keys and IVs).
 .TP
 .B --daemon
 Become a daemon and write all messages to the syslog file (such as /var/log/messages).
@@ -592,7 +705,7 @@ file gremlin.c included in the OpenVPN source distribution.
 .TP
 .B --comp-lzo
 Use fast LZO compression -- may add up to 1 byte per
-packet for uncompressible data.
+packet for incompressible data.
 .TP
 .B --comp-noadapt
 When used in conjunction with
@@ -602,11 +715,11 @@ Normally, adaptive compression is enabled with
 .B --comp-lzo.
 
 Adaptive compression tries to optimize the case where you have
-compression enabled, but you are sending predominantly uncompressible
+compression enabled, but you are sending predominantly incompressible
 (or pre-compressed) packets over the tunnel.  With adaptive compression,
 OpenVPN will periodically sample the compression process to see if
 it's actually saving us anything.  If not, we will disable compression
-for a period of time, then resample.
+for a period of time, then re-sample.
 .B 
 .SS Data Channel Encryption Options:
 These options are meaningful for both Static & TLS-negotiated key modes
@@ -639,7 +752,7 @@ digest algorithm
 ).
 HMAC is a commonly used authentication algorithm that uses
 a data string, a secure hash algorithm, and a key, to produce
-a digital signature.  HMAC has the property that it is infeasable
+a digital signature.  HMAC has the property that it is infeasible
 for an attacker with access to a signed string to find another string
 which would sign to the same signature or generate a valid signature
 for his own string.
@@ -758,6 +871,31 @@ In CFB/OFB mode, OpenVPN uses a unique sequence number and time stamp
 as the IV.  In fact, in CFB/OFB mode, OpenVPN uses a datagram
 space-saving optimization that uses the unique identifier for
 datagram replay protection as the IV.
+.TP
+.B --test-crypto
+Do a self-test of OpenVPN's crypto options by encrypting and
+decrypting test packets using the data channel encryption options
+specified above.  This option does not require a peer to function,
+and therefore can be specified without
+.B --dev
+or
+.B --remote.
+
+The typical usage of
+.B --test-crypto
+would be something like this:
+
+.B openvpn --test-crypto --secret key
+
+or
+
+.B openvpn --test-crypto --secret key --verb 8
+
+This option is very useful to test OpenVPN after it has been ported to
+a new platform, or to isolate problems in the compiler, OpenSSL
+crypto library, or OpenVPN's crypto code.  Since it is a self-test mode,
+problems with encryption and authentication can be debugged independently
+of network and tunnel issues.
 .SS TLS Mode Options:
 TLS mode is the most powerful mode of OpenVPN in both security and flexibility.
 TLS mode works by establishing control and
@@ -865,7 +1003,7 @@ to see a list of supported TLS ciphers.
 .TP
 .B --tls-timeout n
 Packet retransmit timeout on TLS control channel
-if no acknowledgement from remote within
+if no acknowledgment from remote within
 .B n
 seconds (default=5).  When OpenVPN sends a control
 packet to its peer, it will expect to receive an
@@ -1023,7 +1161,7 @@ option.
 Show all TLS ciphers (TLS used only as a control channel).  The TLS
 ciphers will be sorted from highest preference (most secure) to
 lowest.
-.SS Generate a random key
+.SS Generate a random key:
 Used only for non-TLS static key encryption mode.
 .TP
 .B --genkey
@@ -1039,7 +1177,7 @@ peer over a pre-existing secure channel such as
 Write key to
 .B file.
 .SS TUN/TAP config mode:
-Available with linux 2.4+
+Available with linux 2.4.7+
 .TP
 .B --mktun
 Create a persistent tunnel.  Normally TUN/TAP tunnels exist only for
@@ -1058,7 +1196,7 @@ scripts to run the appropriate
 and
 .BR route (8)
 commands.  These commands can be placed in the the same shell script
-which starts or terminates an openvpn session.
+which starts or terminates an OpenVPN session.
 
 Another advantage is that open connections through the TUN/TAP-based tunnel
 will not be reset if the OpenVPN peer restarts.  This can be useful to
@@ -1093,7 +1231,7 @@ above for more information.
 .B SIGINT, SIGTERM
 Causes OpenVPN to exit gracefully.
 .SH TUN/TAP DRIVER SETUP
-If you are running Linux 2.4 or higher, you probably have the TUN/TAP driver
+If you are running Linux 2.4.7 or higher, you probably have the TUN/TAP driver
 already installed.  If so, there are still a few things you need to do:
 
 Add to /etc/modules.conf:
@@ -1110,54 +1248,44 @@ TUN/TAP driver from
 .I http://vtun.sourceforge.net/tun/
 and follow the installation instructions.
 .SH EXAMPLES
-Note: These examples assume you are running
-Linux Kernel 2.4 or higher with the version of the
-TUN/TAP driver which is bundled with the kernel.  The pre-2.4 TUN/TAP driver does
-not support persistent tunnels which we will use in the examples.
 Prior to running these examples, you should have OpenVPN installed on two
 machines with network connectivity between them.  If firewalls exist between
-the two machines, they should be set to forward UDP port 5000.  For purposes
+the two machines, they should be set to forward UDP port 5000
+in both directions.  For purposes
 of our example, our two machines will be called
 .B may.kg
 and
 .B june.kg
 
-In addition the tunnel endpoint for may.kg
-will be 10.1.0.7 and for june.kg 10.1.0.8.
-On both may.kg and june.kg, issue the following
-command to create a persistent tunnel:
-.IP
-.B openvpn --mktun --dev tun7
-.LP
-Now on may, configure the tun device to use the point-to-point protocol
-(Note: remove "pointopoint" from command line on OpenBSD).
-
-.IP
-.B ifconfig tun7 10.1.0.7 pointopoint 10.1.0.8 mtu 1450
-.LP
-Similarly on june:
-.IP
-.B ifconfig tun7 10.1.0.8 pointopoint 10.1.0.7 mtu 1450
-.LP
+The tunnel endpoint for may.kg
+will be 10.4.0.1 and for june.kg 10.4.0.2.
+You can use any address you wish for the
+tunnel endpoints
+but make sure that they are private addresses
+(such as those that begin with 10 or 192.168) and that they are
+not part of any existing subnet on the networks of
+either peer.  If you use an address that is part of
+your local subnet for either of the tunnel endpoints,
+you will get a weird feedback loop.
 .SS A simple tunnel without security:
 .LP
 On may:
 .IP
-.B openvpn --remote june.kg --dev tun7 --verb 8
+.B openvpn --remote june.kg --dev tun1 --ifconfig 10.4.0.1 10.4.0.2 --verb 8
 .LP
 On june:
 .IP
-.B openvpn --remote may.kg --dev tun7 --verb 8
+.B openvpn --remote may.kg --dev tun1 --ifconfig 10.4.0.2 10.4.0.1 --verb 8
 .LP
 Now verify the tunnel is working by pinging across the tunnel.
 .LP
 On may:
 .IP
-.B ping 10.1.0.8
+.B ping 10.4.0.2
 .LP
 On june:
 .IP
-.B ping 10.1.0.7
+.B ping 10.4.0.1
 .LP
 The
 .B --verb 8
@@ -1166,37 +1294,38 @@ option will produce verbose output, similar to the
 program.  Omit the
 .B --verb 8
 option to have OpenVPN run quietly.
-.SS A tunnel with static-key security:
+.SS A tunnel with static-key security (i.e. using a pre-shared secret):
 First build a static key on may.
 .IP
 .B openvpn --genkey --secret key
 .LP
 This command will build a random key file called
-.B key.
+.B key
+(in ascii format).
 Now copy
 .B key
 to june over a secure medium such as by
 using the
-.B scp
+.BR scp (1)
 program.
 .LP
 On may:
 .IP
-.B openvpn --remote june.kg --dev tun7 --verb 5 --secret key
+.B openvpn --remote june.kg --dev tun1 --ifconfig 10.4.0.1 10.4.0.2 --verb 5 --secret key
 .LP
 On june:
 .IP
-.B openvpn --remote may.kg --dev tun7 --verb 5 --secret key
+.B openvpn --remote may.kg --dev tun1 --ifconfig 10.4.0.2 10.4.0.1 --verb 5 --secret key
 .LP
 Now verify the tunnel is working by pinging across the tunnel.
 .LP
 On may:
 .IP
-.B ping 10.1.0.8
+.B ping 10.4.0.2
 .LP
 On june:
 .IP
-.B ping 10.1.0.7
+.B ping 10.4.0.1
 .SS A tunnel with full TLS-based security:
 For this test, we will designate
 .B may
@@ -1223,21 +1352,21 @@ parameters you can use the included file dh1024.pem.
 .LP
 On may:
 .IP
-.B openvpn --remote june.kg --dev tun7 --tls-client --ca tmp-ca.crt --cert client.crt --key client.key --reneg-sec 60 --verb 5
+.B openvpn --remote june.kg --dev tun1 --ifconfig 10.4.0.1 10.4.0.2 --tls-client --ca tmp-ca.crt --cert client.crt --key client.key --reneg-sec 60 --verb 5
 .LP
 On june:
 .IP
-.B openvpn --remote may.kg --dev tun7 --tls-server --dh dh1024.pem --ca tmp-ca.crt --cert server.crt --key server.key --reneg-sec 60 --verb 5
+.B openvpn --remote may.kg --dev tun1 --ifconfig 10.4.0.2 10.4.0.1 --tls-server --dh dh1024.pem --ca tmp-ca.crt --cert server.crt --key server.key --reneg-sec 60 --verb 5
 .LP
 Now verify the tunnel is working by pinging across the tunnel.
 .LP
 On may:
 .IP
-.B ping 10.1.0.8
+.B ping 10.4.0.2
 .LP
 On june:
 .IP
-.B ping 10.1.0.7
+.B ping 10.4.0.1
 .LP
 Notice the
 .B --reneg-sec 60
@@ -1261,27 +1390,75 @@ network.  Our goal is to securely connect
 both private networks.  We will assume that may's private subnet
 is 10.0.0.0/24 and june's is 10.0.1.0/24.
 .LP
-First, ensure that IP forwarding is enabled on both peers:
+First, ensure that IP forwarding is enabled on both peers.
+On Linux, enable routing:
 .IP
 .B echo 1 > /proc/sys/net/ipv4/ip_forward
 .LP
 On may:
 .IP
-.B route add -net 10.0.1.0 netmask 255.255.255.0 gw 10.1.0.8
+.B route add -net 10.0.1.0 netmask 255.255.255.0 gw 10.4.0.2
 .LP
 On june:
 .IP
-.B route add -net 10.0.0.0 netmask 255.255.255.0 gw 10.1.0.7
+.B route add -net 10.0.0.0 netmask 255.255.255.0 gw 10.4.0.1
 .LP
 Now any machine on the 10.0.0.0/24 subnet can
 access any machine on the 10.0.1.0/24 subnet
 over the secure tunnel (or vice versa).
+
+In a production environment, you could put the route command(s)
+in a shell script and execute with the
+.B --up
+option.
+.SH FIREWALLS
+OpenVPN's usage of a single UDP port makes it fairly firewall-friendly.
+You should add an entry to your firewall rules to allow incoming OpenVPN
+packets.  On Linux:
+.IP
+.B iptables -A INPUT -p udp -s 1.2.3.4 --dport 5000 -j ACCEPT
+.LP
+This will allow incoming packets on UDP port 5000 (OpenVPN's default UDP port)
+from an OpenVPN peer at 1.2.3.4.
+
+If you are using HMAC-based packet authentication (the default in any of
+OpenVPN's secure modes), having the firewall filter on source
+address can be considered optional, since HMAC packet authentication
+is a much more secure method of verifying the authenticity of
+a packet source.  In that case:
+.IP
+.B iptables -A INPUT -p udp --dport 5000 -j ACCEPT
+.LP
+would be adequate and would not render the host inflexible with
+respect to its peer having a dynamic IP address.
+
+OpenVPN also works well on stateful firewalls.  In some cases, you may
+not need to add any static rules to the firewall list if you are
+using a stateful firewall that knows how to track UDP connections.
+In TLS-mode if you specify
+.B --ping n,
+OpenVPN will be guaranteed
+to send a packet to its peer at least once every
+.B n
+seconds.  If
+.B n
+is less than the stateful firewall connection timeout, you can
+maintain an OpenVPN connection indefinitely without explicit
+firewall rules.
 .SH PROTOCOL
 For a description of OpenVPN's underlying protocol,
 see the file ssl.h included in the OpenVPN source distribution.
+.SH WEB
+OpenVPN's web site is at
+.I http://openvpn.sourceforge.net/
+
+Go here to download the latest version of OpenVPN, subscribe
+to the mailing lists, read the mailing list
+archives, or browse the CVS repository.
 .SH BUGS
-Report all bugs to the OpenVPN users list <openvpn-users@lists.sourceforge.net>.  To subscribe to the list or see the archives, go to
-.I http://lists.sourceforge.net/lists/listinfo/openvpn-users
+Report all bugs to the OpenVPN users list <openvpn-users@lists.sourceforge.net>.
+To subscribe to the list or see the archives, go to
+.I http://sourceforge.net/mail/?group_id=48978
 
 Some problems have been reported in making tunnels between
 Linux and OpenBSD due to incompatibilities in the TUN/TAP

@@ -753,7 +753,7 @@ move_session(struct tls_multi* multi, int dest, int src, bool reinit_src)
 }
 
 static inline void
-compute_earliest_wakeup(time_t* earliest, int seconds_from_now) {
+compute_earliest_wakeup (time_t* earliest, int seconds_from_now) {
   if (seconds_from_now > 0 && (seconds_from_now < *earliest || !*earliest))
     *earliest = seconds_from_now;
 }
@@ -764,10 +764,10 @@ lame_duck_must_die (const struct tls_session* session, time_t* wakeup, const tim
   const struct key_state* lame = &session->key[KS_LAME_DUCK];
   if (lame->state >= S_INITIAL)
     {
-      ASSERT(lame->must_die); /* a lame duck key must always have an expiration */
+      ASSERT (lame->must_die); /* a lame duck key must always have an expiration */
       if (current < lame->must_die)
 	{
-	  compute_earliest_wakeup(wakeup, lame->must_die - current);
+	  compute_earliest_wakeup (wakeup, lame->must_die - current);
 	  return false;
 	}
       else
@@ -796,7 +796,7 @@ tls_multi_init (struct tls_options *tls_options,
   ret->opt.tls_auth.key_ctx_bi = &ret->opt.tls_auth_key;
 
   /* set up list of keys to be scanned by data channel encrypt and decrypt routines */
-  ASSERT( SIZE (ret->key_scan) == 3);
+  ASSERT (SIZE (ret->key_scan) == 3);
   ret->key_scan[0] = &ret->session[TM_ACTIVE].key[KS_PRIMARY];
   ret->key_scan[1] = &ret->session[TM_ACTIVE].key[KS_LAME_DUCK];
   ret->key_scan[2] = &ret->session[TM_LAME_DUCK].key[KS_LAME_DUCK];
@@ -905,19 +905,37 @@ swap_hmac (struct buffer *buf, const struct crypto_options *co, bool incoming)
 static bool transmit_rate_limiter(struct tls_session* session, time_t* wakeup, const time_t current)
 {
   const struct key_state *lame = &session->key[KS_LAME_DUCK];
-  const int freq = session->opt->packet_timeout;
-  const int min_lame_time_remaining = freq * 100; /* seconds */
+  const struct key_state *pri = &session->key[KS_PRIMARY];
 
-  if (freq && lame->state == S_ACTIVE && lame->must_die > current + min_lame_time_remaining)
+  /* transmit one packet every freq seconds */
+  const int freq = 2;
+
+  /* rough estimate of how many bytes still to transmit */
+  const int estimated_bytes = 20000;
+
+  /* worst-case estimated finish at this rate */
+  const time_t finish = current + ((freq * estimated_bytes) / MTU_SIZE (&session->opt->frame));
+
+  if (check_debug_level (D_TLS_DEBUG))
+    {
+      if (lame->must_die)
+	msg (D_TLS_DEBUG, "TLS XMIT FINISH ESTIMATE = lame->must_die      %d seconds",
+	     lame->must_die - finish);
+      if (pri->must_negotiate)
+	msg (D_TLS_DEBUG, "TLS XMIT FINISH ESTIMATE = pri->must_negotiate %d seconds",
+	     pri->must_negotiate - finish);
+    }
+
+  if (freq && lame->state == S_ACTIVE && finish < lame->must_die && finish < pri->must_negotiate)
     {
       if (current >= session->limit_next)
 	{
 	  session->limit_next = current + freq;
 	  return true;
 	}
-      else 
+      else
 	{
-	  compute_earliest_wakeup(wakeup, session->limit_next - current);
+	  compute_earliest_wakeup (wakeup, session->limit_next - current);
 	  return false;
 	}
     }
@@ -1193,7 +1211,7 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 		}
 	      write_key (&key, &session->opt->key_type, buf);
 	      init_key_ctx (&ks->key.encrypt, &key, &session->opt->key_type,
-			    "Data Channel Encrypt");
+			    DO_ENCRYPT, "Data Channel Encrypt");
 	      CLEAR (key);
 	      ASSERT (buf_write
 		      (buf, session->opt->options,
@@ -1238,7 +1256,7 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 
 	      if (status == 1)
 		init_key_ctx (&ks->key.decrypt, &key, &session->opt->key_type,
-			      "Data Channel Decrypt");
+			      DO_DECRYPT, "Data Channel Decrypt");
 	      CLEAR (key);
 	      if (status == 0)
 		goto error;
@@ -1298,7 +1316,7 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 		  struct buffer b;
 
 		  buf = reliable_send (&ks->send_reliable, &opcode);
-		  ASSERT(buf);
+		  ASSERT (buf);
 		  b = *buf;
 
 		  write_control_auth (session, ks, &b, to_udp_addr, opcode,
@@ -1330,14 +1348,14 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
   {
     if (ks->state >= S_INITIAL && ks->state < S_ACTIVE)
       {
-	compute_earliest_wakeup(wakeup, reliable_send_timeout (&ks->send_reliable));
+	compute_earliest_wakeup (wakeup, reliable_send_timeout (&ks->send_reliable));
 	
 	if (ks->must_negotiate)
-	  compute_earliest_wakeup(wakeup, ks->must_negotiate - current);
+	  compute_earliest_wakeup (wakeup, ks->must_negotiate - current);
       }
 
     if (ks->established && session->opt->renegotiate_seconds)
-      compute_earliest_wakeup(wakeup, ks->established + session->opt->renegotiate_seconds - current);
+      compute_earliest_wakeup (wakeup, ks->established + session->opt->renegotiate_seconds - current);
 
     if (*wakeup)
       msg (D_TLS_DEBUG, "tls_process: timeout set to %d", *wakeup);

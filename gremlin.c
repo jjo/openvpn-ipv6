@@ -78,8 +78,11 @@ static bool flip(int n) {
  * low and high.
  */
 static int roll(int low, int high) {
-  ASSERT (low < high);
-  return low + (random() % (high - low + 1));
+  int ret;
+  ASSERT (low <= high);
+  ret = low + (random() % (high - low + 1));
+  ASSERT (ret >= low && ret <= high);
+  return ret;
 }
 
 static bool initialized;
@@ -147,31 +150,40 @@ ask_gremlin()
  */
 void corrupt_gremlin(struct buffer* buf) {
 #ifdef CORRUPT_ENABLE
-  if (buf->len > 0 && flip (CORRUPT_FREQ))
+  if (flip (CORRUPT_FREQ))
     {
-      unsigned char r = roll(0, 255);
-      int method = roll (0, 6);
+      do
+	{
+	  if (buf->len > 0)
+	    {
+	      unsigned char r = roll (0, 255);
+	      int method = roll (0, 5);
 
-      switch (method) {
-      case 0: /* corrupt the first byte */
-	*BPTR(buf) = r;
-	break;
-      case 1: /* corrupt the last byte */
-	*(BPTR(buf) + buf->len - 1) = r;
-	break;
-      case 2:
-      case 3:
-      case 4: /* corrupt a random byte */
-	*(BPTR(buf) + roll(0, buf->len - 1)) = r;
-	break;
-      case 5: /* append a random byte */
-	buf_write(buf, &r, 1);
-	break;
-      case 6: /* reduce length by 1 */
-	--buf->len;
-	break;
-      }
-      msg (D_GREMLIN_VERBOSE, "GREMLIN: PACKET CORRUPTION, method=%d", method);
+	      switch (method) {
+	      case 0: /* corrupt the first byte */
+		*BPTR (buf) = r;
+		break;
+	      case 1: /* corrupt the last byte */
+		*(BPTR (buf) + buf->len - 1) = r;
+		break;
+	      case 2: /* corrupt a random byte */
+		*(BPTR(buf) + roll (0, buf->len - 1)) = r;
+		break;
+	      case 3: /* append a random byte */
+		buf_write (buf, &r, 1);
+		break;
+	      case 4: /* reduce length by 1 */
+		--buf->len;
+		break;
+	      case 5: /* reduce length by a random amount */
+		buf->len -= roll (0, buf->len - 1);
+		break;
+	      }
+	      msg (D_GREMLIN_VERBOSE, "GREMLIN: PACKET CORRUPTION, method=%d", method);
+	    }
+	  else
+	    break;
+	} while (flip (2));
     }
 #endif
 }
