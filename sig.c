@@ -198,13 +198,9 @@ void
 pre_init_signal_catch (void)
 {
 #ifdef HAVE_SIGNAL_H
-  /*
-   * Special handling if signal arrives before
-   * we are properly initialized.
-   */
-  signal (SIGINT, signal_handler_exit);
-  signal (SIGTERM, signal_handler_exit);
-  signal (SIGHUP, SIG_IGN);
+  signal (SIGINT, signal_handler);
+  signal (SIGTERM, signal_handler);
+  signal (SIGHUP, signal_handler);
   signal (SIGUSR1, SIG_IGN);
   signal (SIGUSR2, SIG_IGN);
   signal (SIGPIPE, SIG_IGN);
@@ -215,12 +211,12 @@ void
 post_init_signal_catch (void)
 {
 #ifdef HAVE_SIGNAL_H
-  /* catch signals */
   signal (SIGINT, signal_handler);
   signal (SIGTERM, signal_handler);
   signal (SIGHUP, signal_handler);
   signal (SIGUSR1, signal_handler);
   signal (SIGUSR2, signal_handler);
+  signal (SIGPIPE, SIG_IGN);
 #endif /* HAVE_SIGNAL_H */
 }
 

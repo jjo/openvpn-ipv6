@@ -126,10 +126,10 @@ send_push_reply (struct context *c)
 		print_in_addr_t (c->c2.push_ifconfig_local, 0, &gc),
 		print_in_addr_t (c->c2.push_ifconfig_remote_netmask, 0, &gc));
 
-  if (strlen (BSTR (&buf)) >= MAX_PUSH_LIST_LEN)
-    msg (M_FATAL, "Maximum length of --push buffer (%d) has been exceeded", MAX_PUSH_LIST_LEN);
-
-  ret = send_control_channel_string (c, BSTR (&buf), D_PUSH);
+  if (strlen (BSTR (&buf)) < MAX_PUSH_LIST_LEN)
+    ret = send_control_channel_string (c, BSTR (&buf), D_PUSH);
+  else
+    msg (M_WARN, "Maximum length of --push buffer (%d) has been exceeded", MAX_PUSH_LIST_LEN);
 
   gc_free (&gc);
   return ret;

@@ -57,4 +57,12 @@ typedef unsigned long ptr_type;
 /* the --client-config-dir default file */
 #define CCD_DEFAULT "DEFAULT"
 
+/*
+ * This parameter controls the TLS channel buffer size.  Among
+ * other things, this buffer must be large enough to contain
+ * the full --push/--pull list.  If you increase it, do so
+ * on both server and client.
+ */
+#define TLS_CHANNEL_BUF_SIZE 1024
+
 #endif

@@ -58,7 +58,9 @@ bool do_persist_tuntap (const struct options *options);
 
 void pre_setup (const struct options *options);
 
-void init_instance (struct context *c, const struct env_set *env, unsigned int flags);
+void init_instance_handle_signals (struct context *c, const struct env_set *env, const unsigned int flags);
+
+void init_instance (struct context *c, const struct env_set *env, const unsigned int flags);
 
 void do_route (const struct options *options,
 	       struct route_list *route_list,

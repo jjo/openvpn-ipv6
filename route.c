@@ -819,9 +819,11 @@ delete_route (const struct route *r, const struct tuntap *tt, unsigned int flags
   system_check (BSTR (&buf), es, 0, "ERROR: Linux route delete command failed");
 
 #elif defined (WIN32)
-
-  buf_printf (&buf, ROUTE_PATH " DELETE %s",
-	      network);
+  
+  buf_printf (&buf, ROUTE_PATH " DELETE %s MASK %s %s",
+	      network,
+              netmask,
+              gateway);
 
   msg (D_ROUTE, "%s", BSTR (&buf));
 
@@ -1112,8 +1114,19 @@ add_route_ipapi (const struct route *r, const struct tuntap *tt)
       if (status == NO_ERROR)
 	ret = true;
       else
-	msg (M_WARN, "ROUTE: route addition failed using CreateIpForwardEntry: %s",
-	     strerror_win32 (status, &gc));
+	{
+	  /* failed, try a different forward type (--redirect-gateway over RRAS seems to need this) */
+	  fr.dwForwardType = 3;  /* the next hop is the final dest */
+
+	  status = CreateIpForwardEntry (&fr);
+
+	  if (status == NO_ERROR)
+	    ret = true;
+	  else
+	    msg (M_WARN, "ROUTE: route addition failed using CreateIpForwardEntry: %s [if_index=%u]",
+		 strerror_win32 (status, &gc),
+		 (unsigned int)if_index);
+	}
     }
 
   gc_free (&gc);

@@ -36,6 +36,7 @@
 #include <openssl/x509v3.h>
 
 #include "basic.h"
+#include "common.h"
 #include "crypto.h"
 #include "packet_id.h"
 #include "session_id.h"
@@ -275,7 +276,7 @@
  * Buffer sizes (also see mtu.h).
  */
 
-#define PLAINTEXT_BUFFER_SIZE 1024
+#define PLAINTEXT_BUFFER_SIZE TLS_CHANNEL_BUF_SIZE
 
 /* Maximum length of common name */
 #define TLS_CN_LEN 64

@@ -57,7 +57,7 @@ tunnel_point_to_point (struct context *c)
   c->mode = CM_P2P;
 
   /* initialize tunnel instance */
-  init_instance (c, c->es, CC_HARD_USR1_TO_HUP);
+  init_instance_handle_signals (c, c->es, CC_HARD_USR1_TO_HUP);
   if (IS_SIG (c))
     return;
 

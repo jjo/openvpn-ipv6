@@ -3,6 +3,21 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.01.23 -- Version 2.0-rc9
+
+* Fixed error "ROUTE: route addition failed using
+  CreateIpForwardEntry ..." on Windows when --redirect-gateway
+  is used over a RRAS internet link.
+* When using --route-method exe on Windows, include the
+  gateway parameter on route delete commands (Mathias Sundman).
+* Try not to do a hard reset (i.e. SIGHUP) when two
+  SIGUSR1 signals are received in close succession.
+* If the push list tries to grow beyond its buffer capacity,
+  the resulting error will be non-fatal.
+* To increase the push list capacity (must be done on both
+  client and server), increase TLS_CHANNEL_BUF_SIZE in
+  common.h (default=1024).
+	
 2005.01.15 -- Version 2.0-rc8
 
 * Fixed bug introduced in rc7 where options error

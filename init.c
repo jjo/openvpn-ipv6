@@ -2177,10 +2177,22 @@ uninit_management_callback (void)
 }
 
 /*
+ * Initialize a tunnel instance, handle pre and post-init
+ * signal settings.
+ */
+void
+init_instance_handle_signals (struct context *c, const struct env_set *env, const unsigned int flags)
+{
+  pre_init_signal_catch ();
+  init_instance (c, env, flags);
+  post_init_signal_catch ();
+}
+
+/*
  * Initialize a tunnel instance.
  */
 void
-init_instance (struct context *c, const struct env_set *env, unsigned int flags)
+init_instance (struct context *c, const struct env_set *env, const unsigned int flags)
 {
   const struct options *options = &c->options;
   const bool child = (c->mode == CM_CHILD_TCP || c->mode == CM_CHILD_UDP);
@@ -2188,6 +2200,11 @@ init_instance (struct context *c, const struct env_set *env, unsigned int flags)
 
   /* init garbage collection level */
   gc_init (&c->c2.gc);
+
+  /* signals caught here will abort */
+  c->sig->signal_received = 0;
+  c->sig->signal_text = NULL;
+  c->sig->hard = false;
 
   /* link_socket_mode allows CM_CHILD_TCP
      instances to inherit acceptable fds
@@ -2199,15 +2216,6 @@ init_instance (struct context *c, const struct env_set *env, unsigned int flags)
       else if (c->mode == CM_CHILD_TCP)
 	link_socket_mode = LS_MODE_TCP_ACCEPT_FROM;
     }
-
-  /* signals caught here will abort */
-  c->sig->signal_received = 0;
-  c->sig->signal_text = NULL;
-  c->sig->hard = false;
-
-  /* before full initialization, received signals will trigger exit */
-  if (c->first_time)
-    pre_init_signal_catch ();
 
   /* should we disable paging? */
   if (c->first_time && options->mlock)
@@ -2338,10 +2346,6 @@ init_instance (struct context *c, const struct env_set *env, unsigned int flags)
 
   /* do one-time inits, and possibily become a daemon here */
   do_init_first_time (c);
-
-  /* catch signals */
-  if (c->first_time)
-    post_init_signal_catch ();
 
   /*
    * Actually do UID/GID downgrade, and chroot, if requested.
