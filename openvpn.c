@@ -838,7 +838,6 @@ openvpn (const struct options *options,
 	}
 #endif
 
-
       current = time (NULL);
 
       /*
@@ -1124,10 +1123,9 @@ openvpn (const struct options *options,
 	  break;
 	}
 
-#if defined(USE_CRYPTO) && defined(USE_SSL)
       if (!stat) /* timeout? */
 	continue;
-#endif
+
       check_status (stat, "select", NULL);
       if (stat > 0)
 	{
@@ -1446,6 +1444,7 @@ openvpn (const struct options *options,
 		   */
 		  int size;
 		  ASSERT (addr_defined (&to_udp_addr));
+
 		  /* In gremlin-test mode, we may choose to drop this packet */
 		  if (!options->gremlin || ask_gremlin())
 		    {
@@ -1490,7 +1489,7 @@ openvpn (const struct options *options,
 		      /* Did we write a different size packet than we intended? */
 		      if (size != BLEN (&to_udp))
 			msg (D_LINK_ERRORS,
-			     "UDP packet was fragmented on write to %s (tried=%d,actual=%d)",
+			     "UDP packet was truncated/expanded on write to %s (tried=%d,actual=%d)",
 			     print_sockaddr (&to_udp_addr),
 			     BLEN (&to_udp),
 			     size);

@@ -1471,11 +1471,12 @@ to see a list of supported TLS ciphers.
 Packet retransmit timeout on TLS control channel
 if no acknowledgment from remote within
 .B n
-seconds (default=5).  When OpenVPN sends a control
+seconds (default=2).  When OpenVPN sends a control
 packet to its peer, it will expect to receive an
 acknowledgement within
 .B n
-seconds or it will retransmit the packet.  This parameter
+seconds or it will retransmit the packet, subject
+to a TCP-like exponential backoff algorithm.  This parameter
 only applies to control channel packets.  Data channel
 packets (which carry encrypted tunnel data) are never
 acknowledged, sequenced, or retransmitted by OpenVPN because

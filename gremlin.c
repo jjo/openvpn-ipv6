@@ -107,6 +107,8 @@ ask_gremlin(void)
 {
   struct timeval tv;
 
+  ASSERT (!gettimeofday (&tv, NULL));
+
   if (!initialized)
     {
       initialized = true;
