@@ -208,11 +208,11 @@ do_mlockall(bool print_msg)
 {
 #ifdef HAVE_MLOCKALL
   if (mlockall (MCL_CURRENT | MCL_FUTURE))
-    msg (M_ERR, "mlockall failed");
-  if (print_msg)
-    msg (M_INFO, "mlockall() succeeded");
+    msg (M_WARN | M_ERRNO, "WARNING: mlockall call failed");
+  else if (print_msg)
+    msg (M_INFO, "mlockall call succeeded");
 #else
-  msg (M_FATAL, "Sorry but this operating system doesn't appear to support the mlockall() system call");
+  msg (M_WARN, "WARNING: mlockall call failed (function not implemented)");
 #endif
 }
 

@@ -46,6 +46,40 @@
 
 #include "memdbg.h"
 
+/*
+ * When should we daemonize?
+ *
+ * Level 0 -- after option parsing (early)
+ * Level 1 -- after all initialization (late)
+ */
+#define DAEMONIZATION_LEVEL 1
+
+/*
+ * Should we become a daemon?
+ *  level == 0 after parameters have been parsed but before any initialization
+ *  level == 1 after initialization but before any SSL/TLS negotiation or
+ *    tunnel data is forwarded
+ *  first_time is true until first exit of openvpn() function
+ *
+ * Return true if we did it.
+ */
+static bool
+possibly_become_daemon (int level, const struct options* options, const bool first_time)
+{
+  bool ret = false;
+  if (first_time && options->daemon)
+    {
+      ASSERT (!options->inetd);
+      if (level == DAEMONIZATION_LEVEL)
+	{
+	  if (daemon (options->cd_dir != NULL, 0) < 0)
+	    msg (M_ERR, "daemon() failed");
+	  ret = true;
+	}
+    }
+  return ret;
+}
+
 /* Handle signals */
 
 static volatile int signal_received = 0;
@@ -63,27 +97,6 @@ static void
 signal_handler_exit (int signum)
 {
   msg (M_FATAL | M_NOLOCK, "Signal %d received during initialization, exiting", signum);
-}
-
-/*
- * Should we become a daemon?
- *  level == 0 after parameters have been parsed but before any initialization
- *  level == 1 after initialization but before any SSL/TLS negotiation or
- *    tunnel data is forwarded
- *  first_time is true until first exit of openvpn() function
- */
-static void
-possibly_become_daemon (int level, const struct options* options, const bool first_time)
-{
-  if (first_time && options->daemon)
-    {
-      ASSERT (!options->inetd);
-      if (level)
-	{
-	  if (daemon (options->cd_dir != NULL, 0) < 0)
-	    msg (M_ERR, "daemon() failed");
-	}
-    }
 }
 
 /*
@@ -347,6 +360,13 @@ openvpn (const struct options *options,
 
   /* workspace for get_pid_file/write_pid */
   struct pid_state pid_state;
+
+  /* workspace for --user/--group */
+  struct user_state user_state;
+  struct group_state group_state;
+
+  /* temporary variable */
+  bool did_we_daemonize;
 
   /*
    * Special handling if signal arrives before
@@ -731,26 +751,19 @@ openvpn (const struct options *options,
 
   if (first_time)
     {
-      struct user_state user_state;
-      struct group_state group_state;
-
       /* get user and/or group that we want to setuid/setgid to */
       get_group (options->groupname, &group_state);
       get_user (options->username, &user_state);
 
-      /* get --writepid file handle */
+      /* get --writepid file descriptor */
       get_pid_file (options->writepid, &pid_state);
 
       /* chroot if requested */
       do_chroot (options->chroot_dir);
-
-      /* set user and/or group that we want to setuid/setgid to */
-      set_group (&group_state);
-      set_user (&user_state);
     }
 
   /* become a daemon if --daemon */
-  possibly_become_daemon (1, options, first_time);
+  did_we_daemonize = possibly_become_daemon (1, options, first_time);
 
   /* catch signals */
   signal (SIGINT, signal_handler);
@@ -761,6 +774,14 @@ openvpn (const struct options *options,
 
   if (first_time)
     {
+      /* should we disable paging? */
+      if (options->mlock && did_we_daemonize)
+	do_mlockall (true); /* call again in case we daemonized */
+
+      /* set user and/or group that we want to setuid/setgid to */
+      set_group (&group_state);
+      set_user (&user_state);
+
       /* save process ID in a file */
       write_pid (&pid_state);
 
