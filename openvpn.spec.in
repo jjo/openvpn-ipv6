@@ -71,6 +71,9 @@ fi
 /etc/rc.d/init.d/%{name}
 
 %changelog
+* Wed Aug 18 2004 Bishop Clark (LC957) <bishop@platypus.bc.ca>
+- restrict what we claim in /etc/ to avoid ownership conflicts
+
 * Sun Feb 23 2003 Matthias Andree <matthias.andree@gmx.de> 1.3.2.14-1.
 - Have the version number filled in by autoconf.
 
