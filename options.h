@@ -128,7 +128,7 @@ struct options
 
   int resolve_retry_seconds;    /* If hostname resolve fails, retry for n seconds */
 
-  unsigned int tuntap_flags;
+  struct tuntap_options tuntap_options;
 
   /* Misc parms */
   const char *username;

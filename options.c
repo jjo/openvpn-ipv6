@@ -134,8 +134,8 @@ static const char usage_message[] =
   "--route-up cmd  : Execute shell cmd after routes are added.\n"
   "--route-noexec  : Don't add routes automatically.  Instead pass routes to\n"
   "                  --route-up script using environmental variables.\n"
-  "--redirect-gateway : Automatically execute routing commands to cause all\n"
-  "                     outgoing IP traffic to be redirected into the VPN.\n"
+  "--redirect-gateway : (Experimental) Automatically execute routing commands to\n"
+  "                     redirect all outgoing IP traffic through the VPN.\n"
   "--setenv name value : Set a custom environmental variable to pass to script.\n"
   "--shaper n      : Restrict output to peer to n bytes per second.\n"
   "--inactive n    : Exit after n seconds of inactivity on TUN/TAP device.\n"
@@ -367,7 +367,7 @@ init_options (struct options *o)
   o->comp_lzo_adaptive = true;
 #endif
 #ifdef WIN32
-  o->tuntap_flags = (IPW32_SET_IPAPI & IPW32_SET_MASK);
+  o->tuntap_options.ip_win32_type = IPW32_SET_IPAPI;
 #endif
 #ifdef USE_CRYPTO
   o->ciphername = "BF-CBC";
@@ -503,7 +503,6 @@ show_settings (const struct options *o)
   SHOW_INT (verbosity);
   SHOW_INT (mute);
   SHOW_BOOL (gremlin);
-  SHOW_UINT (tuntap_flags);
 
   SHOW_BOOL (occ);
 
@@ -1548,23 +1547,21 @@ add_option (struct options *options, int i, char *p[],
       const int index = ascii2ipset (p[1]);
       ++i;
 
-      options->tuntap_flags &= ~(
-	  IPW32_SET_MASK
-	| IPW32_DHCP_MASQ_HIOFF
-	| IPW32_DHCP_MASQ_LEASE_TIME_SHORT
-	| IPW32_DHCP_MASQ_OFFSET_MASK << IPW32_DHCP_MASQ_OFFSET_SHIFT);
+      options->tuntap_options.dhcp_hioff = false;
+      options->tuntap_options.dhcp_lease_time_short = false;
+      options->tuntap_options.dhcp_masq_offset = 0;
 
-      options->tuntap_flags |= IPW32_DEFINED;
-
+      options->tuntap_options.ip_win32_defined = true;
+ 
       if (index < 0)
 	msg (M_USAGE,
 	     "Bad --ip-win32 method: '%s'.  Allowed methods: %s",
 	     p[1],
 	     ipset2ascii_all());
 
-      options->tuntap_flags |= (index & IPW32_SET_MASK);
+      options->tuntap_options.ip_win32_type = index;
 
-      if ((options->tuntap_flags & IPW32_SET_MASK) == IPW32_SET_DHCP_MASQ)
+      if (options->tuntap_options.ip_win32_type == IPW32_SET_DHCP_MASQ)
 	{
 	  if (p[2])
 	    {
@@ -1574,15 +1571,16 @@ add_option (struct options *options, int i, char *p[],
 		msg (M_USAGE, "--ip-win32 dynamic [offset] ['short'|'long']: offset (%d) must be > -256 and < 256", offset);
 	      if (offset < 0)
 		{
-		  options->tuntap_flags |= IPW32_DHCP_MASQ_HIOFF;
+		  options->tuntap_options.dhcp_hioff = true;
 		  offset = -offset;
 		}
-	      options->tuntap_flags |= ((offset & IPW32_DHCP_MASQ_OFFSET_MASK) << IPW32_DHCP_MASQ_OFFSET_SHIFT);
+	      options->tuntap_options.dhcp_masq_offset = offset;
+
 	      if (p[3])
 		{
 		  ++i;
 		  if (streq (p[3], "short"))
-		    options->tuntap_flags |= IPW32_DHCP_MASQ_LEASE_TIME_SHORT;
+		    options->tuntap_options.dhcp_lease_time_short = true;
 		  else if (streq (p[3], "long"))
 		    ;
 		  else
@@ -1603,8 +1601,7 @@ add_option (struct options *options, int i, char *p[],
       s = atoi (p[1]);
       if (s < 0 || s >= 256)
 	msg (M_FATAL, "--tap-sleep parameter must be between 0 and 255");
-      options->tuntap_flags &= ~(TUNTAP_SLEEP_MASK << TUNTAP_SLEEP_SHIFT);
-      options->tuntap_flags |= (s << TUNTAP_SLEEP_SHIFT);
+      options->tuntap_options.tap_sleep = s;
     }
   else if (streq (p[0], "show-valid-subnets"))
     {

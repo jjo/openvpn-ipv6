@@ -27,6 +27,58 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+VOID
+SetDHCPOpt (DHCPMsg *m, void *data, unsigned int len)
+{
+  if (!m->overflow)
+    {
+      if (m->optlen + len <= DHCP_OPTIONS_BUFFER_SIZE)
+	{
+	  if (len)
+	    {
+	      NdisMoveMemory (m->msg.options + m->optlen, data, len);
+	      m->optlen += len;
+	    }
+	}
+      else
+	{
+	  m->overflow = TRUE;
+	}
+    }
+}
+
+VOID
+SetDHCPOpt0 (DHCPMsg *msg, int type)
+{
+  DHCPOPT0 opt;
+  opt.type = (UCHAR) type;
+  SetDHCPOpt (msg, &opt, sizeof (opt));
+}
+
+VOID
+SetDHCPOpt8 (DHCPMsg *msg, int type, ULONG data)
+{
+  DHCPOPT8 opt;
+  opt.type = (UCHAR) type;
+  opt.len = sizeof (opt.data);
+  opt.data = (UCHAR) data;
+  SetDHCPOpt (msg, &opt, sizeof (opt));
+}
+
+VOID
+SetDHCPOpt32 (DHCPMsg *msg, int type, ULONG data)
+{
+  DHCPOPT32 opt;
+  opt.type = (UCHAR) type;
+  opt.len = sizeof (opt.data);
+  opt.data = data;
+  SetDHCPOpt (msg, &opt, sizeof (opt));
+}
+
+//==============
+// Checksum code
+//==============
+
 USHORT
 ip_checksum (const UCHAR *buf, const int len_ip_header)
 {
@@ -87,6 +139,27 @@ udp_checksum (const UCHAR *buf,
   return ((USHORT) ~sum);
 }
 
+//================================
+// Set IP and UDP packet checksums
+//================================
+
+VOID
+SetChecksumDHCPMsg (DHCPMsg *m)
+{
+  // Set IP checksum
+  m->msg.pre.ip.check = htons (ip_checksum ((UCHAR *) &m->msg.pre.ip, sizeof (IPHDR)));
+
+  // Set UDP Checksum
+  m->msg.pre.udp.check = htons (udp_checksum ((UCHAR *) &m->msg.pre.udp, 
+					      sizeof (UDPHDR) + sizeof (DHCP) + m->optlen,
+					      (UCHAR *)&m->msg.pre.ip.saddr,
+					      (UCHAR *)&m->msg.pre.ip.daddr));
+}
+
+//===================
+// DHCP message tests
+//===================
+
 int
 GetDHCPMessageType (const DHCP *dhcp, const int optlen)
 {
@@ -123,7 +196,7 @@ GetDHCPMessageType (const DHCP *dhcp, const int optlen)
 }
 
 BOOLEAN
-DHCPMessageOurs (TapAdapterPointer p_Adapter,
+DHCPMessageOurs (const TapAdapterPointer p_Adapter,
 		 const ETH_HEADER *eth,
 		 const IPHDR *ip,
 		 const UDPHDR *udp,
@@ -159,40 +232,20 @@ DHCPMessageOurs (TapAdapterPointer p_Adapter,
 }
 
 
-//======================================
-// Set IP and UDP packet checksums
-//======================================
-
-VOID
-SetChecksumDHCPPRE (const IPHDR *ip,
-		    const UDPHDR *udp,
-		    DHCPPRE *p,
-		    const int optlen)
-{
-  // Set IP checksum
-  p->ip.check = htons (ip_checksum ((UCHAR *) &p->ip, sizeof (IPHDR)));
-
-  // Set UDP Checksum
-  p->udp.check = htons (udp_checksum ((UCHAR *) &p->udp, 
-				      sizeof (UDPHDR) + sizeof (DHCP) + optlen,
-				      (UCHAR *)&p->ip.saddr,
-				      (UCHAR *)&p->ip.daddr));
-}
-
 //=====================================================
 // Build all of DHCP packet except for DHCP options.
 // Assume that *p has been zeroed before we are called.
 //=====================================================
 
 VOID
-BuildDHCPPRE (TapAdapterPointer a,
+BuildDHCPPre (const TapAdapterPointer a,
+	      DHCPPre *p,
 	      const ETH_HEADER *eth,
 	      const IPHDR *ip,
 	      const UDPHDR *udp,
 	      const DHCP *dhcp,
-	      DHCPPRE *p,
 	      const int optlen,
-	      BOOLEAN directed)
+	      const BOOLEAN directed)
 {
   // Build ethernet header
 
@@ -250,106 +303,80 @@ BuildDHCPPRE (TapAdapterPointer a,
   COPY_MAC (p->dhcp.chaddr, eth->src);
   p->dhcp.magic = htonl (0x63825363);
 }
+//=============================
+// Build specific DHCP messages
+//=============================
 
 VOID
-SendDHCPOFFERACK (TapAdapterPointer a,
-		  BOOLEAN offer,
-		  const ETH_HEADER *eth,
-		  const IPHDR *ip,
-		  const UDPHDR *udp,
-		  const DHCP *dhcp)
-{
-  DHCP_OFFER_ACK *pkt = (DHCP_OFFER_ACK *) MemAlloc (sizeof (DHCP_OFFER_ACK), TRUE);
-
-  if (pkt)
-    {
-      const int optlen = sizeof (DHCP_OFFER_ACK) - sizeof (DHCPPRE);
-
-      // Most of the DHCP message gets built here
-      BuildDHCPPRE (a, eth, ip, udp, dhcp, &pkt->pre, optlen, TRUE);
-
-      //-----------------------
-      // Now build DHCP options
-      //-----------------------
-
-      // Message Type
-      SET_DHCP_OPT (pkt->msg_type, DHCP_MSG_TYPE, (offer ? DHCPOFFER : DHCPACK));
-
-      // Server ID
-      SET_DHCP_OPT (pkt->server_id, DHCP_SERVER_ID, a->m_dhcp_server_ip);
-
-      // Lease Time
-      SET_DHCP_OPT (pkt->lease_time, DHCP_LEASE_TIME, htonl (a->m_lease_time));
-
-      // Renewal Time
-      SET_DHCP_OPT (pkt->renew_time, DHCP_RENEW_TIME, htonl (a->m_renew_time));
-
-      // Rebind Time
-      SET_DHCP_OPT (pkt->rebind_time, DHCP_REBIND_TIME, htonl (a->m_rebind_time));
-
-      // Netmask
-      SET_DHCP_OPT (pkt->netmask, DHCP_NETMASK, a->m_dhcp_netmask);
-
-      // End
-      SET_DHCP_END (pkt);
-
-      // Checksum
-      SetChecksumDHCPPRE (ip, udp, &pkt->pre, optlen);
-
-      DUMP_PACKET ("DHCPOFFERACK",
-		   (unsigned char *) pkt,
-		   sizeof (DHCP_OFFER_ACK));
-
-      // Return DHCP response to kernel
-      InjectPacket (a, (UCHAR *) pkt, sizeof (DHCP_OFFER_ACK));
-
-      MemFree (pkt, sizeof (DHCP_OFFER_ACK));
-    }
-}
-
-VOID
-SendDHCPNAK (TapAdapterPointer a,
+SendDHCPMsg (const TapAdapterPointer a,
+	     const int type,
 	     const ETH_HEADER *eth,
 	     const IPHDR *ip,
 	     const UDPHDR *udp,
 	     const DHCP *dhcp)
 {
-  DHCP_NAK *pkt = (DHCP_NAK *) MemAlloc (sizeof (DHCP_NAK), TRUE);
+  DHCPMsg *pkt = (DHCPMsg *) MemAlloc (sizeof (DHCPMsg), TRUE);
+
+  ASSERT (type == DHCPOFFER || type == DHCPACK || type == DHCPNAK);
 
   if (pkt)
     {
-      const int optlen = sizeof (DHCP_NAK) - sizeof (DHCPPRE);
-
-      // reset bad DHCPREQUEST counter
-      a->m_bad_requests = 0;
-
-      // Most of the DHCP message gets built here
-      BuildDHCPPRE (a, eth, ip, udp, dhcp, &pkt->pre, optlen, FALSE);
-
       //-----------------------
-      // Now build DHCP options
+      // Build DHCP options
       //-----------------------
 
       // Message Type
-      SET_DHCP_OPT (pkt->msg_type, DHCP_MSG_TYPE, DHCPNAK);
+      SetDHCPOpt8 (pkt, DHCP_MSG_TYPE, type);
 
       // Server ID
-      SET_DHCP_OPT (pkt->server_id, DHCP_SERVER_ID, a->m_dhcp_server_ip);
+      SetDHCPOpt32 (pkt, DHCP_SERVER_ID, a->m_dhcp_server_ip);
+
+      if (type == DHCPOFFER || type == DHCPACK)
+	{
+	  // Lease Time
+	  SetDHCPOpt32 (pkt, DHCP_LEASE_TIME, htonl (a->m_dhcp_lease_time));
+
+	  // Netmask
+	  SetDHCPOpt32 (pkt, DHCP_NETMASK, a->m_dhcp_netmask);
+
+	  // Other user-defined options
+	  SetDHCPOpt (pkt,
+		      a->m_dhcp_user_supplied_options_buffer,
+		      a->m_dhcp_user_supplied_options_buffer_len);
+	}
 
       // End
-      SET_DHCP_END (pkt);
+      SetDHCPOpt0 (pkt, DHCP_END);
 
-      // Checksum
-      SetChecksumDHCPPRE (ip, udp, &pkt->pre, optlen);
+      if (!DHCP_OVERFLOW (pkt))
+	{
+	  // The initial part of the DHCP message (not including options) gets built here
+	  BuildDHCPPre (a,
+			&pkt->msg.pre,
+			eth,
+			ip,
+			udp,
+			dhcp,
+			DHCP_LEN_OPT (pkt),
+			type == DHCPOFFER || type == DHCPACK);
 
-      DUMP_PACKET ("DHCPNAK",
-		   (unsigned char *) pkt,
-		   sizeof (DHCP_NAK));
+	  SetChecksumDHCPMsg (pkt);
 
-      // Return DHCP response to kernel
-      InjectPacket (a, (UCHAR *) pkt, sizeof (DHCP_NAK));
+	  DUMP_PACKET ("DHCPMsg",
+		       DHCP_BUF (pkt),
+		       DHCP_LEN_FULL (pkt));
 
-      MemFree (pkt, sizeof (DHCP_NAK));
+	  // Return DHCP response to kernel
+	  InjectPacket (a,
+			DHCP_BUF (pkt),
+			DHCP_LEN_FULL (pkt));
+	}
+      else
+	{
+	  DEBUGP (("[TAP] DHCP Overflow\n"));
+	}
+
+      MemFree (pkt, sizeof (DHCPMsg));
     }
 }
 
@@ -393,19 +420,23 @@ ProcessDHCP (TapAdapterPointer p_Adapter,
   // Should we reply with DHCPOFFER, DHCPACK, or DHCPNAK?
   if (msg_type == DHCPREQUEST
       && ((dhcp->ciaddr && dhcp->ciaddr != p_Adapter->m_dhcp_addr)
-	  || !p_Adapter->m_received_discover
-	  || p_Adapter->m_bad_requests >= BAD_DHCPREQUEST_NAK_THRESHOLD))
-    SendDHCPNAK (p_Adapter, eth, ip, udp, dhcp);
+	  || !p_Adapter->m_dhcp_received_discover
+	  || p_Adapter->m_dhcp_bad_requests >= BAD_DHCPREQUEST_NAK_THRESHOLD))
+    SendDHCPMsg (p_Adapter,
+		 DHCPNAK,
+		 eth, ip, udp, dhcp);
   else
-    SendDHCPOFFERACK (p_Adapter, (msg_type == DHCPDISCOVER), eth, ip, udp, dhcp);
+    SendDHCPMsg (p_Adapter,
+		 (msg_type == DHCPDISCOVER ? DHCPOFFER : DHCPACK),
+		 eth, ip, udp, dhcp);
 
   // Remember if we received a DHCPDISCOVER
   if (msg_type == DHCPDISCOVER)
-    p_Adapter->m_received_discover = TRUE;
+    p_Adapter->m_dhcp_received_discover = TRUE;
 
   // Is this a bad DHCPREQUEST?
   if (msg_type == DHCPREQUEST && dhcp->ciaddr != p_Adapter->m_dhcp_addr)
-    ++p_Adapter->m_bad_requests;
+    ++p_Adapter->m_dhcp_bad_requests;
 
   return TRUE;
 }

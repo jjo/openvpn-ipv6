@@ -37,6 +37,33 @@
 #include "io.h"
 #include "proto.h"
 
+#ifdef WIN32
+
+struct tuntap_options {
+  bool ip_win32_defined;
+
+# define IPW32_SET_MANUAL       0  /* "--ip-win32 manual" */
+# define IPW32_SET_NETSH        1  /* "--ip-win32 netsh" */
+# define IPW32_SET_IPAPI        2  /* "--ip-win32 ipapi" */
+# define IPW32_SET_DHCP_MASQ    3  /* "--ip-win32 dynamic" */
+# define IPW32_SET_N            4
+  int ip_win32_type;
+
+  int tap_sleep;
+
+  bool dhcp_hioff;            /* if false, low offset; if true, high offset */
+  bool dhcp_lease_time_short; /* if true, short lease time, if false, long lease time */
+  int dhcp_masq_offset;
+};
+
+#else
+
+struct tuntap_options {
+  int dummy; /* not used */
+};
+
+#endif
+
 /*
  * Define a TUN/TAP dev.
  */
@@ -50,7 +77,7 @@ struct tuntap
 
   bool ipv6;
 
-  unsigned int flags; /* options set on command line */
+  struct tuntap_options options; /* options set on command line */
 
   char actual[256]; /* actual name of TUN/TAP dev, usually including unit number */
 
@@ -153,7 +180,7 @@ void init_tun (struct tuntap *tt,
 	       in_addr_t local_public,
 	       in_addr_t remote_public,
 	       const struct frame *frame,
-	       unsigned int flags);
+	       const struct tuntap_options *options);
 
 void do_ifconfig (struct tuntap *tt,
 		  const char *actual,    /* actual device name */
@@ -221,28 +248,6 @@ ifconfig_order(void)
 #ifdef WIN32
 
 #define TUN_PASS_BUFFER
-
-/* --ip-win32 constants */
-
-#define IPW32_SET_MANUAL       0  /* "manual" */
-#define IPW32_SET_NETSH        1  /* "netsh" */
-#define IPW32_SET_IPAPI        2  /* "ipapi" */
-#define IPW32_SET_DHCP_MASQ    3  /* "dynamic" */
-
-#define IPW32_SET_N            4
-#define IPW32_SET_MASK         3
-
-#define IPW32_DEFINED                     0x04 /* if true, --ip-win32 parameter was used */
-#define IPW32_DHCP_MASQ_HIOFF             0x08 /* if false, low offset; if true, high offset */
-#define IPW32_DHCP_MASQ_LEASE_TIME_SHORT  0x10 /* if true, short lease time, if false, long lease time */
-
-#define IPW32_DHCP_MASQ_OFFSET_SHIFT    5
-#define IPW32_DHCP_MASQ_OFFSET_MASK  0xFF
-
-/* --tap-sleep parameter */
-
-#define TUNTAP_SLEEP_SHIFT     13
-#define TUNTAP_SLEEP_MASK    0xFF
 
 int ascii2ipset (const char* name);
 const char *ipset2ascii (int index);

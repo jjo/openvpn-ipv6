@@ -52,11 +52,11 @@
 #include "constants.h"
 #include "common.h"
 #include "proto.h"
-#include "types.h"
-#include "prototypes.h"
 #include "error.h"
 #include "endian.h"
 #include "dhcp.h"
+#include "types.h"
+#include "prototypes.h"
 
 #include "mem.c"
 #include "macinfo.c"
@@ -1686,9 +1686,10 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 		  (sizeof (IPADDR) * 2))
 		{
 		  MACADDR dest;
-		  GenerateRelatedMAC (dest, l_Adapter->m_MAC, 1);
 
 		  NdisAcquireSpinLock (&l_Adapter->m_Lock);
+
+		  GenerateRelatedMAC (dest, l_Adapter->m_MAC, 1);
 
 		  l_Adapter->m_PointToPoint = TRUE;
 
@@ -1745,6 +1746,7 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 
 		  l_Adapter->m_dhcp_enabled = TRUE;
 		  l_Adapter->m_dhcp_server_arp = TRUE;
+		  l_Adapter->m_dhcp_user_supplied_options_buffer_len = 0;
 
 		  // Adapter IP addr / netmask
 		  l_Adapter->m_dhcp_addr =
@@ -1757,20 +1759,40 @@ TapDeviceHook (IN PDEVICE_OBJECT p_DeviceObject, IN PIRP p_IRP)
 		    ((IPADDR*) (p_IRP->AssociatedIrp.SystemBuffer))[2];
 
 		  // Lease time in seconds
-		  l_Adapter->m_lease_time =
+		  l_Adapter->m_dhcp_lease_time =
 		    ((IPADDR*) (p_IRP->AssociatedIrp.SystemBuffer))[3];
-
-		  // Renewal time should be 50% of lease time
-		  l_Adapter->m_renew_time = l_Adapter->m_lease_time / 2;
-
-		  // Rebind time should be 75% of lease time
-		  l_Adapter->m_rebind_time = (l_Adapter->m_lease_time * 3) / 4;
 
 		  GenerateRelatedMAC (l_Adapter->m_dhcp_server_mac, l_Adapter->m_MAC, 2);
 
 		  CheckIfDhcpAndPointToPointMode (l_Adapter);
 
 		  NdisReleaseSpinLock (&l_Adapter->m_Lock);
+
+		  p_IRP->IoStatus.Information = 1; // Simple boolean value
+		}
+	      else
+		{
+		  NOTE_ERROR (l_Adapter);
+		  p_IRP->IoStatus.Status = l_Status = STATUS_INVALID_PARAMETER;
+		}
+	      
+	      break;
+	    }
+
+	  case TAP_IOCTL_CONFIG_DHCP_SET_OPT:
+	    {
+	      if (l_IrpSp->Parameters.DeviceIoControl.InputBufferLength <=
+		  DHCP_USER_SUPPLIED_OPTIONS_BUFFER_SIZE
+		  && l_Adapter->m_dhcp_enabled)
+		{
+		  l_Adapter->m_dhcp_user_supplied_options_buffer_len = 0;
+
+		  NdisMoveMemory (l_Adapter->m_dhcp_user_supplied_options_buffer,
+				  p_IRP->AssociatedIrp.SystemBuffer,
+				  l_IrpSp->Parameters.DeviceIoControl.InputBufferLength);
+		  
+		  l_Adapter->m_dhcp_user_supplied_options_buffer_len = 
+		    l_IrpSp->Parameters.DeviceIoControl.InputBufferLength;
 
 		  p_IRP->IoStatus.Information = 1; // Simple boolean value
 		}
@@ -2234,9 +2256,9 @@ CancelIRP (IN PDEVICE_OBJECT p_DeviceObject,
 
   if (!l_Extension->m_halt)
     {
-      NdisAcquireSpinLock (&l_Extension->m_Adapter->m_Lock);
+      NdisAcquireSpinLock (&l_Extension->m_Adapter->m_QueueLock);
       exists = (QueueExtract (l_Extension->m_IrpQueue, p_IRP) == p_IRP);
-      NdisReleaseSpinLock (&l_Extension->m_Adapter->m_Lock);
+      NdisReleaseSpinLock (&l_Extension->m_Adapter->m_QueueLock);
     }
   else
     exists = TRUE;
@@ -2471,15 +2493,14 @@ VOID ResetTapDevState (TapAdapterPointer p_Adapter)
   // DHCP Masq
   p_Adapter->m_dhcp_enabled = FALSE;
   p_Adapter->m_dhcp_server_arp = FALSE;
+  p_Adapter->m_dhcp_user_supplied_options_buffer_len = 0;
   p_Adapter->m_dhcp_addr = 0;
   p_Adapter->m_dhcp_netmask = 0;
   p_Adapter->m_dhcp_server_ip = 0;
+  p_Adapter->m_dhcp_lease_time = 0;
+  p_Adapter->m_dhcp_received_discover = FALSE;
+  p_Adapter->m_dhcp_bad_requests = 0;
   NdisZeroMemory (p_Adapter->m_dhcp_server_mac, sizeof (MACADDR));
-  p_Adapter->m_lease_time = 0;
-  p_Adapter->m_renew_time = 0;
-  p_Adapter->m_rebind_time = 0;
-  p_Adapter->m_received_discover = FALSE;
-  p_Adapter->m_bad_requests = 0;
 }
 
 //===================================================================

@@ -1217,7 +1217,7 @@ openvpn (const struct options *options,
 	    addr_host (&link_socket.lsa->local),
 	    addr_host (&link_socket.lsa->remote),
 	    &frame,
-	    options->tuntap_flags);
+	    &options->tuntap_options); /* JYFIXME -- manual merge to 2.0 beta */
 
   /* open tun/tap device, ifconfig, run up script, etc. */
   
@@ -2844,15 +2844,23 @@ main (int argc, char *argv[])
 	msg (M_USAGE, "Options error: local and remote/netmask --ifconfig addresses must be different");
 
 #ifdef WIN32
+      /* JYFIXME -- manual merge to 2.0 beta */
       if (dev == DEV_TYPE_TUN && !(options.ifconfig_local && options.ifconfig_remote_netmask))
 	msg (M_USAGE, "Options error: On Windows, --ifconfig is required when --dev tun is used");
-      if ((options.tuntap_flags & IPW32_DEFINED)
+      if ((options.tuntap_options.ip_win32_defined)
 	  && !(options.ifconfig_local && options.ifconfig_remote_netmask))
 	msg (M_USAGE, "Options error: On Windows, --ip-win32 doesn't make sense unless --ifconfig is also used");
+
+      if (options.tuntap_options.ip_win32_type == IPW32_SET_DHCP_MASQ
+	  && !options.route_delay_defined)
+	{
+	  options.route_delay_defined = true;
+	  options.route_delay = 5;
+	}
+
       if (options.ifconfig_noexec)
 	{
-	  options.tuntap_flags &= ~IPW32_SET_MASK;
-	  options.tuntap_flags |= IPW32_SET_MANUAL;
+	  options.tuntap_options.ip_win32_type = IPW32_SET_MANUAL;
 	  options.ifconfig_noexec = false;
 	}
 #endif

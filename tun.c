@@ -310,7 +310,7 @@ init_tun (struct tuntap *tt,
 	  in_addr_t local_public,
 	  in_addr_t remote_public,
 	  const struct frame *frame,
-	  unsigned int flags)
+	  const struct tuntap_options *options)
 {
 #ifdef WIN32
   overlapped_io_init (&tt->reads, frame, FALSE, true);
@@ -318,7 +318,7 @@ init_tun (struct tuntap *tt,
 #endif
 
   tt->type = dev_type_enum (dev, dev_type);
-  tt->flags = flags;
+  tt->options = *options;
 
   if (ifconfig_local_parm && ifconfig_remote_netmask_parm)
     {
@@ -664,7 +664,7 @@ do_ifconfig (struct tuntap *tt,
 			  ifconfig_local,
 			  netmask);
 	
-	switch (tt->flags & IPW32_SET_MASK)
+	switch (tt->options.ip_win32_type)
 	  {
 	  case IPW32_SET_MANUAL:
 	    msg (M_INFO, "******** NOTE:  Please manually set the IP/netmask of '%s' to %s/%s (if it is not already set)",
@@ -2116,12 +2116,9 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 
   /* should we tell the TAP-Win32 driver to masquerade as a DHCP server as a means
      of setting the adapter address? */
-  if (tt->did_ifconfig_setup && (tt->flags & IPW32_SET_MASK) == IPW32_SET_DHCP_MASQ)
+  if (tt->did_ifconfig_setup && tt->options.ip_win32_type == IPW32_SET_DHCP_MASQ)
     {
       in_addr_t ep[4];
-      const bool hioff = (tt->flags & IPW32_DHCP_MASQ_HIOFF) != 0;
-      const bool short_lease = (tt->flags & IPW32_DHCP_MASQ_LEASE_TIME_SHORT) != 0;
-      const unsigned int offset = (tt->flags >> IPW32_DHCP_MASQ_OFFSET_SHIFT) & IPW32_DHCP_MASQ_OFFSET_MASK;
 
       /* We will answer DHCP requests with a reply to set IP/subnet to these values */
       ep[0] = htonl (tt->local);
@@ -2131,23 +2128,23 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
       if (tt->type == DEV_TYPE_TUN)
 	{
 	  ep[2] = htonl (tt->remote_netmask);
-	  if (offset != 0)
+	  if (tt->options.dhcp_masq_offset != 0)
 	    msg (M_WARN, "WARNING: because you are using '--dev tun' mode, the '--ip-win32 dynamic [offset]' option is ignoring the offset parameter");
 	}
       else
 	{
 	  in_addr_t dsa; /* DHCP server addr */
-	  if (hioff)
-	    dsa = (tt->local | (~tt->adapter_netmask)) - offset;
+	  if (tt->options.dhcp_hioff)
+	    dsa = (tt->local | (~tt->adapter_netmask)) - tt->options.dhcp_masq_offset;
 	  else
-	    dsa = (tt->local & tt->adapter_netmask) + offset;
+	    dsa = (tt->local & tt->adapter_netmask) + tt->options.dhcp_masq_offset;
 	  if ((tt->local & tt->adapter_netmask) != (dsa & tt->adapter_netmask))
 	    msg (M_FATAL, "ERROR: --tap-win32 dynamic [offset] : offset is outside of --ifconfig subnet");
 	  ep[2] = htonl (dsa);
 	}
 
       /* lease time in seconds */
-      ep[3] = (short_lease ? 60 : 31536000); /* the long lease is 1 year */
+      ep[3] = (tt->options.dhcp_lease_time_short ? 60 : 31536000); /* the long lease is 1 year */
 
       if (!DeviceIoControl (tt->hand, TAP_IOCTL_CONFIG_DHCP_MASQ,
 			    ep, sizeof (ep),
@@ -2161,6 +2158,17 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 	   print_in_addr_t (ntohl(ep[2]), false),
 	   ep[3]
 	   );
+
+#if 0
+      /* test user-supplied DHCP options capability */
+      {
+	uint8_t opt[6] = { 44, 4, 1, 2, 3, 4 };
+	if (!DeviceIoControl (tt->hand, TAP_IOCTL_CONFIG_DHCP_SET_OPT,
+			      opt, sizeof (opt),
+			      opt, sizeof (opt), &len, NULL))
+	  msg (M_FATAL, "ERROR: The TAP-Win32 driver rejected a TAP_IOCTL_CONFIG_DHCP_SET_OPT DeviceIoControl call");
+      }
+#endif
     }
 
 #if 1
@@ -2176,7 +2184,7 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 
   /* possible wait for adapter to come up */
   {
-    int s = ((tt->flags >> TUNTAP_SLEEP_SHIFT) & TUNTAP_SLEEP_MASK);
+    int s = tt->options.tap_sleep;
     if (s)
       {
 	msg (M_INFO, "Sleeping for %d seconds...", s);
@@ -2210,14 +2218,14 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
      * make sure the TCP/IP properties for the adapter are
      * set correctly.
      */
-    if (tt->did_ifconfig_setup && (tt->flags & IPW32_SET_MASK) == IPW32_SET_DHCP_MASQ)
+    if (tt->did_ifconfig_setup && tt->options.ip_win32_type == IPW32_SET_DHCP_MASQ)
       {
 	/* check dhcp enable status */
 	if (dhcp_disabled (index))
 	  msg (M_WARN, "WARNING: You have selected '--ip-win32 dynamic', which will not work unless the TAP-Win32 TCP/IP properties are set to 'Obtain an IP address automatically'");
       }
 
-    if (tt->did_ifconfig_setup && (tt->flags & IPW32_SET_MASK) == IPW32_SET_IPAPI)
+    if (tt->did_ifconfig_setup && tt->options.ip_win32_type == IPW32_SET_IPAPI)
       {
 	DWORD status;
 	const char *error_suffix = "I am having trouble using the Windows 'IP helper API' to automatically set the IP address -- consider using other --ip-win32 methods (not 'ipapi')";

@@ -40,6 +40,13 @@
 #define BAD_DHCPREQUEST_NAK_THRESHOLD 3
 
 //
+// Maximum number of DHCP options bytes supplied
+//
+
+#define DHCP_USER_SUPPLIED_OPTIONS_BUFFER_SIZE 128
+#define DHCP_OPTIONS_BUFFER_SIZE               256
+
+//
 // UDP port numbers of DHCP messages.
 //
 
@@ -71,16 +78,37 @@ typedef struct {
   ULONG  magic;      /* must be 0x63825363 (network order) */
 } DHCP;
 
-// Convenience macros for setting DHCP options
-#define SET_DHCP_OPT(l, t, v) { l.type = t; l.len = sizeof (l.data); l.data = (v); }
-#define SET_DHCP_END(l) { l->end.type = DHCP_END; }
+typedef struct {
+  ETH_HEADER eth;
+  IPHDR ip;
+  UDPHDR udp;
+  DHCP dhcp;
+} DHCPPre;
 
-#define SET_DHCP_PADDING(l) \
-{ \
-  int pi; \
-  for (pi = 0; pi < sizeof (l->padding); ++pi) \
-    l->padding[pi] = DHCP_PAD; \
-}
+typedef struct {
+  DHCPPre pre;
+  UCHAR options[DHCP_OPTIONS_BUFFER_SIZE];
+} DHCPFull;
+
+typedef struct {
+  unsigned int optlen;
+  BOOLEAN overflow;
+  DHCPFull msg;
+} DHCPMsg;
+
+//
+// Length macros for DHCPMSG
+//
+
+#define DHCP_LEN_BASE(p) (sizeof (DHCPPre))
+#define DHCP_LEN_OPT(p)  ((p)->optlen)
+#define DHCP_LEN_FULL(p) (DHCP_LEN_BASE(p) + DHCP_LEN_OPT(p))
+#define DHCP_BUF(p)      ((UCHAR*) &(p)->msg)
+#define DHCP_OVERFLOW(p) ((p)->overflow)
+
+//
+// structs to hold individual DHCP options
+//
 
 typedef struct {
   UCHAR type;
@@ -97,31 +125,6 @@ typedef struct {
   UCHAR len;
   ULONG data;
 } DHCPOPT32;
-
-typedef struct {
-  ETH_HEADER eth;
-  IPHDR ip;
-  UDPHDR udp;
-  DHCP dhcp;
-} DHCPPRE;
-
-typedef struct {
-  DHCPPRE pre;
-  DHCPOPT8 msg_type;
-  DHCPOPT32 server_id;
-  DHCPOPT32 lease_time;
-  DHCPOPT32 renew_time;
-  DHCPOPT32 rebind_time;
-  DHCPOPT32 netmask;
-  DHCPOPT0 end;
-} DHCP_OFFER_ACK;
-
-typedef struct {
-  DHCPPRE pre;
-  DHCPOPT8 msg_type;
-  DHCPOPT32 server_id;
-  DHCPOPT0 end;
-} DHCP_NAK;
 
 #pragma pack()
 

@@ -118,11 +118,11 @@ typedef struct _TapAdapter
   IPADDR m_dhcp_server_ip;
   BOOLEAN m_dhcp_server_arp;
   MACADDR m_dhcp_server_mac;
-  ULONG m_lease_time;
-  ULONG m_renew_time;
-  ULONG m_rebind_time;
-  BOOLEAN m_received_discover;
-  ULONG m_bad_requests;
+  ULONG m_dhcp_lease_time;
+  UCHAR m_dhcp_user_supplied_options_buffer[DHCP_USER_SUPPLIED_OPTIONS_BUFFER_SIZE];
+  ULONG m_dhcp_user_supplied_options_buffer_len;
+  BOOLEAN m_dhcp_received_discover;
+  ULONG m_dhcp_bad_requests;
 
   // Help to tear down the adapter by keeping
   // some state information on allocated
