@@ -704,7 +704,7 @@ get_console_input_win32 (const char *prompt, const bool echo, char *input, const
   input[0] = '\0';
 
   in = GetStdHandle (STD_INPUT_HANDLE);
-  err = GetStdHandle (STD_ERROR_HANDLE);
+  err = get_orig_stderr ();
 
   if (in != INVALID_HANDLE_VALUE
       && err != INVALID_HANDLE_VALUE

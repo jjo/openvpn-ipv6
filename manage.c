@@ -605,7 +605,7 @@ man_dispatch_command (struct management *man, struct status_output *so, const ch
       if (p[1])
 	{
 	  const int level = atoi(p[1]);
-	  if (set_debug_level (level))
+	  if (set_debug_level (level, 0))
 	    msg (M_CLIENT, "SUCCESS: verb level changed");
 	  else
 	    msg (M_CLIENT, "ERROR: verb level is out of range");
@@ -1549,10 +1549,10 @@ man_block (struct management *man, volatile int *signal_received, const time_t e
   
   if (man_standalone_ok (man))
     {
-      event_reset (man->connection.es);
-      management_socket_set (man, man->connection.es, NULL, NULL);
       do
 	{
+	  event_reset (man->connection.es);
+	  management_socket_set (man, man->connection.es, NULL, NULL);
 	  tv.tv_usec = 0;
 	  tv.tv_sec = 1;
 	  status = event_wait (man->connection.es, &tv, &esr, 1);

@@ -241,7 +241,7 @@ init_verb_mute (struct context *c, unsigned int flags)
     {
       /* set verbosity and mute levels */
       set_check_status (D_LINK_ERRORS, D_READ_WRITE);
-      set_debug_level (c->options.verbosity);
+      set_debug_level (c->options.verbosity, SDL_CONSTRAIN);
       set_mute_cutoff (c->options.mute);
     }
 

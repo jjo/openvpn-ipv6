@@ -820,6 +820,8 @@ se_reset (struct event_set *es)
   int i;
   ASSERT (ses->fast);
   
+  dmsg (D_EVENT_WAIT, "SE_RESET");
+
   FD_ZERO (&ses->readfds);
   FD_ZERO (&ses->writefds);
   for (i = 0; i <= ses->maxfd; ++i)
@@ -832,6 +834,8 @@ se_del (struct event_set *es, event_t event)
 {
   struct se_set *ses = (struct se_set *) es;
   ASSERT (!ses->fast);
+
+  dmsg (D_EVENT_WAIT, "SE_DEL ev=%d", event);
 
   if (event >= 0 && event < ses->capacity)
     {
@@ -849,8 +853,8 @@ se_ctl (struct event_set *es, event_t event, unsigned int rwflags, void *arg)
 {
   struct se_set *ses = (struct se_set *) es;
 
-  dmsg (D_EVENT_WAIT, "SE_CTL rwflags=0x%04x ev=%d arg=" ptr_format,
-       rwflags, (int)event, (ptr_type)arg);
+  dmsg (D_EVENT_WAIT, "SE_CTL rwflags=0x%04x ev=%d fast=%d cap=%d maxfd=%d arg=" ptr_format,
+       rwflags, (int)event, (int)ses->fast, ses->capacity, ses->maxfd, (ptr_type)arg);
 
   if (event >= 0 && event < ses->capacity)
     {
@@ -919,6 +923,11 @@ se_wait_fast (struct event_set *es, const struct timeval *tv, struct event_set_r
   struct timeval tv_tmp = *tv;
   int stat;
 
+  dmsg (D_EVENT_WAIT, "SE_WAIT_FAST maxfd=%d tv=%d/%d",
+	ses->maxfd,
+	(int)tv_tmp.tv_sec,
+	(int)tv_tmp.tv_usec);
+
   stat = select (ses->maxfd + 1, &ses->readfds, &ses->writefds, NULL, &tv_tmp);
 
   if (stat > 0)
@@ -935,6 +944,9 @@ se_wait_scalable (struct event_set *es, const struct timeval *tv, struct event_s
   fd_set read = ses->readfds;
   fd_set write = ses->writefds;
   int stat;
+
+  dmsg (D_EVENT_WAIT, "SE_WAIT_SCALEABLE maxfd=%d tv=%d/%d",
+	ses->maxfd, (int)tv_tmp.tv_sec, (int)tv_tmp.tv_usec);
 
   stat = select (ses->maxfd + 1, &read, &write, NULL, &tv_tmp);
 

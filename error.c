@@ -41,6 +41,7 @@
 #include "otime.h"
 #include "perf.h"
 #include "status.h"
+#include "integer.h"
 
 #ifdef USE_CRYPTO
 #include <openssl/err.h>
@@ -83,19 +84,25 @@ static char *pgmname_syslog;  /* GLOBAL */
 static FILE *msgfp;         /* GLOBAL */
 
 bool
-set_debug_level (int level)
+set_debug_level (const int level, const unsigned int flags)
 {
-  if (level >= 0 && level < 16)
+  const int ceiling = 15;
+
+  if (level >= 0 && level <= ceiling)
     {
       x_debug_level = level;
       return true;
     }
-  else
-    return false;
+  else if (flags & SDL_CONSTRAIN)
+    {
+      x_debug_level = constrain_int (level, 0, ceiling);
+      return true;
+    }
+  return false;
 }
 
 bool
-set_mute_cutoff (int cutoff)
+set_mute_cutoff (const int cutoff)
 {
   if (cutoff >= 0)
     {
@@ -417,6 +424,21 @@ close_syslog ()
 #endif
 }
 
+#ifdef WIN32
+
+static HANDLE orig_stderr;
+
+HANDLE
+get_orig_stderr (void)
+{
+  if (orig_stderr)
+    return orig_stderr;
+  else
+    return GetStdHandle (STD_ERROR_HANDLE);
+}
+
+#endif
+
 void
 redirect_stdout_stderr (const char *file, bool append)
 {
@@ -450,6 +472,9 @@ redirect_stdout_stderr (const char *file, bool append)
 	    msg (M_ERR, "Error: cannot seek to end of --log file: %s", file);
 	}
       
+      /* save original stderr for password prompts */
+      orig_stderr = GetStdHandle (STD_ERROR_HANDLE);
+
       /* set up for redirection */
       if (!SetStdHandle (STD_OUTPUT_HANDLE, log_handle)
 	  || !SetStdHandle (STD_ERROR_HANDLE, log_handle))

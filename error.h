@@ -173,8 +173,10 @@ void x_msg (const unsigned int flags, const char *format, ...)
 void error_reset (void);
 void set_suppress_timestamps (bool suppressed);
 
-bool set_debug_level (int level);
-bool set_mute_cutoff (int cutoff);
+#define SDL_CONSTRAIN (1<<0)
+bool set_debug_level (const int level, const unsigned int flags);
+
+bool set_mute_cutoff (const int cutoff);
 
 int get_debug_level (void);
 int get_mute_cutoff (void);
@@ -206,6 +208,11 @@ void close_syslog ();
 
 /* log file output */
 void redirect_stdout_stderr (const char *file, bool append);
+
+#ifdef WIN32
+/* get original stderr handle, even if redirected by --log/--log-append */
+HANDLE get_orig_stderr (void);
+#endif
 
 /* exit program */
 void openvpn_exit (int status);

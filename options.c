@@ -1291,6 +1291,16 @@ options_postprocess (struct options *options, bool first_time)
     msg (M_USAGE, "--lport and --nobind don't make sense when used together");
 
   /*
+   * Check for consistency of management options
+   */
+#ifdef ENABLE_MANAGEMENT
+  if (!options->management_addr &&
+      (options->management_query_passwords || options->management_hold
+       || options->management_log_history_cache != defaults.management_log_history_cache))
+    msg (M_USAGE, "--management is not specified, however one or more options which modify the behavior of --management were specified");
+#endif
+
+  /*
    * Windows-specific options.
    */
 
