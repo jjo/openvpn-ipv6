@@ -55,6 +55,12 @@ typedef uint32_t net_time_t;
 #define ntohtime(x) ntohl(x)
 
 /*
+ * Printf formats for special types
+ */
+#define packet_id_format "%u"
+#define time_format      "%u"
+
+/*
  * Maximum allowed backtrack in
  * sequence number due to packets arriving
  * out of order.

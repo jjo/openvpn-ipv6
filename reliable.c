@@ -55,8 +55,8 @@ reliable_ack_read_packet_id (struct reliable_ack *ack, struct buffer *buf, packe
       if (ack->len < RELIABLE_ACK_SIZE)
 	{
 	  *pid = ack->packet_id[ack->len++] = ntohpid (net_pid);
-	  msg (D_REL_DEBUG, "ACK ID %lu (buf->len=%d, ack->len=%d)",
-	       (unsigned long)*pid, buf->len, ack->len);
+	  msg (D_REL_DEBUG, "ACK ID " packet_id_format " (buf->len=%d, ack->len=%d)",
+	       *pid, buf->len, ack->len);
 	  return true;
 	}
     }
@@ -131,7 +131,7 @@ reliable_ack_write (struct reliable_ack * ack,
       packet_id_type pid = ack->packet_id[i];
       packet_id_type net_pid = htonpid (pid);
       ASSERT (buf_write (&sub, &net_pid, sizeof (net_pid)));
-      msg (D_REL_DEBUG, "ACK write %lu (ack->len=%d, n=%d)", (unsigned long)pid, ack->len, n);
+      msg (D_REL_DEBUG, "ACK write " packet_id_format " (ack->len=%d, n=%d)", pid, ack->len, n);
     }
   if (n)
     {
@@ -173,7 +173,7 @@ reliable_ack_print(struct buffer* buf)
       if (!buf_read (buf, &pid, sizeof (pid)))
 	goto done;
       pid = ntohpid (pid);
-      buf_printf (&out, " %lu", (unsigned long)pid);
+      buf_printf (&out, " " packet_id_format, pid);
     }
   if (n_ack)
     {
@@ -267,13 +267,13 @@ reliable_send_purge (struct reliable *rel, struct reliable_ack *ack)
 	  struct reliable_entry *e = &rel->array[j];
 	  if (e->active && e->packet_id == pid)
 	    {
-	      msg (D_REL_DEBUG, "ACK received for pid %lu, deleting from send buffer",
-		   (unsigned long)pid);
+	      msg (D_REL_DEBUG, "ACK received for pid " packet_id_format ", deleting from send buffer",
+		   pid);
 #if 0
 	      /* DEBUGGING -- how close were we timing out on ACK failure and resending? */
 	      {
 		const int wake = e->next_try - time(NULL);
-		msg (M_INFO, "ACK %lu, wake=%d", (unsigned long)pid, wake);
+		msg (M_INFO, "ACK " packet_id_format ", wake=%d", pid, wake);
 	      }
 #endif
 	      e->active = false;
@@ -404,7 +404,7 @@ reliable_mark_active_incoming (struct reliable *rel, struct buffer *buf,
 
 	  e->opcode = opcode;
 	  e->next_try = 0;
-	  msg (D_REL_DEBUG, "ACK Mark Active Incoming ID %lu", (unsigned long)e->packet_id);
+	  msg (D_REL_DEBUG, "ACK Mark Active Incoming ID " packet_id_format, e->packet_id);
 	  return;
 	}
     }
@@ -434,7 +434,7 @@ reliable_mark_active_outgoing (struct reliable *rel, struct buffer *buf, int opc
 
 	  e->opcode = opcode;
 	  e->next_try = 0;
-	  msg (D_REL_DEBUG, "ACK Mark Active Outgoing ID %lu", (unsigned long)e->packet_id);
+	  msg (D_REL_DEBUG, "ACK Mark Active Outgoing ID " packet_id_format, e->packet_id);
 	  return;
 	}
     }
@@ -460,7 +460,7 @@ reliable_mark_deleted (struct reliable *rel, struct buffer *buf, bool inc_pid)
   ASSERT (0);
 }
 
-#if 0
+#if 1
 
 void
 reliable_ack_debug_print (const struct reliable_ack *ack, char *desc)
@@ -471,7 +471,7 @@ reliable_ack_debug_print (const struct reliable_ack *ack, char *desc)
   printf ("********* struct reliable_ack %s\n", desc);
   for (i = 0; i < ack->len; ++i)
     {
-      printf ("  %d: %lu\n", i, (unsigned long)ack->packet_id[i]);
+      printf ("  %d: " packet_id_format "\n", i, ack->packet_id[i]);
     }
 }
 
@@ -483,15 +483,15 @@ reliable_debug_print (const struct reliable *rel, char *desc)
 
   printf ("********* struct reliable %s\n", desc);
   printf ("  timeout=%d\n", rel->timeout);
-  printf ("  packet_id=%lu\n", (unsigned long)rel->packet_id);
-  printf ("  current=%lu\n", (unsigned long)current);
+  printf ("  packet_id=" packet_id_format "\n", rel->packet_id);
+  printf ("  current=" time_format "\n", current);
   for (i = 0; i < RELIABLE_SIZE; ++i)
     {
       const struct reliable_entry *e = &rel->array[i];
       if (e->active)
 	{
-	  printf ("  %d: packet_id=%lu len=%d", i, (unsigned long)e->packet_id, e->buf.len);
-	  printf (" next_try=%lu", (unsigned long)e->next_try);
+	  printf ("  %d: packet_id=" packet_id_format " len=%d", i, e->packet_id, e->buf.len);
+	  printf (" next_try=" time_format, e->next_try);
 	  printf ("\n");
 	}
     }

@@ -89,7 +89,7 @@ set_nice (int niceval)
 #endif
 }
 
-/* Run a shell script with one arg */
+/* Pass tunnel endpoint and MTU parms to a user-supplied script */
 void
 run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu,
 	    const char *ifconfig_local, const char* ifconfig_remote)

@@ -127,7 +127,7 @@ ask_gremlin()
 	}
       
       msg (D_GREMLIN,
-	   "GREMLIN: NETWORK GOING %s FOR %d SECONDS",
+	   "GREMLIN: CONNECTION GOING %s FOR %d SECONDS",
 	   (up ? "UP" : "DOWN"),
 	   delta);
       next = tv.tv_sec + delta;
@@ -156,7 +156,7 @@ void corrupt_gremlin(struct buffer* buf) {
 	{
 	  if (buf->len > 0)
 	    {
-	      unsigned char r = roll (0, 255);
+	      uint8_t r = roll (0, 255);
 	      int method = roll (0, 5);
 
 	      switch (method) {

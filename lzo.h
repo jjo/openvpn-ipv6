@@ -79,10 +79,10 @@ struct lzo_compress_workspace
   struct lzo_adaptive_compress ac;
 
   /* statistics */
-  unsigned long pre_decompress;
-  unsigned long post_decompress;
-  unsigned long pre_compress;
-  unsigned long post_compress;
+  counter_type pre_decompress;
+  counter_type post_decompress;
+  counter_type pre_compress;
+  counter_type post_compress;
 };
 
 void lzo_adjust_frame_parameters(struct frame *frame);

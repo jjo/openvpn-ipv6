@@ -2331,7 +2331,7 @@ protocol_dump (struct buffer *buffer, unsigned int flags)
     if (!buf_read (&buf, &l, sizeof (l)))
       goto done;
     l = ntohpid (l);
-    buf_printf (&out, " pid=%u", l);
+    buf_printf (&out, " pid=" packet_id_format, l);
   }
 
 print_data:

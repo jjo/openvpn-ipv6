@@ -159,7 +159,7 @@ gc_malloc (size_t size)
   e->level = thread->gc_level;
   e->back = thread->gc_stack;
   thread->gc_stack = e;
-  /*printf("GC MALLOC 0x%08zx size=%d lev=%d\n", e, s, e->level); */
+  /*printf("GC MALLOC " ptr_format " size=%d lev=%d\n", e, s, e->level); */
   return (void *) e + sizeof (struct gc_entry);
 }
 
@@ -173,7 +173,7 @@ gc_collect (int level)
     {
       if (e->level < level)
 	break;
-      /*printf("GC FREE 0x%08zx lev=%d\n", e, e->level); */
+      /*printf("GC FREE " ptr_format " lev=%d\n", e, e->level); */
       --thread->gc_count;
       thread->gc_stack = e->back;
       _gc_free (e);
@@ -184,7 +184,7 @@ void _gc_free (void *p) {
   free (p);
 }
 
-#if 0
+#if 1
 void
 debug_gc_check_corrupt (const char *file, int line)
 {
@@ -194,8 +194,8 @@ debug_gc_check_corrupt (const char *file, int line)
   while (e = stack)
     {
       if (e->level > thread->gc_level)
-	printf ("GC CORRUPT 0x%08zx lev=%d back=0x%08zx file=%s line=%d\n",
-		(size_t)e, e->level, (size_t)e->back, file, line);
+	printf ("GC CORRUPT " ptr_format " lev=%d back=" ptr_format " file=%s line=%d\n",
+		e, e->level, e->back, file, line);
       stack = e->back;
     }
 }

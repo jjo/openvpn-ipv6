@@ -1206,6 +1206,15 @@ control channel to protect against DoS attacks.
 .B f
 (required) is a shared-secret passphrase file.
 
+.B --tls-auth
+is recommended when you are running OpenVPN in a mode where
+it is listening for packets from any IP address such as when
+.B --remote
+is not specified, or
+.B --remote
+is specified with
+.B --float.
+
 The rationale for
 this feature is as follows.  TLS requires a multi-packet exchange
 before it is able to authenticate a peer.  During this time
@@ -1239,6 +1248,7 @@ The result is that packets without
 the correct signature can be dropped immediately upon reception,
 before they have a chance to consume additional system resources
 such as by initiating a TLS handshake.
+
 It should be emphasized that this feature is optional and that the
 passphrase file used with
 .B --tls-auth
@@ -1318,8 +1328,9 @@ peer over a pre-existing secure channel such as
 .B --secret file
 Write key to
 .B file.
-.SS TUN/TAP config mode:
-Available with linux 2.4.7+
+.SS TUN/TAP persistent tunnel config mode:
+Available with linux 2.4.7+.  These options comprise a standalone mode
+of OpenVPN which can be used to create and delete persistent tunnels.
 .TP
 .B --mktun
 Create a persistent tunnel.  Normally TUN/TAP tunnels exist only for
@@ -1717,10 +1728,6 @@ archives, or browse the CVS repository.
 Report all bugs to the OpenVPN users list <openvpn-users@lists.sourceforge.net>.
 To subscribe to the list or see the archives, go to
 .I http://sourceforge.net/mail/?group_id=48978
-
-Some problems have been reported in making tunnels between
-Linux and OpenBSD due to incompatibilities in the TUN/TAP
-driver implementation.
 .SH "SEE ALSO"
 .BR dhcpcd (8),
 .BR ifconfig (8),

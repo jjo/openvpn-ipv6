@@ -132,6 +132,17 @@ struct frame {
 #endif /* USE_CRYPTO */
 
 /*
+ * Statistics counters.
+ */
+typedef unsigned long counter_type;
+
+/*
+ * Printf formats for special types
+ */
+#define counter_format "%10lu"
+#define ptr_format     "0x%08zx"
+
+/*
  * Debugging levels for various kinds
  * of output.
  *

@@ -233,10 +233,10 @@ lzo_decompress (struct buffer *buf, struct buffer work,
  */
 void lzo_print_stats (struct lzo_compress_workspace *lzo_compwork)
 {
-  msg (M_INFO, " pre-compress bytes:   %10lu", lzo_compwork->pre_compress);
-  msg (M_INFO, " post-compress bytes:  %10lu", lzo_compwork->post_compress);
-  msg (M_INFO, " pre-decompress bytes: %10lu", lzo_compwork->pre_decompress);
-  msg (M_INFO, " post-decompress bytes:%10lu", lzo_compwork->post_decompress);
+  msg (M_INFO, " pre-compress bytes:   " counter_format, lzo_compwork->pre_compress);
+  msg (M_INFO, " post-compress bytes:  " counter_format, lzo_compwork->post_compress);
+  msg (M_INFO, " pre-decompress bytes: " counter_format, lzo_compwork->pre_decompress);
+  msg (M_INFO, " post-decompress bytes:" counter_format, lzo_compwork->post_decompress);
 }
 
 #endif /* USE_LZO */

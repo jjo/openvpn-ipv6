@@ -109,7 +109,7 @@ packet_id_net_print (const struct packet_id_net *pin)
 {
   struct buffer out = alloc_buf_gc (256);
   
-  buf_printf (&out, "[ #%lu", (unsigned long)pin->id);
+  buf_printf (&out, "[ #" packet_id_format, pin->id);
   if (pin->time)
     {
       buf_printf (&out, " / %s", ctime (&pin->time));
@@ -121,7 +121,8 @@ packet_id_net_print (const struct packet_id_net *pin)
   return out.data;
 }
 
-#ifdef PID_TEST
+//#ifdef PID_TEST
+#if 1
 
 void packet_id_interactive_test ()
 {
@@ -141,9 +142,9 @@ void packet_id_interactive_test ()
     if (sscanf (buf, "%u,%u", &pin.time, &pin.id) == 2)
       {
 	test = packet_id_test (&p, &pin);
-	printf ("packet_id_test (%lu, %lu) returned %d\n",
-		(unsigned long) pin.time,
-		(unsigned long) pin.id,
+	printf ("packet_id_test (" packet_id_format ", " packet_id_format ") returned %d\n",
+		pin.time,
+		pin.id,
 		test);
 	if (test)
 	  packet_id_add (&p, &pin);
@@ -152,11 +153,11 @@ void packet_id_interactive_test ()
       {
 	long_form = (count < 20);
 	packet_id_alloc_outgoing (&s, &pin, long_form);
-	printf ("(0x%08lx(%lu), 0x%08lx(%lu), %d)\n",
-		(unsigned long) pin.time,
-		(unsigned long) pin.time,
-		(unsigned long) pin.id,
-		(unsigned long) pin.id,
+	printf ("(" time_format "(" packet_id_format "), " time_format "(" packet_id_format "), %d)\n",
+		pin.time,
+		pin.time,
+		pin.id,
+		pin.id,
 		long_form);
 	if (s.id == 10)
 	  s.id = 0xFFFFFFF8;

@@ -14,8 +14,8 @@ SUPPORTED PLATFORMS:
   (1) Linux 2.2 or higher.
   (2) Solaris.
   (3) Mac OS X Darwin (Experimental).
-  (3) OpenBSD (experimental).
-  (4) FreeBSD (experimental).
+  (4) OpenBSD (experimental).
+  (5) FreeBSD (experimental).
 
 REQUIRES:
   (1) Linux Kernel 2.2+ or OpenBSD 3.0+ (Though Linux Kernel
@@ -91,7 +91,3 @@ BUGS:
   things may break due to the TUN/TAP driver and other kernel components
   being in a state of flux, so I wouldn't recommend using OpenVPN on these
   kernels unless you are prepared to do some debugging and testing.
-
-* Some problems have been reported in making tunnels between
-  Linux and OpenBSD due to incompatibilities in the tun
-  implementation on both platforms.

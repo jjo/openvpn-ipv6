@@ -179,10 +179,10 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
   /*
    * Statistics
    */
-  unsigned long tun_read_bytes = 0;
-  unsigned long tun_write_bytes = 0;
-  unsigned long udp_read_bytes = 0;
-  unsigned long udp_write_bytes = 0;
+  counter_type tun_read_bytes = 0;
+  counter_type tun_write_bytes = 0;
+  counter_type udp_read_bytes = 0;
+  counter_type udp_write_bytes = 0;
 
   /*
    * Timer objects for ping and inactivity
@@ -840,10 +840,10 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 	  if (signal_received == SIGUSR2)
 	    {
 	      msg (M_INFO, "Current OpenVPN Statistics:");
-	      msg (M_INFO, " TUN/TAP read bytes:   %10lu", tun_read_bytes);
-	      msg (M_INFO, " TUN/TAP write bytes:  %10lu", tun_write_bytes);
-	      msg (M_INFO, " UDP read bytes:       %10lu", udp_read_bytes);
-	      msg (M_INFO, " UDP write bytes:      %10lu", udp_write_bytes);
+	      msg (M_INFO, " TUN/TAP read bytes:   " counter_format, tun_read_bytes);
+	      msg (M_INFO, " TUN/TAP write bytes:  " counter_format, tun_write_bytes);
+	      msg (M_INFO, " UDP read bytes:       " counter_format, udp_read_bytes);
+	      msg (M_INFO, " UDP write bytes:      " counter_format, udp_write_bytes);
 #ifdef USE_LZO
 	      if (options->comp_lzo)
 		  lzo_print_stats (&lzo_compwork);		  
