@@ -85,7 +85,7 @@ recv_line (socket_descriptor_t sd,
       if (status == 0)
 	{
 	  if (verbose)
-	    msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read timeout expired");
+	    msg (D_LINK_ERRORS | M_ERRNO_SOCK, "recv_line: TCP port read timeout expired");
 	  goto error;
 	}
 
@@ -93,7 +93,7 @@ recv_line (socket_descriptor_t sd,
       if (status < 0)
 	{
 	  if (verbose)
-	    msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read failed on select()");
+	    msg (D_LINK_ERRORS | M_ERRNO_SOCK, "recv_line: TCP port read failed on select()");
 	  goto error;
 	}
 
@@ -104,7 +104,7 @@ recv_line (socket_descriptor_t sd,
       if (size != 1)
 	{
 	  if (verbose)
-	    msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read failed on recv()");
+	    msg (D_LINK_ERRORS | M_ERRNO_SOCK, "recv_line: TCP port read failed on recv()");
 	  goto error;
 	}
 
@@ -129,7 +129,7 @@ recv_line (socket_descriptor_t sd,
 	  if (!isprint(c) && !isspace(c)) /* not ascii? */
 	    {
 	      if (verbose)
-		msg (D_LINK_ERRORS | M_ERRNO_SOCK, "Non-ASCII character (%d) read on recv()", (int)c);
+		msg (D_LINK_ERRORS | M_ERRNO_SOCK, "recv_line: Non-ASCII character (%d) read on recv()", (int)c);
 	      *lookahead = la;
 	      return false;
 	    }
@@ -159,7 +159,7 @@ send_line (socket_descriptor_t sd,
   const ssize_t size = send (sd, buf, strlen (buf), MSG_NOSIGNAL);
   if (size != (ssize_t) strlen (buf))
     {
-      msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port write failed on send()");
+      msg (D_LINK_ERRORS | M_ERRNO_SOCK, "send_line: TCP port write failed on send()");
       return false;
     }
   return true;
@@ -383,7 +383,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
 
 #if 0
   if (lookahead && BLEN (lookahead))
-    msg (M_INFO, "PROXY: lookahead: %s", format_hex (BPTR (lookahead), BLEN (lookahead), 0));
+    msg (M_INFO, "HTTP PROXY: lookahead: %s", format_hex (BPTR (lookahead), BLEN (lookahead), 0));
 #endif
 
   return;

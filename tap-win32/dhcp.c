@@ -27,6 +27,10 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+//=========================
+// Code to set DHCP options
+//=========================
+
 VOID
 SetDHCPOpt (DHCPMsg *m, void *data, unsigned int len)
 {
@@ -315,9 +319,15 @@ SendDHCPMsg (const TapAdapterPointer a,
 	     const UDPHDR *udp,
 	     const DHCP *dhcp)
 {
-  DHCPMsg *pkt = (DHCPMsg *) MemAlloc (sizeof (DHCPMsg), TRUE);
+  DHCPMsg *pkt;
 
-  ASSERT (type == DHCPOFFER || type == DHCPACK || type == DHCPNAK);
+  if (!(type == DHCPOFFER || type == DHCPACK || type == DHCPNAK))
+    {
+      DEBUGP (("[TAP] SendDHCPMsg: Bad DHCP type: %d\n", type));
+      return;
+    }
+
+  pkt = (DHCPMsg *) MemAlloc (sizeof (DHCPMsg), TRUE);
 
   if (pkt)
     {
@@ -348,7 +358,7 @@ SendDHCPMsg (const TapAdapterPointer a,
       // End
       SetDHCPOpt0 (pkt, DHCP_END);
 
-      if (!DHCP_OVERFLOW (pkt))
+      if (!DHCPMSG_OVERFLOW (pkt))
 	{
 	  // The initial part of the DHCP message (not including options) gets built here
 	  BuildDHCPPre (a,
@@ -357,23 +367,23 @@ SendDHCPMsg (const TapAdapterPointer a,
 			ip,
 			udp,
 			dhcp,
-			DHCP_LEN_OPT (pkt),
+			DHCPMSG_LEN_OPT (pkt),
 			type == DHCPOFFER || type == DHCPACK);
 
 	  SetChecksumDHCPMsg (pkt);
 
 	  DUMP_PACKET ("DHCPMsg",
-		       DHCP_BUF (pkt),
-		       DHCP_LEN_FULL (pkt));
+		       DHCPMSG_BUF (pkt),
+		       DHCPMSG_LEN_FULL (pkt));
 
 	  // Return DHCP response to kernel
 	  InjectPacket (a,
-			DHCP_BUF (pkt),
-			DHCP_LEN_FULL (pkt));
+			DHCPMSG_BUF (pkt),
+			DHCPMSG_LEN_FULL (pkt));
 	}
       else
 	{
-	  DEBUGP (("[TAP] DHCP Overflow\n"));
+	  DEBUGP (("[TAP] SendDHCPMsg: DHCP buffer overflow\n"));
 	}
 
       MemFree (pkt, sizeof (DHCPMsg));

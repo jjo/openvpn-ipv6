@@ -24,6 +24,7 @@
 !define SERV_EXE_PATH     "$INSTDIR\bin\openvpn.exe"
 !define SERV_LOG_DIR      "$INSTDIR\log"
 !define SERV_PRIORITY     "NORMAL_PRIORITY_CLASS"
+!define SERV_LOG_APPEND   "0"
 
 ;--------------------------------
 ;Configuration
@@ -339,6 +340,7 @@ Section -post
     !insertmacro WriteRegStringIfUndef HKLM "SOFTWARE\OpenVPN" "exe_path"    "${SERV_EXE_PATH}"
     !insertmacro WriteRegStringIfUndef HKLM "SOFTWARE\OpenVPN" "log_dir"     "${SERV_LOG_DIR}"
     !insertmacro WriteRegStringIfUndef HKLM "SOFTWARE\OpenVPN" "priority"    "${SERV_PRIORITY}"
+    !insertmacro WriteRegStringIfUndef HKLM "SOFTWARE\OpenVPN" "log_append"  "${SERV_LOG_APPEND}"
 
     ; install openvpnserv as a service
     DetailPrint "Service INSTALL"

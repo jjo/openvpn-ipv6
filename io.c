@@ -48,7 +48,7 @@ alloc_buf_sock_tun (struct buffer *buf, const struct frame *frame, bool tuntap_b
 {
   /* allocate buffer for overlapped I/O */
   *buf = alloc_buf (BUF_SIZE (frame));
-  ASSERT (buf_init (buf, EXTRA_FRAME (frame)));
+  ASSERT (buf_init (buf, FRAME_HEADROOM (frame)));
   buf->len = tuntap_buffer ? MAX_RW_SIZE_TUN (frame) : MAX_RW_SIZE_LINK (frame);
   ASSERT (buf_safe (buf, 0));
 }

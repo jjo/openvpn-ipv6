@@ -342,7 +342,7 @@ do_open_tun (const struct options *options,
       run_script (options->up_script,
 		  tuntap->actual,
 		  TUN_MTU_SIZE (frame),
-		  MAX_RW_SIZE_LINK (frame),
+		  EXPANDED_SIZE (frame), /* JYFIXME -- 2.0 merge */
 		  print_in_addr_t (tuntap->local, true),
 		  print_in_addr_t (tuntap->remote_netmask, true),
 		  "init",
@@ -380,7 +380,7 @@ do_open_tun (const struct options *options,
 	run_script (options->up_script,
 		    tuntap->actual,
 		    TUN_MTU_SIZE (frame),
-		    MAX_RW_SIZE_LINK (frame),
+		    EXPANDED_SIZE (frame), /* JYFIXME -- 2.0 merge */
 		    print_in_addr_t (tuntap->local, true),
 		    print_in_addr_t (tuntap->remote_netmask, true),
 		    "restart",
@@ -1107,7 +1107,7 @@ openvpn (const struct options *options,
   if (tls_multi)
     {
       tls_multi_init_finalize (tls_multi, &frame);
-      ASSERT (MAX_RW_SIZE_LINK (&tls_multi->opt.frame) <= MAX_RW_SIZE_LINK (&frame));
+      ASSERT (EXPANDED_SIZE (&tls_multi->opt.frame) <= EXPANDED_SIZE (&frame)); /* JYFIXME -- 2.0 merge */
       frame_print (&tls_multi->opt.frame, D_MTU_INFO, "Control Channel MTU parms");
     }
 #endif
@@ -1605,7 +1605,7 @@ openvpn (const struct options *options,
 		  if (entry->op >= 0)
 		    {
 		      occ_op = entry->op;
-		      occ_mtu_load_size = MAX_RW_SIZE_LINK (&frame) + entry->delta;
+		      occ_mtu_load_size = EXPANDED_SIZE (&frame) + entry->delta; /* JYFIXME -- 2.0 merge */
 		    }
 		  else
 		    {
@@ -1620,12 +1620,16 @@ openvpn (const struct options *options,
       /*
        * Should we send an OCC message?
        */
-      if (occ_op >= 0 && !to_link.len)
+      if (occ_op >= 0 && !to_link.len
+#ifdef FRAGMENT_ENABLE /* JYFIX -- merge to 2.0 */
+	  && (!fragment || !fragment_outgoing_defined (fragment))
+#endif
+	  )
 	{
 	  bool doit = false;
 
 	  buf = aux_buf;
-	  ASSERT (buf_init (&buf, EXTRA_FRAME (&frame)));
+	  ASSERT (buf_init (&buf, FRAME_HEADROOM (&frame)));
 	  ASSERT (buf_safe (&buf, MAX_RW_SIZE_TUN (&frame)));
 	  ASSERT (buf_write (&buf, occ_magic, sizeof (occ_magic)));
 
@@ -1683,12 +1687,12 @@ openvpn (const struct options *options,
 
 		if (!buf_write_u8 (&buf, OCC_MTU_LOAD))
 		  break;
-		need_to_add = min_int (
+		need_to_add = min_int ( /* JYFIXME -- merge with 2.0 beta */
 				       occ_mtu_load_size
 				       - sizeof (occ_magic)
 				       - sizeof (uint8_t)
 				       - EXTRA_FRAME (&frame),
-				       MAX_RW_SIZE_TUN (&frame)); 
+				       EXPANDED_SIZE (&frame)); 
 		while (need_to_add > 0)
 		  {
 		    /*
@@ -1750,7 +1754,7 @@ openvpn (const struct options *options,
 	      if (event_timeout_trigger (&ping_send_interval, current, &timeval))
 		{
 		  buf = aux_buf;
-		  ASSERT (buf_init (&buf, EXTRA_FRAME (&frame)));
+		  ASSERT (buf_init (&buf, FRAME_HEADROOM (&frame)));
 		  ASSERT (buf_safe (&buf, MAX_RW_SIZE_TUN (&frame)));
 		  ASSERT (buf_write (&buf, ping_string, sizeof (ping_string)));
 
@@ -1923,7 +1927,7 @@ openvpn (const struct options *options,
 
 	      ASSERT (!to_tun.len);
 	      buf = read_link_buf;
-	      ASSERT (buf_init (&buf, EXTRA_FRAME (&frame)));
+	      ASSERT (buf_init (&buf, FRAME_HEADROOM (&frame)));
 
 	      status = link_socket_read (&link_socket, &buf, MAX_RW_SIZE_LINK (&frame), &from);
 
@@ -2195,7 +2199,7 @@ openvpn (const struct options *options,
 #ifdef TUN_PASS_BUFFER
 	      read_tun_buffered (tuntap, &buf, MAX_RW_SIZE_TUN (&frame));
 #else
-	      ASSERT (buf_init (&buf, EXTRA_FRAME (&frame)));
+	      ASSERT (buf_init (&buf, FRAME_HEADROOM (&frame)));
 	      ASSERT (buf_safe (&buf, MAX_RW_SIZE_TUN (&frame)));
 	      buf.len = read_tun (tuntap, BPTR (&buf), MAX_RW_SIZE_TUN (&frame));
 #endif
@@ -2354,7 +2358,7 @@ openvpn (const struct options *options,
 	  /* TCP/UDP port ready to accept write */
 	  else if (SOCKET_ISSET (link_socket, writes))
 	    {
-	      if (to_link.len > 0 && to_link.len <= MAX_RW_SIZE_LINK (&frame))
+	      if (to_link.len > 0 && to_link.len <= EXPANDED_SIZE (&frame)) /* JYFIXME -- 2.0 merge */
 		{
 		  /*
 		   * Setup for call to send/sendto which will send
@@ -2429,7 +2433,7 @@ openvpn (const struct options *options,
 		  msg (D_LINK_ERRORS, "TCP/UDP packet too large on write to %s (tried=%d,max=%d)",
 		       print_sockaddr (&to_link_addr),
 		       to_link.len,
-		       MAX_RW_SIZE_LINK (&frame));
+		       EXPANDED_SIZE (&frame)); /* JYFIXME -- 2.0 merge */
 		}
 
 	      /*
@@ -2542,7 +2546,7 @@ openvpn (const struct options *options,
 	  run_script (options->down_script,
 		      tuntap_actual,
 		      TUN_MTU_SIZE (&frame),
-		      MAX_RW_SIZE_LINK (&frame),
+		      EXPANDED_SIZE (&frame), /* JYFIXME -- 2.0 merge */
 		      print_in_addr_t (tuntap->local, true),
 		      print_in_addr_t (tuntap->remote_netmask, true),
 		      "init",
@@ -2556,7 +2560,7 @@ openvpn (const struct options *options,
 	    run_script (options->down_script,
 			tuntap->actual,
 			TUN_MTU_SIZE (&frame),
-			MAX_RW_SIZE_LINK (&frame),
+			EXPANDED_SIZE (&frame), /* JYFIXME -- 2.0 merge */
 			print_in_addr_t (tuntap->local, true),
 			print_in_addr_t (tuntap->remote_netmask, true),
 			"restart",
@@ -2847,9 +2851,14 @@ main (int argc, char *argv[])
       /* JYFIXME -- manual merge to 2.0 beta */
       if (dev == DEV_TYPE_TUN && !(options.ifconfig_local && options.ifconfig_remote_netmask))
 	msg (M_USAGE, "Options error: On Windows, --ifconfig is required when --dev tun is used");
+
       if ((options.tuntap_options.ip_win32_defined)
 	  && !(options.ifconfig_local && options.ifconfig_remote_netmask))
 	msg (M_USAGE, "Options error: On Windows, --ip-win32 doesn't make sense unless --ifconfig is also used");
+
+      if (options.tuntap_options.dhcp_options &&
+	  options.tuntap_options.ip_win32_type != IPW32_SET_DHCP_MASQ)
+	msg (M_USAGE, "Options error: --dhcp-options requires --ip-win32 dynamic");
 
       if (options.tuntap_options.ip_win32_type == IPW32_SET_DHCP_MASQ
 	  && !options.route_delay_defined)

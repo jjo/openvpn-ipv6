@@ -17,7 +17,7 @@
    ClassGUID = {4d36e972-e325-11ce-bfc1-08002be10318}
    Provider = %l_Provider%
    Class = Net
-   DriverVer=02/01/2004,4.00.00.0025
+   DriverVer=02/22/2004,5.00.00.0002
 
 [Strings]
    l_DeviceDescription = "TAP-Win32 Adapter"

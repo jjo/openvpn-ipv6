@@ -3,7 +3,7 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
-2004.02.xx -- Version 1.6-beta7
+2004.02.22 -- Version 1.6-beta7
 	
 * Allow scheduling priority increase (--nice) together
   with UID/GID downgrade (--user/--group).
@@ -16,6 +16,21 @@ $Id$
   a kernel patch) (Horst Laschinsky).
 * Fixed bug in checking the return value of the nice()
   function (Ian Pilcher).
+* Bug fix in new FreeBSD IPv6 over TUN code which was
+  originally added in 1.6-beta5 (Nathanael Rensen).
+* More Socks5 fixes -- extended the struct frame
+  infrastructure to accomodate proxy-based encapsulation
+  overhead.
+* Added --dhcp-option to Windows version for setting
+  adapter properties such as WINS & DNS servers.
+* Use a default route-delay of 5 seconds when
+  --ip-win32 dynamic is specified (only applicable when
+  --route-delay is not explicitly specified).
+* Added "log_append" registry variable to control
+  whether the OpenVPN service wrapper on Windows
+  opens log files in append (log_append="1") or
+  truncate (log_append="0") mode.  The default
+  is truncate.
 
 2004.02.05 -- Version 1.6-beta6
 

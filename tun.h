@@ -40,6 +40,7 @@
 #ifdef WIN32
 
 struct tuntap_options {
+  /* --ip-win32 options */
   bool ip_win32_defined;
 
 # define IPW32_SET_MANUAL       0  /* "--ip-win32 manual" */
@@ -49,11 +50,29 @@ struct tuntap_options {
 # define IPW32_SET_N            4
   int ip_win32_type;
 
+  /* --ip-win32 dynamic options */
+  bool dhcp_hioff;            /* if false, low offset; if true, high offset */
+  int dhcp_masq_offset;
+  int dhcp_lease_time;
+
+  /* --tap-sleep option */
   int tap_sleep;
 
-  bool dhcp_hioff;            /* if false, low offset; if true, high offset */
-  bool dhcp_lease_time_short; /* if true, short lease time, if false, long lease time */
-  int dhcp_masq_offset;
+  /* --dhcp-option options */
+
+  bool dhcp_options;
+
+  const char *domain;      /* DOMAIN (15) */
+
+# define N_DNS 4           /* DNS (6) */
+  in_addr_t dns[N_DNS];
+  int dns_len;
+
+# define N_WINS 4          /* WINS (44) */
+  in_addr_t wins[N_WINS];
+  int wins_len;
+
+  int node_type;           /* NBT 1,2,4,8 (46) */
 };
 
 #else

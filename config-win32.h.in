@@ -50,7 +50,7 @@ typedef unsigned int ssize_t;
 
 /* Minimum TAP-Win32 version number expected by userspace */
 #define TAP_WIN32_MIN_MAJOR 5
-#define TAP_WIN32_MIN_MINOR 1
+#define TAP_WIN32_MIN_MINOR 2
 
 #define FRAGMENT_ENABLE
 

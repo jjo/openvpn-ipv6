@@ -145,7 +145,7 @@ lzo_compress (struct buffer *buf, struct buffer work,
    */
   if (buf->len >= COMPRESS_THRESHOLD && lzo_adaptive_compress_test(&lzowork->ac, current))
     {
-      ASSERT (buf_init (&work, EXTRA_FRAME (frame)));
+      ASSERT (buf_init (&work, FRAME_HEADROOM (frame)));
       ASSERT (buf_safe (&work, LZO_EXTRA_BUFFER (PAYLOAD_SIZE (frame))));
       ASSERT (buf->len <= PAYLOAD_SIZE (frame));
 
@@ -195,7 +195,7 @@ lzo_decompress (struct buffer *buf, struct buffer work,
   if (buf->len <= 0)
     return;
 
-  ASSERT (buf_init (&work, EXTRA_FRAME (frame)));
+  ASSERT (buf_init (&work, FRAME_HEADROOM (frame)));
 
   c = *BPTR (buf);
   ASSERT (buf_advance (buf, 1));

@@ -52,7 +52,7 @@
 void socks_adjust_frame_parameters (struct frame *frame, int proto)
 {
   if (proto == PROTO_UDPv4)
-    frame_add_to_extra_buffer (frame, 10);
+    frame_add_to_extra_link (frame, 10);
 }
 
 void
@@ -82,7 +82,7 @@ socks_handshake (socket_descriptor_t sd, volatile int *signal_received)
   const ssize_t size = send (sd, "\x05\x01\x00", 3, MSG_NOSIGNAL);
   if (size != 3)
     {
-      msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port write failed on send()");
+      msg (D_LINK_ERRORS | M_ERRNO_SOCK, "socks_handshake: TCP port write failed on send()");
       return false;
     }
 
@@ -108,14 +108,14 @@ socks_handshake (socket_descriptor_t sd, volatile int *signal_received)
       /* timeout? */
       if (status == 0)
 	{
-	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read timeout expired");
+	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "socks_handshake: TCP port read timeout expired");
 	  return false;
 	}
 
       /* error */
       if (status < 0)
 	{
-	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read failed on select()");
+	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "socks_handshake: TCP port read failed on select()");
 	  return false;
 	}
 
@@ -125,7 +125,7 @@ socks_handshake (socket_descriptor_t sd, volatile int *signal_received)
       /* error? */
       if (size != 1)
 	{
-	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read failed on recv()");
+	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "socks_handshake: TCP port read failed on recv()");
 	  return false;
 	}
 
@@ -136,7 +136,7 @@ socks_handshake (socket_descriptor_t sd, volatile int *signal_received)
   /* VER == 5 && METHOD == 0 */
   if (buf[0] != '\x05' || buf[1] != '\x00')
     {
-      msg (D_LINK_ERRORS, "Socks proxy returned bad status");
+      msg (D_LINK_ERRORS, "socks_handshake: Socks proxy returned bad status");
       return false;
     }
 
@@ -182,14 +182,14 @@ recv_socks_reply (socket_descriptor_t sd, struct sockaddr_in *addr,
       /* timeout? */
       if (status == 0)
 	{
-	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read timeout expired");
+	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "recv_socks_reply: TCP port read timeout expired");
 	  return false;
 	}
 
       /* error */
       if (status < 0)
 	{
-	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read failed on select()");
+	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "recv_socks_reply: TCP port read failed on select()");
 	  return false;
 	}
 
@@ -199,7 +199,7 @@ recv_socks_reply (socket_descriptor_t sd, struct sockaddr_in *addr,
       /* error? */
       if (size != 1)
 	{
-	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port read failed on recv()");
+	  msg (D_LINK_ERRORS | M_ERRNO_SOCK, "recv_socks_reply: TCP port read failed on recv()");
 	  return false;
 	}
 
@@ -223,7 +223,7 @@ recv_socks_reply (socket_descriptor_t sd, struct sockaddr_in *addr,
 	      break;
 
 	    default:
-	      msg (D_LINK_ERRORS, "Socks proxy returned bad address type");
+	      msg (D_LINK_ERRORS, "recv_socks_reply: Socks proxy returned bad address type");
 	      return false;
 	    }
 	}
@@ -237,7 +237,7 @@ recv_socks_reply (socket_descriptor_t sd, struct sockaddr_in *addr,
   /* VER == 5 && REP == 0 (succeeded) */
   if (buf[0] != '\x05' || buf[1] != '\x00')
     {
-      msg (D_LINK_ERRORS, "Socks proxy returned bad reply");
+      msg (D_LINK_ERRORS, "recv_socks_reply: Socks proxy returned bad reply");
       return false;
     }
 
@@ -284,7 +284,7 @@ establish_socks_proxy_passthru (struct socks_proxy_info *p,
     const ssize_t size = send (sd, buf, 5 + len + 2, MSG_NOSIGNAL);
     if ((int)size != 5 + (int)len + 2)
       {
-	msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port write failed on send()");
+	msg (D_LINK_ERRORS | M_ERRNO_SOCK, "establish_socks_proxy_passthru: TCP port write failed on send()");
 	goto error;
       }
   }
@@ -321,7 +321,7 @@ establish_socks_proxy_udpassoc (struct socks_proxy_info *p,
 			       10, MSG_NOSIGNAL);
     if (size != 10)
       {
-	msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP port write failed on send()");
+	msg (D_LINK_ERRORS | M_ERRNO_SOCK, "establish_socks_proxy_passthru: TCP port write failed on send()");
 	goto error;
       }
   }

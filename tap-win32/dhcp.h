@@ -29,33 +29,33 @@
 
 #pragma pack(1)
 
-//
+//===================================================
 // How many bad DHCPREQUESTs do we receive before we
 // return a NAK?
 //
 // A bad DHCPREQUEST is defined to be one where the
 // requestor doesn't know its IP address.
-//
+//===================================================
 
 #define BAD_DHCPREQUEST_NAK_THRESHOLD 3
 
-//
+//==============================================
 // Maximum number of DHCP options bytes supplied
-//
+//==============================================
 
-#define DHCP_USER_SUPPLIED_OPTIONS_BUFFER_SIZE 128
+#define DHCP_USER_SUPPLIED_OPTIONS_BUFFER_SIZE 256
 #define DHCP_OPTIONS_BUFFER_SIZE               256
 
-//
+//===================================
 // UDP port numbers of DHCP messages.
-//
+//===================================
 
 #define BOOTPS_PORT 67
 #define BOOTPC_PORT 68
 
-//
+//===========================
 // The DHCP message structure
-//
+//===========================
 
 typedef struct {
 # define BOOTREQUEST 1
@@ -96,19 +96,19 @@ typedef struct {
   DHCPFull msg;
 } DHCPMsg;
 
-//
-// Length macros for DHCPMSG
-//
+//===================
+// Macros for DHCPMSG
+//===================
 
-#define DHCP_LEN_BASE(p) (sizeof (DHCPPre))
-#define DHCP_LEN_OPT(p)  ((p)->optlen)
-#define DHCP_LEN_FULL(p) (DHCP_LEN_BASE(p) + DHCP_LEN_OPT(p))
-#define DHCP_BUF(p)      ((UCHAR*) &(p)->msg)
-#define DHCP_OVERFLOW(p) ((p)->overflow)
+#define DHCPMSG_LEN_BASE(p) (sizeof (DHCPPre))
+#define DHCPMSG_LEN_OPT(p)  ((p)->optlen)
+#define DHCPMSG_LEN_FULL(p) (DHCPMSG_LEN_BASE(p) + DHCPMSG_LEN_OPT(p))
+#define DHCPMSG_BUF(p)      ((UCHAR*) &(p)->msg)
+#define DHCPMSG_OVERFLOW(p) ((p)->overflow)
 
-//
+//========================================
 // structs to hold individual DHCP options
-//
+//========================================
 
 typedef struct {
   UCHAR type;
@@ -128,9 +128,9 @@ typedef struct {
 
 #pragma pack()
 
-//
+//==================
 // DHCP Option types
-//
+//==================
 
 #define DHCP_MSG_TYPE    53  /* message type (u8) */
 #define DHCP_PARM_REQ    55  /* parameter request list: c1 (u8), ... */
@@ -144,9 +144,9 @@ typedef struct {
 #define DHCP_PAD          0
 #define DHCP_END        255
 
-//
+//====================
 // DHCP Messages types
-//
+//====================
 
 #define DHCPDISCOVER 1
 #define DHCPOFFER    2

@@ -167,8 +167,9 @@ tls_init_control_channel_frame_parameters(const struct frame *data_channel_frame
    * if --tls-auth is enabled.
    */
 
-  /* inherit link MTU from data channel */
+  /* inherit link MTU and extra_link from data channel */
   frame->link_mtu = data_channel_frame->link_mtu;
+  frame->extra_link = data_channel_frame->extra_link;
 
   /* set extra_frame */
   tls_adjust_frame_parameters (frame);
@@ -971,9 +972,9 @@ key_state_init (struct tls_session *session, struct key_state *ks,
   ks->plaintext_write_buf = alloc_buf (PLAINTEXT_BUFFER_SIZE);
   ks->ack_write_buf = alloc_buf (BUF_SIZE (&session->opt->frame));
   reliable_init (&ks->send_reliable, BUF_SIZE (&session->opt->frame),
-		 EXTRA_FRAME (&session->opt->frame), TLS_RELIABLE_N_SEND_BUFFERS);
+		 FRAME_HEADROOM (&session->opt->frame), TLS_RELIABLE_N_SEND_BUFFERS);
   reliable_init (&ks->rec_reliable, BUF_SIZE (&session->opt->frame),
-		 EXTRA_FRAME (&session->opt->frame), TLS_RELIABLE_N_REC_BUFFERS);
+		 FRAME_HEADROOM (&session->opt->frame), TLS_RELIABLE_N_REC_BUFFERS);
   reliable_set_timeout (&ks->send_reliable, session->opt->packet_timeout);
 
   /* init packet ID tracker */
@@ -1882,7 +1883,7 @@ tls_process (struct tls_multi *multi,
 	  if (!to_link->len && !reliable_ack_empty (&ks->rec_ack))
 	    {
 	      buf = &ks->ack_write_buf;
-	      ASSERT (buf_init (buf, EXTRA_FRAME (&multi->opt.frame)));
+	      ASSERT (buf_init (buf, FRAME_HEADROOM (&multi->opt.frame)));
 	      write_control_auth (session, ks, buf, to_link_addr, P_ACK_V1,
 				  RELIABLE_ACK_SIZE, false, current);
 	      *to_link = *buf;
@@ -2177,7 +2178,7 @@ tls_process (struct tls_multi *multi,
   if (!to_link->len && !reliable_ack_empty (&ks->rec_ack))
     {
       buf = &ks->ack_write_buf;
-      ASSERT (buf_init (buf, EXTRA_FRAME (&multi->opt.frame)));
+      ASSERT (buf_init (buf, FRAME_HEADROOM (&multi->opt.frame)));
       write_control_auth (session, ks, buf, to_link_addr, P_ACK_V1,
 			  RELIABLE_ACK_SIZE, false, current);
       *to_link = *buf;

@@ -586,29 +586,27 @@ link_socket_write_socks_udp (struct link_socket *sock,
 			     struct buffer *buf,
 			     struct sockaddr_in *to)
 {
-  int res;
-  struct buffer relay = alloc_buf (buf->len + 10);
+  /* 
+   * Get a 10 byte subset buffer prepended to buf --
+   * we expect these bytes will be here because
+   * we allocated frame space in socks_adjust_frame_parameters.
+   */
+  struct buffer head = buf_sub (buf, 10, true);
 
-  buf_write_u16 (&relay, 0);	/* RSV = 0 */
-  buf_write_u8 (&relay, 0);	/* FRAG = 0 */
-  buf_write_u8 (&relay, '\x01'); /* ATYP = 1 (IP V4) */
-  buf_write (&relay, &to->sin_addr, sizeof (to->sin_addr));
-  buf_write (&relay, &to->sin_port, sizeof (to->sin_port));
+  /* crash if not enough headroom in buf */
+  ASSERT (buf_defined (&head));
 
-  buf_write (&relay, BPTR(buf), BLEN(buf));
+  buf_write_u16 (&head, 0);	/* RSV = 0 */
+  buf_write_u8 (&head, 0);	/* FRAG = 0 */
+  buf_write_u8 (&head, '\x01'); /* ATYP = 1 (IP V4) */
+  buf_write (&head, &to->sin_addr, sizeof (to->sin_addr));
+  buf_write (&head, &to->sin_port, sizeof (to->sin_port));
 
 #ifdef WIN32
-  res = link_socket_write_win32 (sock, &relay, &sock->socks_relay);
+  return link_socket_write_win32 (sock, buf, &sock->socks_relay);
 #else
-  res = link_socket_write_udp_posix (sock, &relay, &sock->socks_relay);
+  return link_socket_write_udp_posix (sock, buf, &sock->socks_relay);
 #endif
-
-  free_buf (&relay);
-
-  if (res > 10)
-    return res - 10;
-
-  return res;
 }
 
 void
@@ -805,6 +803,9 @@ link_socket_init_phase2 (struct link_socket *sock,
 					  sock->ctrl_sd,
 					  sock->sd, &sock->socks_relay,
 					  signal_received);
+
+	  if (*signal_received)
+	    return;
 
 	  sock->remote_host = sock->proxy_dest_host;
 	  sock->remote_port = sock->proxy_dest_port;
@@ -1362,6 +1363,8 @@ socket_recv_queue (struct link_socket *sock, int maxsize)
       /* Win32 docs say it's okay to allocate the wsabuf on the stack */
       wsabuf[0].buf = BPTR (&sock->reads.buf);
       wsabuf[0].len = maxsize ? maxsize : BLEN (&sock->reads.buf);
+
+      /* check for buffer overflow */
       ASSERT (wsabuf[0].len <= BLEN (&sock->reads.buf));
 
       /* the overlapped read will signal this event on I/O completion */

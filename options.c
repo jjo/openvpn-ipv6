@@ -319,8 +319,15 @@ static const char usage_message[] =
   "                            take nth address backward from broadcast\n"
   "                            address.\n"
   "                            Default is 0.\n"
-  "                    lease-time: 'short' (60 seconds) or 'long' (1 month).\n"
-  "                                Default is 'long'.\n"
+  "                    lease-time: Lease time in seconds.\n"
+  "                                Default is one year.\n"
+  "--dhcp-option type [parm] : Set extended TAP-Win32 properties, must\n"
+  "                    be used with --ip-win32 dynamic.\n"
+  "                    DOMAIN name : Set DNS suffix\n"
+  "                    DNS addr    : Set domain name server address(es)\n"
+  "                    WINS addr   : Set WINS server address(es)\n"
+  "                    NBT type    : Set NetBIOS over TCP/IP Node type\n"
+  "                                  1: B, 2: P, 4: M, 8: H\n"
   "--tap-sleep n   : Sleep for n seconds after TAP adapter open before\n"
   "                  attempting to set adapter properties.\n"
   "--show-valid-subnets : Show valid subnets for --dev tun emulation.\n" 
@@ -410,6 +417,39 @@ setenv_settings (const struct options *o)
   setenv_str ("remote", o->remote);
   setenv_int ("remote_port", o->remote_port);
 }
+
+#ifdef WIN32
+static void
+show_tuntap_options (const struct tuntap_options *o)
+{
+  int i;
+
+  SHOW_BOOL (ip_win32_defined);
+  SHOW_INT (ip_win32_type);
+  SHOW_BOOL (dhcp_hioff);
+  SHOW_INT (dhcp_masq_offset);
+  SHOW_INT (dhcp_lease_time);
+  SHOW_INT (tap_sleep);
+  SHOW_BOOL (dhcp_options);
+  SHOW_STR (domain);
+
+  for (i = 0; i < o->dns_len; ++i)
+    {
+      msg (D_SHOW_PARMS, "  dns[%d] = %s",
+	   i,
+	   print_in_addr_t (o->dns[i], false));
+    }
+
+  for (i = 0; i < o->wins_len; ++i)
+    {
+      msg (D_SHOW_PARMS, "  wins[%d] = %s",
+	   i,
+	   print_in_addr_t (o->wins[i], false));
+    }
+
+  SHOW_INT (node_type);
+}
+#endif
 
 void
 show_settings (const struct options *o)
@@ -570,6 +610,10 @@ show_settings (const struct options *o)
   SHOW_STR (tls_auth_file);
 #endif
 #endif
+
+#ifdef WIN32
+  show_tuntap_options (&o->tuntap_options);
+#endif
 }
 
 #undef SHOW_PARM
@@ -636,8 +680,8 @@ options_string (const struct options *o,
    */
 
   buf_printf (&out, ",dev-type %s", dev_type_string (o->dev, o->dev_type));
-  buf_printf (&out, ",link-mtu %d", MAX_RW_SIZE_LINK(frame));
-  buf_printf (&out, ",tun-mtu %d", MAX_RW_SIZE_TUN(frame));
+  buf_printf (&out, ",link-mtu %d", EXPANDED_SIZE (frame));
+  buf_printf (&out, ",tun-mtu %d", PAYLOAD_SIZE (frame));
   buf_printf (&out, ",proto %s", proto2ascii (proto_remote (o->proto, remote), true));
   if (o->tun_ipv6)
     buf_printf (&out, ",tun-ipv6");
@@ -1548,7 +1592,7 @@ add_option (struct options *options, int i, char *p[],
       ++i;
 
       options->tuntap_options.dhcp_hioff = false;
-      options->tuntap_options.dhcp_lease_time_short = false;
+      options->tuntap_options.dhcp_lease_time = 31536000; /* one year */
       options->tuntap_options.dhcp_masq_offset = 0;
 
       options->tuntap_options.ip_win32_defined = true;
@@ -1565,10 +1609,11 @@ add_option (struct options *options, int i, char *p[],
 	{
 	  if (p[2])
 	    {
+	      const int min_lease = 30;
 	      int offset = atoi (p[2]);
 	      ++i;
 	      if (!(offset > -256 && offset < 256))
-		msg (M_USAGE, "--ip-win32 dynamic [offset] ['short'|'long']: offset (%d) must be > -256 and < 256", offset);
+		msg (M_USAGE, "--ip-win32 dynamic [offset] [lease-time]: offset (%d) must be > -256 and < 256", offset);
 	      if (offset < 0)
 		{
 		  options->tuntap_options.dhcp_hioff = true;
@@ -1578,15 +1623,66 @@ add_option (struct options *options, int i, char *p[],
 
 	      if (p[3])
 		{
+		  const int min_lease = 30;
+		  int lease_time;
 		  ++i;
-		  if (streq (p[3], "short"))
-		    options->tuntap_options.dhcp_lease_time_short = true;
-		  else if (streq (p[3], "long"))
-		    ;
-		  else
-		    msg (M_USAGE, "--ip-win32 dynamic [offset] ['short'|'long']: lease time parameter must be 'short' or 'long'");
+		  lease_time = atoi (p[3]);
+		  if (lease_time < min_lease)
+		    msg (M_USAGE, "--ip-win32 dynamic [offset] [lease-time]: lease time parameter (%d) must be at least %d seconds", lease_time, min_lease);
+		  options->tuntap_options.dhcp_lease_time = lease_time;
 		}
 	    }
+	}
+    }
+  else if (streq (p[0], "dhcp-option") && p[1])
+    {
+      struct tuntap_options *o = &options->tuntap_options;
+      ++i;
+      o->dhcp_options = true;
+
+      if (streq (p[1], "DOMAIN") && p[2])
+	{
+	  ++i;
+	  o->domain = p[2];
+	}
+      else if (streq (p[1], "DNS") && p[2])
+	{
+	  ++i;
+	  if (o->dns_len >= N_DNS)
+	    msg (M_USAGE, "--dhcp-option DNS: maximum of %d DNS servers can be specified", N_DNS);
+	  o->dns[o->dns_len++] = getaddr (GETADDR_FATAL
+					  | GETADDR_HOST_ORDER
+					  | GETADDR_FATAL_ON_SIGNAL,
+					  p[2],
+					  0,
+					  NULL,
+					  NULL);
+	}
+      else if (streq (p[1], "WINS") && p[2])
+	{
+	  ++i;
+	  if (o->wins_len >= N_WINS)
+	    msg (M_USAGE, "--dhcp-option WINS: maximum of %d WINS servers can be specified", N_WINS);
+	  o->wins[o->wins_len++] = getaddr (GETADDR_FATAL
+					  | GETADDR_HOST_ORDER
+					  | GETADDR_FATAL_ON_SIGNAL,
+					  p[2],
+					  0,
+					  NULL,
+					  NULL);
+	}
+      else if (streq (p[1], "NBT") && p[2])
+	{
+	  int t;
+	  ++i;
+	  t = atoi (p[2]);
+	  if (!(t == 1 || t == 2 || t == 4 || t == 8))
+	    msg (M_USAGE, "--dhcp-option NBT: parameter (%d) must be 1, 2, 4, or 8", t);
+	  o->node_type = t;
+	}
+      else
+	{
+	  msg (M_USAGE, "--dhcp-option: unknown option type '%s' or missing parameter", p[1]);
 	}
     }
   else if (streq (p[0], "show-adapters"))

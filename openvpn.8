@@ -28,7 +28,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "1 February 2004"
+.TH openvpn 8 "22 February 2004"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -2487,11 +2487,11 @@ including different ends of the same connection, can share the same
 virtual DHCP server address.  The
 .B lease-time
 parameter controls the lease time of the DHCP assignment given to
-the TAP-Win32 adapter.  It can be 'long'
-(1 month, default) or 'short' (60 seconds).  Normally 'long' is better
+the TAP-Win32 adapter, and is denoted in seconds.
+Normally a very long lease time is preferred
 because it prevents routes involving the TAP-Win32 adapter from
-being lost when the system goes to sleep.  'short' is provided
-for experimental purposes.
+being lost when the system goes to sleep.  The default
+lease time is one year.
 
 .B netsh --
 Automatically set the IP address and netmask using
@@ -2507,6 +2507,33 @@ that it works okay in practice.  If you use this option,
 it is best to leave the TCP/IP properties for the TAP-Win32
 adapter in their default state, i.e. "Obtain an IP address
 automatically."
+.TP
+.B --dhcp-option type [parm]
+Set extended TAP-Win32 TCP/IP properties, must
+be used with
+.B --ip-win32 dynamic.
+This option can be used to set additional TCP/IP properties
+on the TAP-Win32 adapter, and is particularly useful for
+configuring an OpenVPN client to access a Samba server
+across the VPN.
+
+.B DOMAIN name --
+Set Connection-specific DNS Suffix.
+
+.B DNS addr --
+Set primary domain name server address.  Repeat
+this option to set secondary DNS server addresses.
+
+.B WINS addr --
+Set primary WINS server address.  Repeat this option
+to set secondary WINS server addresses.
+
+.B NBT type --
+Set NetBIOS over TCP/IP Node type.  Possible options:
+1 = b-node (broadcasts), 2 = p-node (point-to-point
+name queries to a WINS server), 4 = m-node (broadcast
+then query name server), and 8 = h-node (query name
+server, then broadcast).
 .TP
 .B --tap-sleep n
 Cause OpenVPN to sleep for

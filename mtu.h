@@ -102,21 +102,26 @@ struct frame {
    * or write from TUN/TAP device.
    */
   int extra_tun;
+
+  /*
+   * extra_link: max number of bytes in excess on link mtu size that we might read
+   * or write from UDP/TCP link.
+   */
+  int extra_link;
 };
 
 /* Routines which read struct frame should use the macros below */
 
 /*
- * In general, OpenVPN packet building routines set the initial
- * buffer store point this many bytes into the data buffer to
- * allow for efficient prepending.
+ * Overhead added to packet payload due to encapsulation
  */
 #define EXTRA_FRAME(f)           ((f)->extra_frame)
 
 /*
  * Delta between tun payload size and final TCP/UDP datagram size
+ * (not including extra_link additions)
  */
-#define TUN_LINK_DELTA(f)         (EXTRA_FRAME(f) + (f)->extra_tun)
+#define TUN_LINK_DELTA(f)        ((f)->extra_frame + (f)->extra_tun)
 
 /*
  * This is the size to "ifconfig" the tun or tap device.
@@ -130,8 +135,8 @@ struct frame {
  * a tap device ifconfiged to an MTU of 1200 might actually want
  * to return a packet size of 1214 on a read().
  */
-#define PAYLOAD_SIZE(f)          ((f)->link_mtu - EXTRA_FRAME(f))
-#define PAYLOAD_SIZE_DYNAMIC(f)  ((f)->link_mtu_dynamic - EXTRA_FRAME(f))
+#define PAYLOAD_SIZE(f)          ((f)->link_mtu - (f)->extra_frame)
+#define PAYLOAD_SIZE_DYNAMIC(f)  ((f)->link_mtu_dynamic - (f)->extra_frame)
 
 /*
  * Max size of a payload packet after encryption, compression, etc.
@@ -140,18 +145,26 @@ struct frame {
 #define EXPANDED_SIZE(f)         ((f)->link_mtu)
 #define EXPANDED_SIZE_DYNAMIC(f) ((f)->link_mtu_dynamic)
 #define EXPANDED_SIZE_MIN(f)     (TUN_MTU_MIN + TUN_LINK_DELTA(f))
-/*
- * Max size of a buffer used to build a packet for output to
- * the TCP/UDP port.
- */
-#define BUF_SIZE(f)              (EXPANDED_SIZE(f) + TUN_LINK_DELTA(f) + (f)->extra_buffer)
 
 /*
  * These values are used as maximum size constraints
  * on read() or write() from TUN/TAP device or TCP/UDP port.
  */
 #define MAX_RW_SIZE_TUN(f)       (PAYLOAD_SIZE(f))
-#define MAX_RW_SIZE_LINK(f)      (EXPANDED_SIZE(f))
+#define MAX_RW_SIZE_LINK(f)      (EXPANDED_SIZE(f) + (f)->extra_link)
+
+/*
+ * In general, OpenVPN packet building routines set the initial
+ * buffer store point this many bytes into the data buffer to
+ * allow for efficient prepending.
+ */
+#define FRAME_HEADROOM(f)        (TUN_LINK_DELTA(f) + (f)->extra_buffer + (f)->extra_link)
+
+/*
+ * Max size of a buffer used to build a packet for output to
+ * the TCP/UDP port.
+ */
+#define BUF_SIZE(f)              (TUN_MTU_SIZE(f) + FRAME_HEADROOM(f) * 2)
 
 /*
  * Function prototypes.
@@ -205,6 +218,12 @@ static inline void
 frame_add_to_extra_tun (struct frame *frame, int increment)
 {
   frame->extra_tun += increment;
+}
+
+static inline void
+frame_add_to_extra_link (struct frame *frame, int increment)
+{
+  frame->extra_link += increment;
 }
 
 static inline void

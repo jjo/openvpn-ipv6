@@ -155,7 +155,10 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
   char ext_string[16];
   char log_dir[MAX_PATH];
   char priority_string[64];
+  char append_string[2];
+
   DWORD priority;
+  bool append;
 
   if (!ReportStatusToSCMgr(SERVICE_START_PENDING, NO_ERROR, 3000))
     {
@@ -229,6 +232,9 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
     /* get priority for spawned OpenVPN subprocesses */
     QUERY_REG_STRING ("priority", priority_string);
 
+    /* should we truncate or append to logfile? */
+    QUERY_REG_STRING ("log_append", append_string);
+
     RegCloseKey (openvpn_key);
   }
 
@@ -247,6 +253,18 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
   else
     {
       ERR ("Unknown priority name: %s", priority_string);
+      goto finish;
+    }
+
+  /* set log file append/truncate flag */
+  append = false;
+  if (append_string[0] == '0')
+    append = false;
+  else if (append_string[0] == '1')
+    append = true;
+  else
+    {
+      ERR ("Log file append flag (given as '%s') must be '0' or '1'", append_string);
       goto finish;
     }
 
@@ -332,7 +350,7 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
 				   GENERIC_WRITE,
 				   FILE_SHARE_READ,
 				   &sa,
-				   CREATE_ALWAYS,
+				   append ? OPEN_ALWAYS : CREATE_ALWAYS,
 				   FILE_ATTRIBUTE_NORMAL,
 				   NULL);
 
@@ -341,6 +359,17 @@ VOID ServiceStart (DWORD dwArgc, LPTSTR *lpszArgv)
 	      ERR ("Cannot open logfile: %s", log_path);
 	      FindClose (find_handle);
 	      goto finish;
+	    }
+
+	  /* append to logfile? */
+	  if (append)
+	    {
+	      if (SetFilePointer (log_handle, 0, NULL, FILE_END) == INVALID_SET_FILE_POINTER)
+		{
+		  ERR ("Cannot seek to end of logfile: %s", log_path);
+		  FindClose (find_handle);
+		  goto finish;
+		}
 	    }
 
 	  /* fill in STARTUPINFO struct */

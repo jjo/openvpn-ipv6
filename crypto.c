@@ -64,14 +64,14 @@
  * work is a workspace buffer we are given of size BUF_SIZE.
  * work may be used to return output data, or the input buffer
  * may be modified and returned as output.  If output data is
- * returned in work, the data should start after EXTRA_FRAME bytes
+ * returned in work, the data should start after FRAME_HEADROOM bytes
  * of padding to leave room for downstream routines to prepend.
  *
- * Up to a total of EXTRA_FRAME bytes may be prepended to the input buf
+ * Up to a total of FRAME_HEADROOM bytes may be prepended to the input buf
  * by all routines (encryption, decryption, compression, and decompression).
  *
  * Note that the buf_prepend return will assert if we try to
- * make a header bigger than EXTRA_FRAME.  This should not
+ * make a header bigger than FRAME_HEADROOM.  This should not
  * happen unless the frame parameters are wrong.
  */
 
@@ -130,8 +130,8 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 	      ASSERT (0);
 	    }
 
-	  /* initialize work buffer with EXTRA_FRAME bytes of prepend capacity */
-	  ASSERT (buf_init (&work, EXTRA_FRAME (frame)));
+	  /* initialize work buffer with FRAME_HEADROOM bytes of prepend capacity */
+	  ASSERT (buf_init (&work, FRAME_HEADROOM (frame)));
 
 	  /* set the IV pseudo-randomly */
 	  if (opt->use_iv)
@@ -255,8 +255,8 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
 	  uint8_t iv_buf[EVP_MAX_IV_LENGTH];
 	  int outlen;
 
-	  /* initialize work buffer with EXTRA_FRAME bytes of prepend capacity */
-	  ASSERT (buf_init (&work, EXTRA_FRAME (frame)));
+	  /* initialize work buffer with FRAME_HEADROOM bytes of prepend capacity */
+	  ASSERT (buf_init (&work, FRAME_HEADROOM (frame)));
 
 	  /* use IV if user requested it */
 	  CLEAR (iv_buf);
@@ -800,7 +800,7 @@ test_crypto (const struct crypto_options *co, struct frame* frame)
   struct buffer buf = clear_buf();
 
   /* init work */
-  ASSERT (buf_init (&work, EXTRA_FRAME (frame)));
+  ASSERT (buf_init (&work, FRAME_HEADROOM (frame)));
 
   msg (M_INFO, "Entering " PACKAGE_NAME " crypto self-test mode.");
   for (i = 1; i <= TUN_MTU_SIZE (frame); ++i)

@@ -1308,38 +1308,47 @@ close_tun (struct tuntap* tt)
 int
 write_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
-  struct iovec iv[2];
-  u_int32_t type;
-  struct ip *iph;
+  if (tt->type == DEV_TYPE_TUN)
+    {
+      u_int32_t type;
+      struct iovec iv[2];
+      struct ip *iph;
 
-  iph = (struct ip *)buf;
+      iph = (struct ip *) buf;
 
-  if(tt->ipv6 && iph->ip_v == 6)
-     type = htonl(AF_INET6);
-   else
-     type = htonl(AF_INET);
+      if (tt->ipv6 && iph->ip_v == 6)
+        type = htonl (AF_INET6);
+      else 
+        type = htonl (AF_INET);
 
-  iv[0].iov_base = &type;
-  iv[0].iov_len = sizeof (type);
-  iv[1].iov_base = buf;
-  iv[1].iov_len = len;
+      iv[0].iov_base = &type;
+      iv[0].iov_len = sizeof (type);
+      iv[1].iov_base = buf;
+      iv[1].iov_len = len;
 
-  return freebsd_modify_read_write_return (writev (tt->fd, iv, 2));
+      return freebsd_modify_read_write_return (writev (tt->fd, iv, 2));
+    }
+  else
+    return write (tt->fd, buf, len);
 }
 
 int
 read_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
-  u_int32_t type;
-  struct iovec iv[2];
+  if (tt->type == DEV_TYPE_TUN)
+    {
+      u_int32_t type;
+      struct iovec iv[2];
 
-  iv[0].iov_base = &type;
-  iv[0].iov_len = sizeof (type);
-  iv[1].iov_base = buf;
-  iv[1].iov_len = len;
+      iv[0].iov_base = &type;
+      iv[0].iov_len = sizeof (type);
+      iv[1].iov_base = buf;
+      iv[1].iov_len = len;
 
-
-  return freebsd_modify_read_write_return (readv (tt->fd, iv, 2));
+      return freebsd_modify_read_write_return (readv (tt->fd, iv, 2));
+    }
+  else
+    return read (tt->fd, buf, len);
 }
 
 #elif defined(WIN32)
@@ -2002,6 +2011,65 @@ get_interface_index (const char *guid)
     }
 }
 
+/*
+ * Convert DHCP options from the command line / config file
+ * into a raw DHCP-format options string.
+ */
+
+static void
+write_dhcp_u8 (struct buffer *buf, const int type, const int data)
+{
+  if (!buf_safe (buf, 3))
+    msg (M_FATAL, "write_dhcp_u8: buffer overflow building DHCP options");
+  buf_write_u8 (buf, type);
+  buf_write_u8 (buf, 1);
+  buf_write_u8 (buf, data);
+}
+
+static void
+write_dhcp_u32_array (struct buffer *buf, const int type, const uint32_t *data, const unsigned int len)
+{
+  if (len > 0)
+    {
+      int i;
+      const int size = len * sizeof (uint32_t);
+
+      if (!buf_safe (buf, 2 + size))
+	msg (M_FATAL, "write_dhcp_u32_array: buffer overflow building DHCP options");
+      if (size < 1 || size > 255)
+	msg (M_FATAL, "write_dhcp_u32_array: size (%d) must be > 0 and <= 255", size);
+      buf_write_u8 (buf, type);
+      buf_write_u8 (buf, size);
+      for (i = 0; i < len; ++i)
+	buf_write_u32 (buf, data[i]);
+    }
+}
+
+static void
+write_dhcp_str (struct buffer *buf, const int type, const char *str)
+{
+  const int len = strlen (str);
+  if (!buf_safe (buf, 2 + len))
+    msg (M_FATAL, "write_dhcp_str: buffer overflow building DHCP options");
+  if (len < 1 || len > 255)
+    msg (M_FATAL, "write_dhcp_str: string '%s' must be > 0 bytes and <= 255 bytes", str);
+  buf_write_u8 (buf, type);
+  buf_write_u8 (buf, len);
+  buf_write (buf, str, len);
+}
+
+static void
+build_dhcp_options_string (struct buffer *buf, const struct tuntap_options *o)
+{
+  int i;
+
+  if (o->domain)
+    write_dhcp_str (buf, 15, o->domain);
+  write_dhcp_u32_array (buf, 6, o->dns, o->dns_len);
+  write_dhcp_u32_array (buf, 44, o->wins, o->wins_len);
+  write_dhcp_u8 (buf, 46, o->node_type);
+}
+
 void
 open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, struct tuntap *tt)
 {
@@ -2118,7 +2186,7 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
      of setting the adapter address? */
   if (tt->did_ifconfig_setup && tt->options.ip_win32_type == IPW32_SET_DHCP_MASQ)
     {
-      in_addr_t ep[4];
+      uint32_t ep[4];
 
       /* We will answer DHCP requests with a reply to set IP/subnet to these values */
       ep[0] = htonl (tt->local);
@@ -2144,7 +2212,7 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 	}
 
       /* lease time in seconds */
-      ep[3] = (tt->options.dhcp_lease_time_short ? 60 : 31536000); /* the long lease is 1 year */
+      ep[3] = (uint32_t) tt->options.dhcp_lease_time;
 
       if (!DeviceIoControl (tt->hand, TAP_IOCTL_CONFIG_DHCP_MASQ,
 			    ep, sizeof (ep),
@@ -2159,16 +2227,17 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 	   ep[3]
 	   );
 
-#if 0
-      /* test user-supplied DHCP options capability */
-      {
-	uint8_t opt[6] = { 44, 4, 1, 2, 3, 4 };
-	if (!DeviceIoControl (tt->hand, TAP_IOCTL_CONFIG_DHCP_SET_OPT,
-			      opt, sizeof (opt),
-			      opt, sizeof (opt), &len, NULL))
-	  msg (M_FATAL, "ERROR: The TAP-Win32 driver rejected a TAP_IOCTL_CONFIG_DHCP_SET_OPT DeviceIoControl call");
-      }
-#endif
+      /* user-supplied DHCP options capability */
+      if (tt->options.dhcp_options)
+	{
+	  struct buffer buf = alloc_buf (256);
+	  build_dhcp_options_string (&buf, &tt->options);
+	  if (!DeviceIoControl (tt->hand, TAP_IOCTL_CONFIG_DHCP_SET_OPT,
+				BPTR (&buf), BLEN (&buf),
+				BPTR (&buf), BLEN (&buf), &len, NULL))
+	    msg (M_FATAL, "ERROR: The TAP-Win32 driver rejected a TAP_IOCTL_CONFIG_DHCP_SET_OPT DeviceIoControl call");
+	  free_buf (&buf);
+	}
     }
 
 #if 1
