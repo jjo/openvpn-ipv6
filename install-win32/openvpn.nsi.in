@@ -1,5 +1,5 @@
 ; ****************************************************************************
-; * Copyright (C) 2002-2005 OpenVPN Solutions LLC                                      *
+; * Copyright (C) 2002-2005 OpenVPN Solutions LLC                            *
 ; *  This program is free software; you can redistribute it and/or modify    *
 ; *  it under the terms of the GNU General Public License as published by    *
 ; *  the Free Software Foundation; either version 2 of the License, or       *
@@ -95,6 +95,8 @@
 ;Language Strings
 
   LangString DESC_SecOpenVPNUserSpace ${LANG_ENGLISH} "Install OpenVPN user-space components, including openvpn.exe."
+
+  LangString DESC_SecOpenVPNEasyRSA ${LANG_ENGLISH} "Install OpenVPN RSA scripts for X509 certificate management."
 
   LangString DESC_SecOpenSSLDLLs ${LANG_ENGLISH} "Install OpenSSL DLLs locally (may be omitted if DLLs are already installed globally)."
 
@@ -195,6 +197,25 @@ Section "OpenVPN User-Space Components" SecOpenVPNUserSpace
   SetOutPath "$INSTDIR\bin"
 
   File "${HOME}\openvpn.exe"
+
+SectionEnd
+
+Section "OpenVPN RSA Certificate Management Scripts" SecOpenVPNEasyRSA
+
+  SetOverwrite on
+  SetOutPath "$INSTDIR\easy-rsa"
+
+  File "${MASTER}\easy-rsa\openssl.cnf"
+  File "${MASTER}\easy-rsa\Windows\README.txt"
+  File "${MASTER}\easy-rsa\Windows\build-ca.bat"
+  File "${MASTER}\easy-rsa\Windows\build-dh.bat"
+  File "${MASTER}\easy-rsa\Windows\build-key-server.bat"
+  File "${MASTER}\easy-rsa\Windows\build-key.bat"
+  File "${MASTER}\easy-rsa\Windows\clean-all.bat"
+  File "${MASTER}\easy-rsa\Windows\index.txt.start"
+  File "${MASTER}\easy-rsa\Windows\revoke-key.bat"
+  File "${MASTER}\easy-rsa\Windows\serial.start"
+  File "${MASTER}\easy-rsa\Windows\vars.bat"
 
 SectionEnd
 
@@ -461,6 +482,7 @@ SectionEnd
 
 !insertmacro MUI_FUNCTIONS_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SecOpenVPNUserSpace} $(DESC_SecOpenVPNUserSpace)
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecOpenVPNEasyRSA} $(DESC_SecOpenVPNEasyRSA)
   !insertmacro MUI_DESCRIPTION_TEXT ${SecTAP} $(DESC_SecTAP)
   !insertmacro MUI_DESCRIPTION_TEXT ${SecOpenSSLUtilities} $(DESC_SecOpenSSLUtilities)
   !insertmacro MUI_DESCRIPTION_TEXT ${SecOpenSSLDLLs} $(DESC_SecOpenSSLDLLs)
@@ -529,8 +551,14 @@ Section "Uninstall"
   Delete "$INSTDIR\license.txt"
   Delete "$INSTDIR\Uninstall.exe"
 
+  Delete "$INSTDIR\easy-rsa\*.bat"
+  Delete "$INSTDIR\easy-rsa\*.txt"
+  Delete "$INSTDIR\easy-rsa\*.start"
+  Delete "$INSTDIR\easy-rsa\*.cnf"
+
   RMDir "$INSTDIR\bin"
   RMDir "$INSTDIR\driver"
+  RMDir "$INSTDIR\easy-rsa"
   RMDir "$INSTDIR"
 
   !insertmacro DelRegKeyIfUnchanged HKCR ".${SERV_CONFIG_EXT}" "OpenVPNFile"

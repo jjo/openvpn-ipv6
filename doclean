@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Let's have a fresh start.  Remove all files
 # which are not source files.

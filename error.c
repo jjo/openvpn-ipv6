@@ -49,6 +49,12 @@
 
 #include "memdbg.h"
 
+#if SYSLOG_CAPABILITY
+#ifndef LOG_OPENVPN
+#define LOG_OPENVPN LOG_DAEMON
+#endif
+#endif
+
 /* Globals */
 unsigned int x_debug_level; /* GLOBAL */
 
@@ -394,7 +400,7 @@ open_syslog (const char *pgmname, bool stdio_to_null)
       if (!use_syslog)
 	{
 	  pgmname_syslog = string_alloc (pgmname ? pgmname : PACKAGE, NULL);
-	  openlog (pgmname_syslog, LOG_PID, LOG_DAEMON);
+	  openlog (pgmname_syslog, LOG_PID, LOG_OPENVPN);
 	  use_syslog = true;
 
 	  /* Better idea: somehow pipe stdout/stderr output to msg() */
@@ -655,6 +661,8 @@ openvpn_exit (int status)
 #ifdef WIN32
   uninit_win32 ();
 #endif
+
+  close_syslog ();
 
 #ifdef ABORT_ON_ERROR
   if (status == OPENVPN_EXIT_STATUS_ERROR)

@@ -3,6 +3,26 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.02.03 -- Version 2.0-rc11
+
+* Windows installer will now install easy-rsa directory
+  in \Program Files\OpenVPN
+* Allow syslog facility to be controlled at compile time,
+  e.g. -DLOG_OPENVPN=LOG_LOCAL6 (P Kern).
+* Changed certain shell scripts in distribution to use
+  #!/bin/sh rather than #!/bin/bash for better portability.
+* If --ifconfig-pool-persist seconds parameter is 0, treat
+  persist file as an allocation of fixed IP addresses
+  (previous versions took IP-to-common-name associations
+  from this list as hints, not mandatory static allocations).
+* Fixed bug on *nix where if --auth-user-pass and --log
+  were used together, the username prompt would be sent to
+  the log file rather than /dev/tty.
+* Spurious text in openvpn.8 detected by doclifter
+  (Eric S. Raymond).
+* Call closelog later on daemon kill so that process
+  exit message is written to syslog.
+
 2005.01.27 -- Version 2.0-rc10
 
 * When ./configure is run with plugins enabled (the default),

@@ -1,11 +1,9 @@
 @echo off
 rem Edit this variable to point to
 rem the openssl.cnf file included
-rem with easy-rsa.  Don't begin
-rem the HOME string with a drive
-rem letter.
+rem with easy-rsa.
 
-set HOME=%ProgramFiles%\OpenVPN
+set HOME=%ProgramFiles%\OpenVPN\easy-rsa
 set KEY_CONFIG=openssl.cnf
 
 rem Edit this variable to point to
@@ -19,10 +17,10 @@ rem it correctly!
 set KEY_DIR=keys
 
 rem Increase this to 2048 if you
-rem are paranoid.  If you do increase,
-rem make sure you build OpenVPN with
-rem pthread support, so you don't incur
-rem any performance penalty.
+rem are paranoid.  This will slow
+rem down TLS negotiation performance
+rem as well as the one-time DH parms
+rem generation process.
 set KEY_SIZE=1024
 
 rem These are the default values for fields

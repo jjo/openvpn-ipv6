@@ -45,6 +45,7 @@ struct ifconfig_pool_entry
   bool in_use;
   char *common_name;
   time_t last_release;
+  bool fixed;
 };
 
 struct ifconfig_pool
@@ -58,6 +59,7 @@ struct ifconfig_pool
 struct ifconfig_pool_persist
 {
   struct status_output *file;
+  bool fixed;
 };
 
 typedef int ifconfig_pool_handle;

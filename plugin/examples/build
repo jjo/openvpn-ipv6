@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 #
 # Build an OpenVPN plugin module on *nix.  The argument should

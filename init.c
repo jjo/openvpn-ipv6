@@ -1883,13 +1883,6 @@ do_close_fragment (struct context *c)
 }
 #endif
 
-static void
-do_close_syslog (struct context *c)
-{
-  if (!(c->sig->signal_received == SIGUSR1))
-    close_syslog ();
-}
-
 /*
  * Open and close our event objects.
  */
@@ -2426,10 +2419,6 @@ close_instance (struct context *c)
 
 	/* close --ifconfig-pool-persist obj */
 	do_close_ifconfig_pool_persist (c);
-
-	/* close syslog */
-	if (c->mode == CM_P2P || c->mode == CM_TOP)
-	  do_close_syslog (c);
 
 	/* garbage collect */
 	gc_free (&c->c2.gc);

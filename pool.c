@@ -74,7 +74,7 @@ ifconfig_pool_find (struct ifconfig_pool *pool, const char *common_name)
 	   * Keep track of the unused IP address entry which
 	   * was released earliest.
 	   */
-	  if (!n || ipe->last_release < earliest_release)
+	  if ((new_usage == -1 || ipe->last_release < earliest_release) && !ipe->fixed)
 	    {
 	      earliest_release = ipe->last_release;
 	      new_usage = i;
@@ -261,7 +261,7 @@ ifconfig_pool_handle_to_ip_base (const struct ifconfig_pool* pool, ifconfig_pool
 }
 
 static void
-ifconfig_pool_set (struct ifconfig_pool* pool, const char *cn, const in_addr_t addr)
+ifconfig_pool_set (struct ifconfig_pool* pool, const char *cn, const in_addr_t addr, const bool fixed)
 {
   ifconfig_pool_handle h = ifconfig_pool_ip_base_to_handle (pool, addr);
   if (h >= 0)
@@ -271,6 +271,7 @@ ifconfig_pool_set (struct ifconfig_pool* pool, const char *cn, const in_addr_t a
       e->in_use = false;
       e->common_name = string_alloc (cn, NULL);
       e->last_release = now;
+      e->fixed = fixed;
     }
 }
 
@@ -320,9 +321,15 @@ ifconfig_pool_persist_init (const char *filename, int refresh_freq)
 
   ALLOC_OBJ_CLEAR (ret, struct ifconfig_pool_persist);
   if (refresh_freq > 0)
-    ret->file = status_open (filename, refresh_freq, -1, NULL, STATUS_OUTPUT_READ|STATUS_OUTPUT_WRITE);
+    {
+      ret->fixed = false;
+      ret->file = status_open (filename, refresh_freq, -1, NULL, STATUS_OUTPUT_READ|STATUS_OUTPUT_WRITE);
+    }
   else
-    ret->file = status_open (filename, 0, -1, NULL, STATUS_OUTPUT_READ);
+    {
+      ret->fixed = true;
+      ret->file = status_open (filename, 0, -1, NULL, STATUS_OUTPUT_READ);
+    }
   return ret;
 }
 
@@ -381,7 +388,7 @@ ifconfig_pool_read (struct ifconfig_pool_persist *persist, struct ifconfig_pool 
 		  const in_addr_t addr = getaddr (GETADDR_HOST_ORDER, ip_buf, 0, &succeeded, NULL);
 		  if (succeeded)
 		    {
-		      ifconfig_pool_set (pool, cn_buf, addr);
+		      ifconfig_pool_set (pool, cn_buf, addr, persist->fixed);
 		    }
 		}
 	    }

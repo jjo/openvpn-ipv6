@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # A sample OpenVPN startup script
 # for Linux.
