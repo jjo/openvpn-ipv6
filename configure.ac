@@ -1,5 +1,5 @@
 dnl  OpenVPN -- An application to securely tunnel IP networks
-dnl             over a single UDP port, with support for TLS-based
+dnl             over a single UDP port, with support for SSL/TLS-based
 dnl             session authentication and key exchange,
 dnl             packet encryption, packet authentication, and
 dnl             packet compression.
@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.2.12], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.2.13], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 

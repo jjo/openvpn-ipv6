@@ -1,4 +1,4 @@
-dnl Special Macros
+dnl Special Autoconf Macros for OpenVPN
 
 dnl OPENVPN_ADD_LIBS(LIB)
 AC_DEFUN(OPENVPN_ADD_LIBS, [

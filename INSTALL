@@ -81,11 +81,11 @@ BUILD COMMANDS FROM CVS:
 
 *************************************************************************
 
-BUILD NOTES:
+BUILD A TARBALL FROM CVS:
 
-* If you are building from a CVS checkout, you should
-  run ./pre-touch prior to ./configure to make sure
-  that timestamps are up-to-date.
+	autoreconf -i -v
+	./configure
+	make dist
 
 *************************************************************************
 

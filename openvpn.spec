@@ -1,6 +1,6 @@
 Summary:	A Secure UDP Tunneling Daemon
 Name:		openvpn
-Version:	1.3.2.12
+Version:	1.3.2.13
 Release:	1
 URL:		http://sourceforge.net/projects/openvpn/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
@@ -10,7 +10,6 @@ Group:		Networking/Tunnels
 Vendor:		James Yonan <jim@yonan.net>
 Packager:	bishop clark (LC957) <bishop@platypus.bc.ca>
 BuildRoot:	%{_tmppath}/%{name}-%(id -un)
-#Requires:	tun
 
 %description
 OpenVPN is a robust and highly flexible tunneling application that
@@ -27,7 +26,6 @@ UDP port.
 
 %install
 [ %{buildroot} != "/" ] && rm -rf %{buildroot}
-#makeinstall
 
 %__install -c -d -m 755 %{buildroot}%{_mandir}/man8
 %__install -c -m 755 %{name}.8 %{buildroot}%{_mandir}/man8
