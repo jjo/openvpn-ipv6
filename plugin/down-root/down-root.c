@@ -40,7 +40,7 @@
 
 #include "openvpn-plugin.h"
 
-#define DEBUG(verb) ((verb) >= 7) // JYFIXME
+#define DEBUG(verb) ((verb) >= 7)
 
 /* Command codes for foreground -> background communication */
 #define COMMAND_RUN_SCRIPT 0
@@ -487,7 +487,7 @@ down_root_server (const int fd, char *command, const char *argv[], const char *e
 
 	case -1:
 	  fprintf (stderr, "DOWN-ROOT: BACKGROUND: read error on command channel\n");
-	  goto done;
+	  break;
 
 	default:
 	  fprintf (stderr, "DOWN-ROOT: BACKGROUND: unknown command code: code=%d, exiting\n",

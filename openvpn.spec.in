@@ -33,8 +33,13 @@ AutoReq: 0
 BuildRequires: openssl-devel >= 0.9.6
 Requires:      openssl       >= 0.9.6
 
+%if "%{_vendor}" == "MandrakeSoft"
+%{!?without_lzo:BuildRequires: liblzo1-devel >= 1.07}
+%{!?without_lzo:Requires:      liblzo1       >= 1.07}
+%else
 %{!?without_lzo:BuildRequires: lzo-devel >= 1.07}
 %{!?without_lzo:Requires:      lzo       >= 1.07}
+%endif
 
 %{!?without_pam:BuildRequires: pam-devel}
 %{!?without_pam:Requires:      pam}
@@ -210,6 +215,9 @@ fi
 %endif
 
 %changelog
+
+* Sat Mar 12 2005 Tom Walsh
+- Added MandrakeSoft liblzo1 require
 
 * Fri Dec 10 2004 James Yonan
 - Added AutoReq: 0 for manual dependencies

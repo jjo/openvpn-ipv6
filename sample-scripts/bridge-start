@@ -2,6 +2,7 @@
 
 #################################
 # Set up Ethernet bridge on Linux
+# Requires: bridge-utils
 #################################
 
 # Define Bridge Interface

@@ -30,6 +30,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -55,9 +56,6 @@
 #define RESPONSE_VERIFY_SUCCEEDED 12
 #define RESPONSE_VERIFY_FAILED    13
 
-/* Background process function */
-static void pam_server (int fd, const char *service, int verb);
-
 /*
  * Plugin state, used by foreground
  */
@@ -74,14 +72,40 @@ struct auth_pam_context
 };
 
 /*
+ * Name/Value pairs for conversation function.
+ * Special Values:
+ *
+ *  "USERNAME" -- substitute client-supplied username
+ *  "PASSWORD" -- substitute client-specified password
+ */
+
+#define N_NAME_VALUE 16
+
+struct name_value {
+  const char *name;
+  const char *value;
+};
+
+struct name_value_list {
+  int len;
+  struct name_value data[N_NAME_VALUE];
+};
+
+/*
  * Used to pass the username/password
- * to the PAM conversation function
+ * to the PAM conversation function.
  */
 struct user_pass {
   int verb;
+
   char username[128];
   char password[128];
+
+  const struct name_value_list *name_value_list;
 };
+
+/* Background process function */
+static void pam_server (int fd, const char *service, int verb, const struct name_value_list *name_value_list);
 
 /*
  * Given an environmental variable name, search
@@ -213,6 +237,21 @@ set_signals (void)
   signal (SIGPIPE, SIG_IGN);
 }
 
+/*
+ * Return 1 if query matches match.
+ */
+static int
+name_value_match (const char *query, const char *match)
+{
+  while (!isalnum (*query))
+    {
+      if (*query == '\0')
+	return 0;
+      ++query;
+    }
+  return strncasecmp (match, query, strlen (match)) == 0;
+}
+
 OPENVPN_EXPORT openvpn_plugin_handle_t
 openvpn_plugin_open_v1 (unsigned int *type_mask, const char *argv[], const char *envp[])
 {
@@ -220,6 +259,9 @@ openvpn_plugin_open_v1 (unsigned int *type_mask, const char *argv[], const char 
   int fd[2];
 
   struct auth_pam_context *context;
+  struct name_value_list name_value_list;
+
+  const int base_parms = 2;
 
   /*
    * Allocate our context
@@ -236,10 +278,35 @@ openvpn_plugin_open_v1 (unsigned int *type_mask, const char *argv[], const char 
    * Make sure we have two string arguments: the first is the .so name,
    * the second is the PAM service type.
    */
-  if (string_array_len (argv) != 2)
+  if (string_array_len (argv) < base_parms)
     {
       fprintf (stderr, "AUTH-PAM: need PAM service parameter\n");
       goto error;
+    }
+
+  /*
+   * See if we have optional name/value pairs to match against
+   * PAM module queried fields in the conversation function.
+   */
+  name_value_list.len = 0;
+  if (string_array_len (argv) > base_parms)
+    {
+      const int nv_len = string_array_len (argv) - base_parms;
+      int i;
+
+      if ((nv_len & 1) == 1 || (nv_len / 2) > N_NAME_VALUE)
+	{
+	  fprintf (stderr, "AUTH-PAM: bad name/value list length\n");
+	  goto error;
+	}
+
+      name_value_list.len = nv_len / 2;
+      for (i = 0; i < name_value_list.len; ++i)
+	{
+	  const int base = base_parms + i * 2;
+	  name_value_list.data[i].name = argv[base];
+	  name_value_list.data[i].value = argv[base+1];
+	}
     }
 
   /*
@@ -305,7 +372,7 @@ openvpn_plugin_open_v1 (unsigned int *type_mask, const char *argv[], const char 
       set_signals ();
 
       /* execute the event loop */
-      pam_server (fd[1], argv[1], context->verb);
+      pam_server (fd[1], argv[1], context->verb, &name_value_list);
 
       close (fd[1]);
 
@@ -395,6 +462,7 @@ my_conv (int n, const struct pam_message **msg_array,
   if ((aresp = calloc (n, sizeof *aresp)) == NULL)
     return (PAM_BUF_ERR);
 
+  /* loop through each PAM-module query */
   for (i = 0; i < n; ++i)
     {
       const struct pam_message *msg = msg_array[i];
@@ -403,33 +471,77 @@ my_conv (int n, const struct pam_message **msg_array,
 
       if (DEBUG (up->verb))
 	{
-	  fprintf (stderr, "AUTH-PAM: BACKGROUND: my_conv[%d] msg='%s' style=%d\n",
+	  fprintf (stderr, "AUTH-PAM: BACKGROUND: my_conv[%d] query='%s' style=%d\n",
 		   i,
 		   msg->msg ? msg->msg : "NULL",
 		   msg->msg_style);
 	}
 
-      switch (msg->msg_style)
+      if (up->name_value_list && up->name_value_list->len > 0)
 	{
-	case PAM_PROMPT_ECHO_OFF:
-	  aresp[i].resp = strdup (up->password);
-	  if (aresp[i].resp == NULL)
+	  /* use name/value list match method */
+	  const struct name_value_list *list = up->name_value_list;
+	  int j;
+
+	  /* loop through name/value pairs */
+	  for (j = 0; j < list->len; ++j)
+	    {
+	      const char *match_name = list->data[j].name;
+	      const char *match_value = list->data[j].value;
+
+	      if (name_value_match (msg->msg, match_name))
+		{
+		  /* found name/value match */
+		  const char *return_value = NULL;
+
+		  if (DEBUG (up->verb))
+		    fprintf (stderr, "AUTH-PAM: BACKGROUND: name match found, query/match-string ['%s', '%s'] = '%s'\n",
+			     msg->msg,
+			     match_name,
+			     match_value);
+
+		  if (!strcmp (match_value, "USERNAME"))
+		    return_value = up->username;
+		  else if (!strcmp (match_value, "PASSWORD"))
+		    return_value = up->password;
+		  else
+		    return_value = match_value;
+
+		  aresp[i].resp = strdup (return_value);
+		  if (aresp[i].resp == NULL)
+		    ret = PAM_CONV_ERR;
+		  break;
+		}
+	    }
+
+	  if (j == list->len)
 	    ret = PAM_CONV_ERR;
-	  break;
+	}
+      else
+	{
+	  /* use PAM_PROMPT_ECHO_x hints */
+	  switch (msg->msg_style)
+	    {
+	    case PAM_PROMPT_ECHO_OFF:
+	      aresp[i].resp = strdup (up->password);
+	      if (aresp[i].resp == NULL)
+		ret = PAM_CONV_ERR;
+	      break;
 
-	case PAM_PROMPT_ECHO_ON:
-	  aresp[i].resp = strdup (up->username);
-	  if (aresp[i].resp == NULL)
-	    ret = PAM_CONV_ERR;
-	  break;
+	    case PAM_PROMPT_ECHO_ON:
+	      aresp[i].resp = strdup (up->username);
+	      if (aresp[i].resp == NULL)
+		ret = PAM_CONV_ERR;
+	      break;
 
-	case PAM_ERROR_MSG:
-	case PAM_TEXT_INFO:
-	  break;
+	    case PAM_ERROR_MSG:
+	    case PAM_TEXT_INFO:
+	      break;
 
-	default:
-	  ret = PAM_CONV_ERR;
-	  break;
+	    default:
+	      ret = PAM_CONV_ERR;
+	      break;
+	    }
 	}
     }
 
@@ -450,11 +562,12 @@ pam_auth (const char *service, const struct user_pass *up)
   pam_handle_t *pamh = NULL;
   int status = PAM_SUCCESS;
   int ret = 0;
+  const int name_value_list_provided = (up->name_value_list && up->name_value_list->len > 0);
 
   /* Initialize PAM */
   conv.conv = my_conv;
   conv.appdata_ptr = (void *)up;
-  status = pam_start (service, up->username, &conv, &pamh);
+  status = pam_start (service, name_value_list_provided ? NULL : up->username, &conv, &pamh);
   if (status == PAM_SUCCESS)
     {
       /* Call PAM to verify username/password */
@@ -483,7 +596,7 @@ pam_auth (const char *service, const struct user_pass *up)
  * Background process -- runs with privilege.
  */
 static void
-pam_server (int fd, const char *service, int verb)
+pam_server (int fd, const char *service, int verb, const struct name_value_list *name_value_list)
 {
   struct user_pass up;
   int command;
@@ -521,6 +634,7 @@ pam_server (int fd, const char *service, int verb)
     {
       memset (&up, 0, sizeof (up));
       up.verb = verb;
+      up.name_value_list = name_value_list;
 
       /* get a command from foreground process */
       command = recv_control (fd);
@@ -566,7 +680,7 @@ pam_server (int fd, const char *service, int verb)
 
 	case -1:
 	  fprintf (stderr, "AUTH-PAM: BACKGROUND: read error on command channel\n");
-	  goto done;
+	  break;
 
 	default:
 	  fprintf (stderr, "AUTH-PAM: BACKGROUND: unknown command code: code=%d, exiting\n",

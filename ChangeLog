@@ -3,6 +3,23 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.03.12 -- Version 2.0-rc17
+
+* "MANAGEMENT: CMD" log file output will now only occur
+  at --verb 7 or greater.
+* Added an optional name/value configuration list to
+  the openvpn-auth-pam plugin module argument list.  See
+  plugin/auth-pam/README for documentation. This is necessary
+  in order for openvpn-auth-pam to work with queries generated
+  by arbitrary PAM modules.
+* In both auth-pam and down-root plugins, in the forked process,
+  a read error on the parent process socket is no longer fatal.
+* MandrakeSoft liblzo1 RPM only Provides for a 'liblzo1'.
+  A conditional test of the vendor has been added to
+  Require the appropriately named 'lzo' (liblzo1 / lzo).
+  (Tom Walsh - http://openhardware.net)
+
+	
 2005.02.20 -- Version 2.0-rc16
 
 * Fixed bug introduced in rc13 where Windows service wrapper
