@@ -90,7 +90,7 @@
 #define P_CONTROL_SOFT_RESET_V1        3     /* new key, graceful transition from old to new key */
 #define P_CONTROL_V1                   4     /* control channel packet (usually TLS ciphertext) */
 #define P_ACK_V1                       5     /* acknowledgement for packets received */
-#define P_DATA_V1                      6     /* data channel packet (uncompressed) */
+#define P_DATA_V1                      6     /* data channel packet */
 
 /* define the range of legal opcodes */
 #define P_FIRST_OPCODE                 1

@@ -41,7 +41,15 @@ void do_mlockall (bool print_msg); /* Disable paging */
 int daemon (int nochdir, int noclose);
 #endif
 
-/* Wrapper around the system() call. */
-int openvpn_system (char *command);
-
+/* check file protections */
 void warn_if_group_others_accessible(const char* filename);
+
+/* wrapper around the system() call. */
+int openvpn_system (const char *command);
+
+/* interpret the status code returned by system() */
+bool system_ok(int stat);
+const char *system_error_message (int stat);
+
+/* run system() with error check */
+void system_check (const char* command, const char* error_message, bool fatal);

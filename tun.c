@@ -94,8 +94,7 @@ do_ifconfig (const char *dev, const char *dev_type,
 		tun_mtu
 		);
       msg (M_INFO, "%s", command_line);
-      if (openvpn_system (command_line) != 0)
-	msg (M_ERR, "Linux ifconfig failed");
+      system_check (command_line, "Linux ifconfig failed", true);
 
 #elif defined(TARGET_SOLARIS)
 
@@ -108,8 +107,7 @@ do_ifconfig (const char *dev, const char *dev_type,
 		tun_mtu
 		);
       msg (M_INFO, "%s", command_line);
-      if (openvpn_system (command_line) != 0)
-	msg (M_ERR, "Solaris ifconfig failed");
+      system_check (command_line, "Solaris ifconfig failed", true);
 
 #elif defined(TARGET_OPENBSD)
 
@@ -123,7 +121,7 @@ do_ifconfig (const char *dev, const char *dev_type,
 		IFCONFIG_PATH " %s delete",
 		dev);
       msg (M_INFO, "%s", command_line);
-      openvpn_system (command_line);
+      system_check (command_line, NULL, false);
       msg (M_INFO, "NOTE: Tried to delete pre-existing tun instance -- No Problem if failure");
 
 
@@ -136,8 +134,7 @@ do_ifconfig (const char *dev, const char *dev_type,
 		tun_mtu
 		);
       msg (M_INFO, "%s", command_line);
-      if (openvpn_system (command_line) != 0)
-	msg (M_ERR, "OpenBSD ifconfig failed");
+      system_check (command_line, "OpenBSD ifconfig failed", true);
 
 #elif defined(TARGET_DARWIN)
 
@@ -149,7 +146,7 @@ do_ifconfig (const char *dev, const char *dev_type,
 		IFCONFIG_PATH " %s delete",
 		dev);
       msg (M_INFO, "%s", command_line);
-      openvpn_system (command_line);
+      system_check (command_line, NULL, false);
       msg (M_INFO, "NOTE: Tried to delete pre-existing tun instance -- No Problem if failure");
 
 
@@ -162,8 +159,7 @@ do_ifconfig (const char *dev, const char *dev_type,
 		tun_mtu
 		);
       msg (M_INFO, "%s", command_line);
-      if (openvpn_system (command_line) != 0)
-	msg (M_ERR, "Darwin ifconfig failed");
+      system_check (command_line, "Darwin ifconfig failed", true);
 
 #elif defined(TARGET_FREEBSD)
 
@@ -176,9 +172,7 @@ do_ifconfig (const char *dev, const char *dev_type,
 		tun_mtu
 		);
       msg (M_INFO, "%s", command_line);
-      if (openvpn_system (command_line) != 0)
-	msg (M_ERR, "FreeBSD ifconfig failed");
-
+      system_check (command_line, "FreeBSD ifconfig failed", true);
 #else
       msg (M_FATAL, "Sorry, but I don't know how to do 'ifconfig' commands on this operating system.  You should ifconfig your tun/tap device manually or use an --up script.");
 #endif

@@ -184,8 +184,8 @@ udp_socket_set_outgoing_addr (const struct buffer *buf,
 	      buf_printf (&out, "%s %s",
 			  sock->ipchange_command,
 			  print_sockaddr_ex (&usa->actual, true, " "));
-	      msg (D_TLS_DEBUG, "executing ip-change command: %d", command);
-	      openvpn_system (command);
+	      msg (D_TLS_DEBUG, "executing ip-change command: %s", command);
+	      system_check (command, "ip-change command failed", false);
 	    }
 	  mutex_lock (L_SOCK);
 	}

@@ -13,11 +13,14 @@ PLATFORM STATUS:
 
   * Linux 2.2+ (supported)
   * Solaris (supported)
-  * OpenBSD 3.0 (supported)
-  * Max OS X Darwin (supported but still experimental)
+  * OpenBSD 3.0 (supported but pthreads are broken)
+  * Max OS X Darwin (experimental)
   * FreeBSD (experimental)
   * Windows (under development -- OpenVPN daemon has been
-    ported to Cygwin, still need a tun or tap driver).
+    ported to Cygwin, but we still need a tun or tap
+    driver to be written for windows).
+  * 64 bit platforms -- I have heard reports that
+    OpenVPN runs on alpha linux.
 
 PORTING NOTES:
 
@@ -35,14 +38,16 @@ PORTING NOTES:
   * Add platform-specific includes to syshead.h.
   * Add an #ifdef TARGET_YOUROS to the do_ifconfig()
     function in tun.c to generate a correct "ifconfig"
-    command for your platform.
-  * Add a ifconfig_order() variant for your OS so
+    command for your platform.  Note that OpenVPN
+    determines the ifconfig path at ./configure time.
+  * Add an ifconfig_order() variant for your OS so
     openvpn knows whether to call ifconfig before
     or after tun/tap dev open.
   * Add an #ifdef TARGET_YOUROS block in tun.c and define
     the open_tun, close_tun, read_tun, and write_tun
-    functions.  If your tun/tap virtual device is sufficiently
-    generic, you may be able to use the default case.
+    functions.  If your tun/tap virtual device is
+    sufficiently generic, you may be able to use the
+    default case.
   * After you successfully build OpenVPN, try:
       (1) ./openvpn --genkey --secret key
       (2) ./openvpn --test-crypto --secret key
@@ -64,6 +69,15 @@ PORTING NOTES:
   * If your system supports pthreads, try building
     with ./configure --enable-pthread and do a stress
     test in TLS mode.
+  * Try the ultimate stress test which is --gremlin
+    --reneg-sec 10 in TLS mode (preferably with pthreads
+    enabled), then do a flood ping across the tunnel
+    (ping -f remote-endpoint) in both directions and let
+    it run overnight.  --gremlin will induce massive
+    corruption and packet loss, but you win if you
+    wake up the next morning and both peers are still
+    running and occasionally even succeeding in their
+    attempted once-per-10-seconds TLS handshake. 
   * When it's working, submit your patch to
     <openvpn-devel@lists.sourceforge.net>
     and rejoice :)

@@ -178,7 +178,7 @@ static const char usage_message[] =
   "                  after new key renegotiation begins (default=%d).\n"
   "--single-session: Allow only one session (reset state on restart).\n"
   "--tls-auth f    : Add an additional layer of authentication on top of the TLS\n"
-  "                  control channel to protect against DOS attacks.\n"
+  "                  control channel to protect against DoS attacks.\n"
   "                  f (required) is a shared-secret passphrase file.\n"
   "--askpass       : Get PEM password from controlling tty before we daemonize.\n"
   "--tls-verify cmd: Execute shell command cmd to verify the X509 name of a\n"

@@ -27,6 +27,7 @@
 
 #include "syshead.h"
 
+#include "buffer.h"
 #include "misc.h"
 #include "tun.h"
 #include "error.h"
@@ -138,8 +139,7 @@ run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu,
 		command, arg, tun_mtu, udp_mtu,
 		ifconfig_local, ifconfig_remote);
       msg (M_INFO, "%s", command_line);
-      if (openvpn_system (command_line) != 0)
-	msg (M_ERR, "script failed");
+      system_check (command_line, "script failed", true);
     }
 }
 
@@ -222,7 +222,7 @@ daemon(int nochdir, int noclose)
  * Wrapper around the system() call.
  */
 int
-openvpn_system (char *command)
+openvpn_system (const char *command)
 {
 #ifdef HAVE_SYSTEM
   return system (command);
@@ -252,4 +252,48 @@ warn_if_group_others_accessible(const char* filename)
 #else
   msg (M_WARN, "WARNING: cannot stat %s (stat function missing)", filename);
 #endif
+}
+
+/*
+ * convert system() return into a success/failure value
+ */
+bool
+system_ok(int stat)
+{
+  return stat != -1 && WIFEXITED (stat) && WEXITSTATUS (stat) == 0;
+}
+
+/*
+ * Print an error message based on the status code returned by system().
+ */
+const char *
+system_error_message (int stat)
+{
+  struct buffer out = alloc_buf_gc (512);
+  if (stat == -1)
+    buf_printf (&out, "shell command fork failed");
+  else if (!WIFEXITED (stat))
+    buf_printf (&out, "shell command did not exit normally");
+  else
+    {
+      const int cmd_ret = WEXITSTATUS (stat);
+      if (!cmd_ret)
+	buf_printf (&out, "shell command exited normally");
+      else if (cmd_ret == 127)
+	buf_printf (&out, "could not execute shell command");
+      else
+	buf_printf (&out, "shell command exited with error status: %d", cmd_ret);
+    }
+  return out.data;
+}
+
+/*
+ * Run system(), exiting on error.
+ */
+void
+system_check (const char* command, const char* error_message, bool fatal)
+{
+  const int stat = openvpn_system (command);
+  if (error_message && !system_ok (stat))
+    msg ((fatal ? M_FATAL : M_WARN), "%s: %s", error_message, system_error_message (stat));
 }

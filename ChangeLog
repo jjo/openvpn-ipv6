@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.06.25 -- Version 1.2.1.6
+2002.06.30 -- Version 1.2.1.8
 
 * Added --dev-node option to allow explicit selection of
   tun/tap device node.
@@ -20,6 +20,10 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
 * Added --single-session flag for TLS mode.
 * Fixed bug where --writepid would segfault if used with
   an invalid filename.
+* Fixed bug where --ipchange status message was formatted
+  incorrectly.
+* Print more concise error message when system() call
+  fails.
 * All changes maintain protocol compatibility with OpenVPN
   versions since 1.1.0.
 
