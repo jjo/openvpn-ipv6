@@ -25,6 +25,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-nobind\fR\ ]
 [\ \fB\-\-dev\fR\ \fITUNx\ |\ TAPx\fR\ ]
 [\ \fB\-\-shaper\fR\ \fIn\fR\ ]
+[\ \fB\-\-mlock\fR\ ]
 [\ \fB\-\-tun\-mtu\fR\ \fIn\fR\ ]
 [\ \fB\-\-udp\-mtu\fR\ \fIn\fR\ ]
 [\ \fB\-\-tun\-af\-inet\fR\ ]
@@ -350,6 +351,31 @@ OpenVPN allows
 .B n
 to be between 100 bytes/sec and 100 Mbytes/sec.
 .TP
+.B --mlock
+Disable paging by calling the POSIX mlockall function.
+Requires that OpenVPN be initially run as root (though
+OpenVPN can subsequently downgrade its UID using the
+.B --user
+option).
+
+Using this option ensures that key material and tunnel
+data are never written to disk due to virtual
+memory paging operations which occur under most
+modern operating systems.  It ensures that even if an
+attacker was able to crack the box running OpenVPN, he
+would not be able to scan the system swap file to
+recover previously used
+ephemeral keys, which are used for a period of time
+governed by the
+.B --reneg
+options (see below), then are discarded.
+
+The downside
+of using
+.B --mlock
+is that it will reduce the amount of physical
+memory available to other applications.
+.TP
 .B --tun-mtu n
 Take the TUN device MTU to be
 .B n
@@ -414,6 +440,8 @@ OpenBSD <-> Linux tunnel.
 
 This option is necessary to work around an incompatibility
 between the Linux and OpenBSD TUN/TAP drivers.
+
+Note: As of OpenVPN 1.1, this option should be considered experimental.
 .TP
 .B --up cmd
 Shell command to run after successful TUN/TAP device open
@@ -1000,7 +1028,9 @@ Used only for non-TLS static key encryption mode.
 .TP
 .B --genkey
 Generate a random key to be used as a shared secret,
-for use with the --secret option.  This file must be shared with the
+for use with the
+.B --secret
+option.  This file must be shared with the
 peer over a pre-existing secure channel such as
 .BR scp (1)
 .
@@ -1113,11 +1143,11 @@ Similarly on june:
 .LP
 On may:
 .IP
-.B openvpn --remote june.kg --dev tun7 --verb 7
+.B openvpn --remote june.kg --dev tun7 --verb 8
 .LP
 On june:
 .IP
-.B openvpn --remote may.kg --dev tun7 --verb 7
+.B openvpn --remote may.kg --dev tun7 --verb 8
 .LP
 Now verify the tunnel is working by pinging across the tunnel.
 .LP
@@ -1130,11 +1160,11 @@ On june:
 .B ping 10.1.0.7
 .LP
 The
-.B --verb 7
+.B --verb 8
 option will produce verbose output, similar to the
 .BR tcpdump (8)
 program.  Omit the
-.B --verb 7
+.B --verb 8
 option to have OpenVPN run quietly.
 .SS A tunnel with static-key security:
 First build a static key on may.
@@ -1152,11 +1182,11 @@ program.
 .LP
 On may:
 .IP
-.B openvpn --remote june.kg --dev tun7 --verb 4 --secret key
+.B openvpn --remote june.kg --dev tun7 --verb 5 --secret key
 .LP
 On june:
 .IP
-.B openvpn --remote may.kg --dev tun7 --verb 4 --secret key
+.B openvpn --remote may.kg --dev tun7 --verb 5 --secret key
 .LP
 Now verify the tunnel is working by pinging across the tunnel.
 .LP
@@ -1216,6 +1246,11 @@ the data channel keys every minute.
 Since we used
 .B --verb 5
 above, you will see status information on each new key negotiation.
+
+For production operations, a key renegotiation interval of 60 seconds
+is probably too frequent.  Omit the
+.B --reneg-sec 60
+option to use OpenVPN's default key renegotiation interval of one hour.
 .SS Routing:
 Assuming you can ping across the tunnel,
 the next step is to route a real subnet over
@@ -1244,9 +1279,13 @@ over the secure tunnel (or vice versa).
 .SH PROTOCOL
 For a description of OpenVPN's underlying protocol,
 see the file ssl.h included in the OpenVPN source distribution.
-.SH SUPPORT
+.SH BUGS
 Report all bugs to the OpenVPN users list <openvpn-users@lists.sourceforge.net>.  To subscribe to the list or see the archives, go to
 .I http://lists.sourceforge.net/lists/listinfo/openvpn-users
+
+Some problems have been reported in making tunnels between
+Linux and OpenBSD due to incompatibilities in the TUN/TAP
+driver implementation.
 .SH "SEE ALSO"
 .BR dhcpcd (8),
 .BR ifconfig (8),

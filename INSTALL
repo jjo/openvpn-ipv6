@@ -12,12 +12,20 @@ REQUIRES:
   (1) Linux Kernel 2.2+ or OpenBSD 3.0+.
   (2) Universal TUN/TAP driver 1.1 as a kernel module or compiled
       into the kernel -- available from http://vtun.sourceforge.net/tun/
+      The TUN/TAP driver has been a standard part of the linux kernel
+      since the early 2.4 releases, therefore most 2.4 users will find
+      this package already installed.  OpenVPN may also be compatible
+      with other non-TUN/TAP implementations of virtual tun devices
+      available on other unices, but has not yet been extensively tested.
+  (3) Gnu make, automake, and autoconf -- available from ftp://ftp.gnu.org/gnu/
+      and is normally included with most Linux distributions.  OpenBSD users
+      can easily install them from the "ports" collection.
 
 OPTIONAL (but highly recommended):
-  (1) OpenSSL library (0.9.6 or higher)
-      -- available from http://www.openssl.org/
-  (2) LZO real-time compression library
-      -- available from http://www.oberhumer.com/opensource/lzo/
+  (1) OpenSSL library, necessary for encryption, version 0.9.6 or higher
+      required, available from http://www.openssl.org/
+  (2) LZO real-time compression library, required for link compression,
+      available from http://www.oberhumer.com/opensource/lzo/
 
 OPTIONAL (for debugging only):
   (1) Dmalloc library

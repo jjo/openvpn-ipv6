@@ -20,3 +20,9 @@ For detailed information on OpenVPN, including examples,
 
 For a description of OpenVPN's underlying protocol,
   see the file ssl.h included in the source distribution.
+
+Known bugs:
+
+* Some problems have been reported in making tunnels between
+  Linux and OpenBSD due to incompatibilities in the tun
+  implementation.

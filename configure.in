@@ -75,7 +75,7 @@ AC_ARG_WITH(leak-check,
 dnl Guess host type.
 AC_CANONICAL_HOST
 AC_CANONICAL_SYSTEM
-AM_INIT_AUTOMAKE(openvpn, 1.1-pre2)
+AM_INIT_AUTOMAKE(openvpn, 1.1.0)
 
 dnl Checks for programs.
 AC_PROG_CC
