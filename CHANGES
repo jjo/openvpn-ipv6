@@ -1,0 +1,23 @@
+OpenVPN
+Copyright 2002 by James Yonan <jim@yonan.net>
+
+2002.03.28 -- Version 1.0.2
+
+* Improved the efficiency of the inner event loop.
+* Fixed a minor bug with timeout handling.
+* Improved the build system to build on RH 6.2 through 7.2.
+* Added an openvpn.spec file for RPM builders (courtesy of Bishop Clark).
+
+2002.03.23 -- Version 1.0
+
+* Added TLS-based authentication and key exchange.
+* Added gremlin mode to stress test.
+* Wrote man page.
+
+2001.12.26 -- Version 0.91
+* Added any choice of cipher or HMAC digest.
+
+2001.5.13 -- Version 0.90
+
+* Initial release.
+* IP tunnel over UDP, with blowfish cipher and SHA1 HMAC signature.

@@ -1,0 +1,21 @@
+OpenVPN -- A Secure tunneling daemon
+
+Copyright (C) 2002 by James Yonan. This program is free software;
+you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+To Build and Install,
+
+	./configure
+	make
+	make install
+
+or see the file INSTALL for more info.
+
+For detailed information on OpenVPN, including examples,
+  see the man page ( man ./openvpn.8 ).
+
+For a description of OpenVPN's underlying protocol,
+  see the file ssl.h included in the source distribution.

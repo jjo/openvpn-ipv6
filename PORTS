@@ -1,0 +1,15 @@
+OpenVPN
+Copyright 2002 by James Yonan <jim@yonan.net>
+
+Currently Supported Platforms:
+	Linux 2.2+
+
+I think a windows port of OpenVPN would be awesome.
+
+I've written OpenVPN to try to avoid features
+that are not standardized well across multiple
+OSes such as forking and multi-threading,
+so I don't think porting OpenVPN itself will be much
+of a problem.  I would probably do it in a weekend
+if somebody got the TUN/TAP driver ported over
+first. -- James

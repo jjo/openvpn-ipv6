@@ -1,0 +1,1218 @@
+.\" Manual page for openvpn
+.\" SH section heading
+.\" SS subsection heading
+.\" LP paragraph
+.\" IP indented paragraph
+.\" TP hanging label
+openvpn
+.TH openvpn 8 "22 March 2002"
+.SH NAME
+openvpn \- secure IP tunnel daemon.
+.SH SYNOPSIS
+.LP
+.nh
+.in +4
+.ti -4
+.B openvpn
+[\ \fB\-\-help\fR\ ]
+[\ \fB\-\-local\fR\ \fIhost\fR\ ]
+[\ \fB\-\-remote\fR\ \fIhost\fR\ ]
+[\ \fB\-\-float\fR\ ]
+[\ \fB\-\-ipchange\fR\ \fIcmd\fR\ ]
+[\ \fB\-\-port\fR\ \fIport\fR\ ]
+[\ \fB\-\-lport\fR\ \fIport\fR\ ]
+[\ \fB\-\-rport\fR\ \fIport\fR\ ]
+[\ \fB\-\-nobind\fR\ ]
+[\ \fB\-\-dev\fR\ \fITUNx\ |\ TAPx\fR\ ]
+[\ \fB\-\-tun\-mtu\fR\ \fIn\fR\ ]
+[\ \fB\-\-udp\-mtu\fR\ \fIn\fR\ ]
+[\ \fB\-\-up\fR\ \fIcmd\fR\ ]
+[\ \fB\-\-down\fR\ \fIcmd\fR\ ]
+[\ \fB\-\-user\fR\ \fIuser\fR\ ]
+[\ \fB\-\-chroot\fR\ \fIdir\fR\ ]
+[\ \fB\-\-daemon\fR\ ]
+[\ \fB\-\-nice\fR\ \fIn\fR\ ]
+[\ \fB\-\-verb\fR\ \fIn\fR\ ]
+[\ \fB\-\-gremlin\fR\ ]
+[\ \fB\-\-comp\-lzo\fR\ ]
+[\ \fB\-\-comp\-noadapt\fR\ ]
+[\ \fB\-\-secret\fR\ \fIfile\fR\ ]
+[\ \fB\-\-auth\fR\ \fIalg\fR\ ]
+[\ \fB\-\-cipher\fR\ \fIalg\fR\ ]
+[\ \fB\-\-keysize\fR\ \fIn\fR\ ]
+[\ \fB\-\-timestamp\fR\ \fIn\fR\ ]
+[\ \fB\-\-packet\-id\fR\ ]
+[\ \fB\-\-rand\-iv\fR\ ]
+[\ \fB\-\-tls\-server\fR\ ]
+[\ \fB\-\-tls\-client\fR\ ]
+[\ \fB\-\-ca\fR\ \fIfile\fR\ ]
+[\ \fB\-\-dh\fR\ \fIfile\fR\ ]
+[\ \fB\-\-cert\fR\ \fIfile\fR\ ]
+[\ \fB\-\-key\fR\ \fIfile\fR\ ]
+[\ \fB\-\-tls\-cipher\fR\ \fIl\fR\ ]
+[\ \fB\-\-tls\-timeout\fR\ \fIn\fR\ ]
+[\ \fB\-\-reneg\-bytes\fR\ \fIn\fR\ ]
+[\ \fB\-\-reneg\-pkts\fR\ \fIn\fR\ ]
+[\ \fB\-\-reneg\-sec\fR\ \fIn\fR\ ]
+[\ \fB\-\-reneg\-err\fR\ \fIn\fR\ ]
+[\ \fB\-\-hand\-window\fR\ \fIn\fR\ ]
+[\ \fB\-\-tran\-window\fR\ \fIn\fR\ ]
+[\ \fB\-\-tls\-auth\fR\ \fIf\ t\fR\ ]
+[\ \fB\-\-tls\-freq\fR\ \fIn\fR\ ]
+[\ \fB\-\-askpass\fR\ ]
+[\ \fB\-\-tls\-verify\fR\ \fIcmd\fR\ ]
+[\ \fB\-\-show\-ciphers\fR\ ]
+[\ \fB\-\-show\-digests\fR\ ]
+[\ \fB\-\-show\-tls\fR\ ]
+[\ \fB\-\-genkey\fR\ ]
+[\ \fB\-\-mktun\fR\ ]
+[\ \fB\-\-rmtun\fR\ ]
+.hy
+.SH DESCRIPTION
+.LP
+OpenVPN is a robust and highly configurable secure tunneling daemon which
+tunnels IP networks over UDP.  OpenVPN provides a comprehensive suite of
+security features including conventional encryption, public key encryption,
+dynamic key exchange, perfect forward security,
+and the choice of any cipher, key size, or HMAC digest (for packet
+authentication) offered by the
+.B OpenSSL
+library.
+
+OpenVPN supports
+conventional encryption
+using a shared private key
+.B (static key mode)
+or
+public key encryption
+.B (TLS-mode)
+using client & server certificates.
+OpenVPN also
+supports non-encrypted UDP tunnels.  
+
+When used in 
+public key
+encryption mode, OpenVPN utilizes the
+.B TLS
+protocol for peer authentication and dynamic key exchange.
+TLS is the latest evolution of the SSL family of protocols developed
+originally by Netscape for their first secure web browser.
+TLS and its SSL predecessors
+have seen widespread usage on the web for many years
+and have been extensively analyzed for weaknesses.  As such,
+I believe TLS is an excellent choice for the authentication and key exchange
+mechanism of a VPN product.
+
+In TLS mode, OpenVPN uses a dual control-channel/data-channel mode of operation.
+The control channel runs a TLS session which is used to exchange randomly
+generated cipher and HMAC keys.
+Those keys are then used to encrypt and authenticate the data channel.
+Both channels are multiplexed
+over a single UDP port.  A reliability layer is placed over the control channel
+since TLS expects a reliable connection.  The data channel is passed unmediated
+over the UDP channel since the higher level protocols running over the tunnel
+(such as TCP)
+will expect such behaviour.  The control channel will trigger a new key
+exchange handshake periodically, according to user-specified parameters.
+
+OpenVPN's key exchange protocol has been designed for both security
+and resilience to unreliable network conditions.  The protocol
+has been rigorously stress-tested in situations that simulate highly unreliable
+networks which drop packets, suffer intermittent losses of connectivity,
+and even corrupt packet data.  No version of OpenVPN is released unless
+it passes this test suite
+(see the
+.B --gremlin 
+option below).
+
+OpenVPN is designed to work with the
+.B TUN/TAP driver
+which supports both IP and Ethernet
+tunneling.  OpenVPN supports both dynamic and persistent TUN/TAP tunnels.
+.LP
+OpenVPN is designed to work well on systems which have dynamically assigned IP
+addresses such as dial-in or DHCP users.  OpenVPN has no problem remaining in sync
+even if
+.I both
+peers possess dynamic IP addresses, as long as they don't change their IP addresses
+simultaneously.
+
+OpenVPN is primarily a peer-to-peer application though it supports some
+client/server modes such as the ability to designate a peer as
+either a TLS server or client, or the ability to instantiate an OpenVPN peer without
+an explicit remote peer address.
+
+OpenVPN never uses more than a single UDP port to communicate with its peer.  OpenVPN
+doesn't use the
+.B GRE
+protocol which can be a benefit for users running on networks that
+discriminate against VPN users by blocking the GRE protocol.
+
+OpenVPN is highly efficient while giving users flexibility in choosing
+tradeoffs between efficiency and security.  All security options
+which add packet overhead can be enabled or disabled with
+command line options.
+
+OpenVPN's build system is based on
+.B autoconf
+and offers
+several build options.  It can be built standalone, in which
+case it will only offer non-encrypted UDP tunnels; it can be built
+with the
+.B LZO
+real-time compression library; it can be built with the
+OpenSSL crypto library which will give support for static private key encryption;
+and it can be built with the OpenSSL SSL library which will give full support
+for certificates and TLS-based dynamic key exchange.  For more information, consult
+the
+.B INSTALL
+file included with every distribution of OpenSSL.
+
+OpenVPN aims to offer many of the key features of IPSec but
+with a very lightweight footprint.
+.SH OPTIONS
+.TP
+.B --help
+Show options.
+.SS Tunnel Options:
+It should be noted that OpenVPN is a peer-to-peer application.  Each peer establishes
+a symmetrical UDP link with its partner.  If an OpenVPN session is started without
+an explicitly specified remote peer, OpenVPN will
+wait until it receives an authenticated
+packet from any IP address, in which case it will take this address as its peer.
+
+One of the ramifications of this behaviour is that either
+OpenVPN peer can be halted and restarted, and link will immediately resume.
+
+OpenVPN also provides a session-usurp feature:
+once a new session is authenticated it will
+usurp an old session.  This is useful for dial-in users.
+If your modem disconnects, and you
+must reconnect to your ISP from a different IP address,
+you will immediately be able to reconnect
+to your remote OpenVPN peer and take control of the session.
+An OpenVPN peer will never ignore an authenticated connection request,
+even if it is busy trying to communicate with
+an old IP address that just got disconnected.
+
+An OpenVPN peer will try to stay connected indefinitely, even under conditions of
+high network error frequency, until it receives a SIGINT or SIGTERM signal.
+A major design goal of OpenVPN is that it should be as responsive, in terms of both normal
+operations and error recovery, as the underlying IP layer that it is tunneling over.
+That means that if the IP layer goes down for 5 minutes, when it comes back up,
+tunnel traffic will immediately resume even if the outage interfered with
+a dynamic key exchange which was scheduled during that time.
+Because OpenVPN runs in a single-process, single-thread mode, and exclusively uses
+non-blocked I/O, it is fairly immune to the problem of hung or unresponsive processes.
+
+Another ramification of being a peer-to-peer application is
+that OpenVPN will not dynamically
+fork to accept new clients. 
+If you have three clients who need to securely connect to a machine,
+you should run 3 instantiations of OpenVPN on that machine,
+each on a different UDP port
+number.  This has certain advantages, among them being the
+independence of each OpenVPN session.
+If you need to bring one session down it won't
+interfere with the others.  If you have tens
+or hundreds of clients who want to connect to a
+secure network, then you may want to consider
+a more scalable solution such as IPSec.  OpenVPN is designed for
+small networks but with
+strong security requirements.  That being said however,
+there's no reason why OpenVPN couldn't
+scale to many users with the right underlying administration infrastructure.
+.TP
+.B --local host
+Local host name or IP address.
+If specified, OpenVPN will bind to this address only.
+If unspecified, OpenVPN will bind to all interfaces.
+.TP
+.B --remote host
+Remote host name or IP address.  If unspecified, OpenVPN will listen
+for packets from any IP address, but will not act on those packets unless
+they pass all authentication tests.  This requirement for authentication
+is binding on all potential peers, even those from known and supposedly
+trusted IP addresses (it is very easy to forge a source IP address on
+a UDP packet).
+.TP
+.B --float
+Allow remote peer to change its IP address, such as due to
+DHCP (this is the default if
+.B --remote
+is not used).
+.B --float
+when specified with
+.B --remote
+allows an OpenVPN session to initially connect to a peer
+at a known address, however if packets arrive from a new
+address and pass all authentication tests, the new address
+will take control of the session.  This is useful when
+you are connecting to a peer which holds a dynamic address
+such as a dial-in user or DHCP client.
+.TP
+.B --ipchange cmd
+Execute shell command
+.B cmd
+when our remote ip-address is initially authenticated or
+changes.
+
+Execute as:
+
+.B cmd ip-address port-number
+
+Commas (',') may be used to separate multiple args in
+.B cmd.
+Before the command line is passed to the shell, all commas
+will be converted to spaces.
+
+If you are running in a dynamic IP address environment where
+the IP addresses of either peer could change without notice,
+you can use this script, for example, to edit the
+.I /etc/hosts
+file with the current address of the peer.  The script will
+be run every time the remote peer changes its IP address.
+
+Similarly if
+.I our
+IP address changes due to DHCP
+, we should configure
+our IP address change script (see man page for
+.BR dhcpcd (8)
+) to deliver a SIGHUP signal to OpenVPN.  OpenVPN will then
+reestablish a connection with its most recently authenticated
+peer on its new IP address.
+.TP
+.B --port port
+UDP port number for both local and remote.
+.TP
+.B --lport port
+UDP port number for local (default=5000).
+.TP
+.B --rport port
+UDP port number for remote (default=5000).
+.TP
+.B --nobind
+Do not bind to local address and port.  The IP stack will allocate
+a dynamic port for returning packets.  Since the value of the dynamic port
+could not be known in advance by a peer, this option is only suitable for
+peers which will be initiating connections by using the
+.B --remote
+option.
+.TP
+.B --dev TUNx | TAPx
+tun/tap virtual network device (
+.B x
+can be omitted for dynamic device in
+Linux 2.4+).  See examples section below
+for an example on setting up a TUN device.
+.TP
+.B --tun-mtu n
+Take the TUN device MTU to be
+.B n
+and derive the UDP MTU
+from it (default=1450).
+
+Note: It's not necessary to define this option if you are
+using an MTU size of 1450 when you
+.BR ifconfig (8)
+the TUN/TAP device. 
+
+The MTU (Maximum Transmission Units) is
+the maximum packet size in bytes that can be sent unfragmented
+over a particular network interface.  OpenVPN requires that packets
+on the control or data channels be sent unfragmented.  OpenVPN
+adds a small amount of overhead to each tunnel packet before
+it is forwarded from the TUN device over the secure UDP channel.
+This overhead consists of data fields such as the HMAC signature,
+packet ID, encryption block padding, etc.  Because of this overhead,
+the TUN device MTU should be slightly smaller than the UDP device
+MTU to make room for the extra bytes which OpenVPN adds to every
+data channel packet.  OpenVPN allows you to explicitly specify either
+the TUN MTU or the UDP MTU (but not both).  OpenVPN will then
+compute the value you didn't specify based on the value you did.
+OpenVPN will compute exactly how much overhead it will need to add
+to each packet, based on the other options you specify.  If you
+specify an
+.B --up
+script, OpenVPN will pass the TUN MTU and UDP MTU values on the command line
+to the script.
+.TP
+.B --udp-mtu n
+Take the UDP device MTU to be n and derive the TUN MTU
+from it (disabled by default).  See
+.B --tun-mtu
+above more more information on MTU.
+
+Note: It's not necessary to define this option if you are
+using an MTU size of 1450 when you
+.BR ifconfig (8)
+the TUN/TAP device. 
+.TP
+.B --up cmd
+Shell command to run after successful TUN/TAP device open
+(pre
+.B --user
+UID change).
+
+Execute as:
+
+.B cmd tun/tap-dev tun-mtu udp-mtu
+
+Typically,
+.B cmd
+will run a script such as:
+
+.B ifconfig $1 10.1.0.1 pointopoint 10.1.0.2 mtu $2
+
+If you use
+.B --udp-mtu 1500
+in conjunction with the script above, OpenVPN
+will pass as $2 the precise MTU value to configure
+the TUN/TAP device for transport over an internet
+tunnel.
+.TP
+.B --down cmd
+Shell command to run after TUN/TAP device close
+(post
+.B --user
+UID change and/or
+.B --chroot
+).  Called with the same parameters as
+.B --up
+above.
+.TP
+.B --user user
+Drop privileges to
+.B user
+after initialization.  This option is useful to protect the system
+in the event that some hostile party was able to gain control of
+an OpenVPN session.  Though OpenVPN's security features make
+this unlikely, it is provided as a second line of defense.
+
+By setting
+.B user
+to
+.I nobody
+or somebody similarly unprivileged, the hostile party would be
+limited in what damage they could cause.  Of course once
+you take away privileges, you cannot return them
+to an OpenVPN session.  This means, for example, that the
+.B --down
+script is limited to executing unprivileged commands and that the OpenVPN
+daemon might not be able to respond successfully to a
+.B SIGHUP
+signal, because in order to restart it would need to read protected
+key files such as private keys.
+.TP
+.B --chroot dir
+Chroot to
+.B dir
+before initialization.  
+.B --chroot
+essentially redefines
+.B dir
+as being the top
+level directory tree (/).  OpenVPN will therefore
+be unable to access any file outside this tree.
+This can be desirable from a security standpoint.
+
+The caveat here is that every file that
+OpenVPN might possibly need must exist within the chroot directory tree,
+including special files such
+.B /dev/random
+(which is necessary in TLS mode or if
+.B --rand-iv
+is specified).
+.TP
+.B --daemon
+Become a daemon and write all messages to the syslog file (such as /var/log/messages).
+.TP
+.B --nice n
+Change process priority after initialization
+(greater than 0 is lower priority, less than zero is higher priority).
+Note that if you are running in TLS mode, TLS key exchanges can be CPU
+intensive, so use caution in raising OpenVPN's priority.
+.TP
+.B --verb n
+Set output verbosity to
+.B n
+(default=1).  Each level shows all info from the previous levels.
+
+.B 0 --
+no output except fatal errors
+.br
+.B 1 --
+show startup header + non-fatal encryption & net errors
+.br
+.B 2 --
+show all parameter settings
+.br
+.B 3 --
+show key negotiations +
+.B --gremlin
+net outages
+.br
+.B 4 --
+show partial TLS debug info
+.br
+.B 5 --
+show adaptive compression state changes (on or off)
+.br
+.B 6 --
+show hex representation of keys
+.br
+.B 7 --
+show verbose key negotiations
+.br
+.B 8 --
+show all debug info
+.TP
+.B --gremlin
+Simulate dropped & corrupted packets + network outages
+(for debugging and testing only).  This is a
+powerful tool for verifying the robustness of the OpenVPN protocol,
+especially in TLS mode.  When used with TLS parameters that force
+frequent key renegotiations such as
+.B --reneg-sec 10,
+this option will stress-test the ability of OpenVPN peers to recover
+from errors and remain in sync.
+Current parameter settings will cause
+.B --gremlin
+to drop 2% of packets and corrupt 4%.  A packet corruption will
+alter a random byte in the packet to a random value.  It might
+also increase or decrease the size of the packet by one byte.
+.B --gremlin
+will also simulate network outages by going "down"
+for a period of 10 to 60 seconds.
+Between simulated outages, OpenVPN will
+remain up for periods of 10 to 300 seconds.  To see gremlin
+messages, set
+.B --verb
+to 3 or higher.  To change gremlin constants, consult the
+file gremlin.c included in the OpenVPN source distribution.
+.TP
+.B --comp-lzo
+Use fast LZO compression -- may add up to 1 byte per
+packet for uncompressible data.
+.TP
+.B --comp-noadapt
+When used in conjunction with
+.B --comp-lzo,
+this option will disable OpenVPN's adaptive compression algorithm.
+Normally, adaptive compression is enabled with
+.B --comp-lzo.
+
+Adaptive compression tries to optimize the case where you have
+compression enabled, but you are sending predominantly uncompressible
+(or pre-compressed) packets over the tunnel.  With adaptive compression,
+OpenVPN will periodically sample the compression process to see if
+it's actually saving us anything.  If not, we will disable compression
+for a period of time, then resample.
+.B 
+.SS Data Channel Encryption Options:
+These options are meaningful for both Static & TLS-negotiated key modes
+(must be compatible between peers).
+.TP
+.B --secret file
+Enable Static Key encryption mode (non-TLS).
+Use shared secret file which was generated with
+.B --genkey.
+Static key encryption mode has certain advantages, the biggest
+probably being the ease of configuration.  There are no certificates
+or certificate authorities or complicated negotiation handshakes and protocols.
+The only requirement is that you have a pre-existing secure channel with
+your peer (such as
+.B ssh
+) to initially copy the key.  This requirement, along with the
+fact that your key never changes unless you manually generate a new one,
+makes it somewhat less secure than TLS mode (see below).  If an attacker
+manages to steal your key, everything that was ever encrypted with
+it is compromised.  Contrast that to the perfect forward security features of
+TLS mode where even if an attacker was able to steal your private key,
+he would gain no information to help him decrypt past sessions.
+.TP
+.B --auth alg
+Authenticate packets with an HMAC using message
+digest algorithm
+.B alg.
+(The default is
+.B SHA1
+).
+HMAC is a commonly used authentication algorithm that uses
+a data string, a secure hash algorithm, and a key, to produce
+a digital signature.  HMAC has the property that it is infeasable
+for an attacker with access to a signed string to find another string
+which would sign to the same signature or generate a valid signature
+for his own string.  One weakness of HMAC is that it does not
+protect against replay attacks, where a man-in-the-middle
+attacker tries to play back packets which have already been sent.
+To defeat replay attacks, OpenVPN provides the
+.B --timestamp
+and
+.B --packet-id
+options (see below).  In static-key encryption mode, the HMAC key
+is included in the key file generated by
+.B --genkey.
+In TLS mode, the HMAC key is dynamically generated and shared
+between peers via the TLS control channel.  If OpenVPN receives a packet with
+a bad HMAC it will drop the packet.
+HMAC usually adds 16 or 20 bytes per packet.
+Set
+.B alg=none
+to disable authentication.
+
+For more information on HMAC see
+.I http://www.cs.ucsd.edu/users/mihir/papers/hmac.html
+.TP
+.B --cipher alg
+Encrypt packets with cipher algorithm
+.B alg.
+The default is
+.B BF-CBC,
+an abbreviation for Blowfish in Cipher Block Chaining mode.
+Blowfish has the advantages of being fast, very secure, and allowing key sizes
+of up to 448 bits.  Blowfish is designed to be used in situations where
+keys are changed infrequently.
+
+For more information on blowfish, see
+.I http://www.counterpane.com/blowfish.html
+
+To see other ciphers that are available with
+OpenVPN, use the
+.B --show-ciphers
+option.
+Set
+.B alg=none
+to disable encryption.
+.TP
+.B --keysize n
+Size of cipher key in bits (optional).
+If unspecified, defaults to cipher-specific default.  The
+.B --show-ciphers
+option (see below) shows all available OpenSSL ciphers,
+their default key sizes, and whether the key size can
+be changed.  Use care in changing a cipher's default
+key size.  Many ciphers have not been extensively
+cryptanalyzed with non-standard key lengths, and a
+larger key may offer no real guarantee of greater
+security, or may even reduce security.
+.TP
+.B --timestamp n
+Use a packet timestamp scheme to defeat replay attacks
+(adds 4 bytes/packet),
+.B n
+= max number of seconds difference
+between peer timestamps (default=30).  This is the
+recommended form of replay protection for static key
+encryption mode, though it requires that both peer clocks be synchronized.
+When timestamp mode is enabled, OpenVPN will write the current system
+time to every packet it sends to its peer.  The timestamp will be protected
+against alteration by the HMAC signature.  When a packet is received,
+OpenVPN will take the difference between the current system time and the
+packet timestamp.  If that difference is greater than
+.B n,
+OpenVPN will drop the packet.  Note that
+.B --timestamp
+does not offer complete replay protection.  An attacker could replay a packet
+immediately after transit and that packet would be accepted because the time
+delta would be less than
+.B n.
+If you want better protection against replays, use TLS mode and
+.B --packet-id.
+.TP
+.B --packet-id
+Use a unique packet identifier to defeat replay attacks
+(adds 4 bytes/pkt).  This is the recommended form of
+replay protection for TLS mode.  This option tags each
+packet with an incrementing 32-bit ID which is unique
+for the current key.  The receiver of the packet ID
+uses a recognition algorithm that guarantees that
+each packet ID will be accepted only once.  In the
+unlikely event that you try to encrypt more than
+2^32 packets with the same key, OpenVPN will trigger
+a key renegotiation before you wrap the packet ID
+back to zero.  While
+.B --packet-id
+can be used
+in static key encryption mode, there are some caveats.
+One is that you cannot encrypt more than 2^32 packets
+in one OpenVPN session.  Another is that if you
+restart OpenVPN, you will be reusing
+the same packet-id sequence with the same key.
+That essentially defeats the purpose of using
+packet IDs for replay protection in the first place,
+since a recycled packet ID sequence cannot be used to ensure
+that the same packet
+is never accepted more than once.
+.TP
+.B --rand-iv
+Use a random IV for each packet encryption
+(adds 8 bytes/packet).  The IV is the initial state
+of the encryption or decryption process.  If the
+IV is randomized it provides additional barriers
+to cryptanalysis, since identical plaintext will
+nearly always encrypt to different ciphertext.
+.SS TLS Mode Options:
+TLS mode is the most powerful mode of OpenVPN in both security and flexibility.
+TLS mode works by establishing control and
+data channels which are multiplexed over a single UDP port.  OpenVPN initiates
+a TLS session over the control channel and uses it to exchange cipher
+and HMAC keys to protect the data channel.  TLS mode uses a robust reliability
+layer over the UDP connection for all control channel communication, while
+the data channel, over which encrypted tunnel data passes, is forwarded without
+any mediation.  The result is the best of both worlds: a fast data channel
+that forwards over UDP with only the overhead of encrypt,
+decrypt, and HMAC functions,
+and a control channel that provides all of the security features of TLS,
+including perfect forward security.
+.TP
+.B --tls-server
+Enable TLS and assume server role during TLS handshake.  Note that
+OpenVPN is designed as a peer-to-peer application.  The designation
+of client or server is only for the purpose of negotiating the TLS
+control channel.
+.TP
+.B --tls-client
+Enable TLS and assume client role during TLS handshake.
+.TP
+.B --ca file
+Certificate authority (CA) file in .pem format.  This file can have multiple
+certificates in .pem format, concatenated together.  You can construct your own
+certificate authority certificate and private key by using a command such as:
+
+.B openssl req -nodes -new -x509 -keyout test-ca.key -out test-ca.crt
+
+For testing purposes only, the OpenVPN distribution includes a sample
+CA certificate (test-ca.crt).
+Of course you should never use
+the test certificates and test keys distributed with OpenVPN in a
+production environment, since by virtue of the fact that
+they are distributed with OpenVPN, they are totally insecure.
+.TP
+.B --dh file
+File containing Diffie Hellman parameters
+in .pem format (required for
+.B --tls-server
+only). Use
+
+.B openssl dhparam -out dh1024.pem 1024
+
+to generate your own, or use the existing dh1024.pem file
+included with the OpenVPN distribution.  Diffie Hellman parameters
+may be considered public.
+.TP
+.B --cert file
+Peer's signed certificate in .pem format -- must be signed
+by a certificate authority whose certificate is in
+.B --ca file.
+Each peer in an OpenVPN link running in TLS mode should have its own
+certificate and private key file.  In addition, each certificate should
+have been signed by the key of a certificate
+authority whose public key resides in the
+.B --ca
+certificate authority file.
+You can easily make your own certificate authority (see above) or pay money
+to use a commercial service such as thawte.com (in which case you will be
+helping to finance the world's second space tourist :).
+To generate a certificate,
+you can use a command such as:
+
+.B openssl req -nodes -new -keyout mycert.key -out mycert.csr
+
+If your certificate authority private key lives on another machine, copy
+the certificate signing request (mycert.csr) to this other machine (this can
+be done over an insecure channel such as email).  Now sign the certificate
+with a command such as:
+
+.B openssl ca -out mycert.crt -in mycert.csr
+
+Now copy the certificate (mycert.crt)
+back to the peer which initially generated the .csr file (this
+can be over a public medium).
+Note that the
+.B openssl ca
+command reads the location of the certificate authority key from its
+configuration file such as /usr/share/ssl/openssl.cnf -- note also
+that for certificate authority functions, you must set up the files
+index.txt (may be empty) and serial (initialize to
+.B 
+01
+).
+.TP
+.B --key file
+My private key in .pem format.  Use the private key which was generated
+when you built your peer's certificate (see
+.B -cert file
+above).
+.TP
+.B --tls-cipher l
+A list l of allowable TLS ciphers separated by
+.B |
+(optional).  If you require a high level of security,
+you may want to set this parameter manually, to prevent a
+version rollback attack where a man-in-the-middle attacker tries
+to force two peers to negotiate to the lowest level
+of security they both support.
+Use
+.B --show-tls
+to see a list of supported TLS ciphers.
+.TP
+.B --tls-timeout n
+Packet retransmit timeout on TLS control channel
+if no acknowledgement from remote within
+.B n
+seconds (default=5).  When OpenVPN sends a control
+packet to its peer, it will expect to receive an
+acknowledgement within
+.B n
+seconds or it will retransmit the packet.  This parameter
+only applies to control channel packets.  Data channel
+packets (which carry encrypted tunnel data) are never
+acknowledged, sequenced, or retransmitted by OpenVPN because
+the higher level network protocols running on top of the tunnel
+such as TCP expect this role to be left to them.
+.TP
+.B --reneg-bytes n
+Renegotiate data channel key after
+.B n
+bytes sent or received (disabled by default).
+OpenVPN allows the lifetime of a key
+to expressed as a number of bytes encrypted/decrypted, a number of packets, or
+a number of seconds.  A key renegotiation will be forced
+if any of these three criteria are met by either peer.
+.TP
+.B --reneg-pkts n
+Renegotiate data channel key after
+.B n
+packets sent and received (disabled by default).
+.TP
+.B --reneg-sec n
+Renegotiate data channel key after
+.B n
+seconds (default=3600).
+.TP
+.B --reneg-err n
+Renegotiate data channel key after
+.B n
+HMAC authentication errors (default=20).  This option deals with an improbable
+scenario where two OpenVPN peers get their keys out of sync.  I've never seen
+this occur in practice, though the
+.B --gremlin
+mode has shown that in theory it could occur in a highly unreliable network
+environment with a large percentage of dropped packets.  Basically, this option
+forces a key renegotiation if we get too many HMAC errors on the data channel.
+.TP
+.B --hand-window n
+Handshake Window -- the TLS-based key exchange must finalize within
+.B n
+seconds
+of handshake initiation by any peer (default = 60 seconds).
+If the handshake fails
+we will attempt to reset our connection with our peer and try again.
+Even in the event of handshake failure we will still use
+our expiring key for up to
+.B --tran-window
+seconds to maintain continuity of transmission of tunnel
+data.
+.TP
+.B --tran-window n
+Transition window -- our old key can live this many seconds
+after new a key renegotiation begins (default = 3600 seconds).
+This is a powerful feature that contributes to the robustness
+of the OpenVPN key negotiation protocol.  Even during periods
+of extremely poor network connectivity between peers, with
+significant dropped packets, OpenVPN
+will never let the failure of a key exchange handshake interfere with
+the continuing transmission of tunnel data.
+.TP
+.B --tls-auth f t
+Add an additional layer of authentication on top of the TLS
+control channel to protect against DOS attacks.
+.B f
+(required) is a shared-secret passphrase file.
+.B t
+(optional) is a maximum number of seconds timestamp delta
+between peers (default=3600, 0 to disable).
+NOTE: using 
+.B t
+requires that peer clocks be synchronized.
+
+The rationale for
+this feature is as follows.  TLS requires a multi-packet exchange
+before it is able to authenticate a peer.  During this time
+before authentication, OpenVPN is allocating resources (memory
+and CPU) to this potential peer.  The potential peer is also
+exposing many parts of OpenVPN and the OpenSSL library to the packets
+it is sending.  Most successful network attacks today seek
+to either exploit bugs in programs (such as buffer overflow attacks) or
+force a program to consume so many resources that it becomes unusable.
+Of course the first line of defense is always to produce clean,
+well-audited code.  OpenVPN has been written with buffer overflow
+attack prevention as a top priority.
+But as history has shown, many of the most widely used
+network applications have, from time to time,
+fallen to buffer overflow attacks.
+
+So as a second line of defense, OpenVPN offers
+this special layer of authentication on top of the TLS control channel so that
+every packet on either the control or data channels is authenticated by an
+HMAC signature.
+This signature will also help protect against DOS (Denial of Service) attacks.
+An important rule of thumb in reducing vulnerability to DOS attacks is to
+minimize the amount of resources a potential, but as yet unauthenticated,
+client is able to consume.
+
+.B --tls-auth
+does this by signing every TLS control channel packet with an HMAC signature,
+including packets which are sent before the TLS level has had a chance
+to authenticate the peer.  The result is that packets without
+the correct signature can be dropped immediately upon reception,
+before they have a chance to consume additional system resources
+such as by initiating a TLS handshake.
+It should be emphasized that this feature is optional and that the
+passphrase file used with
+.B --tls-auth
+gives a peer nothing more than the power to initiate a TLS
+handshake.  It is not used to encrypt or authenticate any tunnel data.
+.TP
+.B --tls-freq n
+Wait
+.B n
+seconds between each TLS packet transmit if we
+already possess a valid but retiring key.  Prevents the TLS control channel
+from hogging bandwidth during key exchanges (default = 2 seconds).
+Set to 0 to disable.
+.TP
+.B --askpass
+Get PEM password from controlling tty before we daemonize.  For the extremely
+security conscious, it is possible to protect your private key with
+a password.  Of course this means that every time the OpenVPN
+daemon is started you must be there to type the password.  The
+.B --askpass
+option allows you to start OpenVPN from the command line.  It will
+query you for a password before it daemonizes.  To protect a private
+key with a password you should omit the
+.B -nodes
+option when you use the
+.B openssl
+command line tool to manage certificates and private keys.
+.TP
+.B --tls-verify cmd
+Execute shell command
+.B cmd
+to verify the X509 name of a
+pending TLS connection that has otherwise passed all other
+tests of certification.
+.B cmd
+should return 0 to allow the TLS handshake to proceed, or 1 to fail.
+.B cmd
+is executed as
+
+.B cmd certificate_depth X509_NAME_oneline
+
+Commas (',') may be used to separate multiple args in
+.B cmd.
+
+Before the command line is passed to the shell, all commas
+will be converted to spaces.
+
+This feature is useful if the peer you want to trust has a certificate
+which was signed by a certificate authority who also signed a zillion
+other certificates.  In this case you want to be selective about which
+peer certificate you accept.  This feature allows you to write a script
+which will test the X509 name on a certificate and decide whether or
+not it should be accepted.  For a simple perl script which will test
+the common name field on the certificate, see the file
+.B verify-cn
+in the OpenVPN distribution.
+.SS SSL Library information:
+.TP
+.B --show-ciphers
+Show all cipher algorithms to use with the
+.B --cipher
+option.
+.TP
+.B --show-digests
+Show all message digest algorithms to use with the
+.B --auth
+option.
+.TP
+.B --show-tls
+Show all TLS ciphers (TLS used only as a control channel).  The TLS
+ciphers will be sorted from highest preference (most secure) to
+lowest.
+.SS Generate a random key
+Used only for non-TLS static key encryption mode.
+.TP
+.B --genkey
+Generate a random key to be used as a shared secret,
+for use with the --secret option.  This file must be shared with the
+peer over a pre-existing secure channel such as
+.BR scp (1)
+.
+.TP
+.B --secret file
+Write key to
+.B file.
+.SS TUN/TAP config mode:
+Available with linux 2.4+
+.TP
+.B --mktun
+Create a persistent tunnel.  Normally TUN/TAP tunnels exist only for
+the period of time that an application has them open.  This option
+takes advantage of the TUN/TAP driver's ability to build persistent
+tunnels that live through multiple instantiations of OpenVPN and die
+only when they are deleted or the machine is rebooted.
+
+One of the advantages of persistent tunnels is that they eliminate the
+need for separate
+.B --up
+and
+.B --down
+scripts to run the appropriate
+.BR ifconfig (8)
+and
+.BR route (8)
+commands.  These commands can be placed in the the same shell script
+which starts or terminates an openvpn session.
+
+Another advantage is that open connections through the TUN/TAP-based tunnel
+will not be reset if the OpenVPN peer restarts.  This can be useful to
+provide uninterrupted connectivity through the tunnel in the event of a DHCP
+reset of the peer's public IP address (see the
+.B --ipchange
+option above).
+.TP
+.B --rmtun
+Remove a persistent tunnel.
+.TP
+.B --dev tunX|tapX
+tun/tap device
+.SH SIGNALS
+.TP
+.B SIGHUP
+Causes OpenVPN to restart and attempt to reopen a network connection with
+its most recently authenticated peer.  This signal is designed to be
+sent when the underlying parameters of the host's network interface change
+such as when the host is a DHCP client and is assigned a new IP address.
+See
+.B --ipchange
+above for more information.
+.TP
+.B SIGINT, SIGTERM
+Causes OpenVPN to exit gracefully.
+.SH TUN/TAP DRIVER SETUP
+If you are running Linux 2.4 or higher, you probably have the TUN/TAP driver
+already installed.  If so, there are still a few things you need to do:
+
+Add to /etc/modules.conf:
+.B alias char-major-10-200 tun
+
+Make device:
+.B mknod /dev/net/tun c 10 200
+
+Load driver:
+.B modprobe tun
+
+If you have Linux 2.2 or earlier, you should obtain version 1.1 of the
+TUN/TAP driver from
+.I http://vtun.sourceforge.net/tun/
+and follow the installation instructions.
+.SH EXAMPLES
+Note: These examples assume you are running
+Linux Kernel 2.4 or higher with the version of the
+TUN/TAP driver which is bundled with the kernel.  The pre-2.4 TUN/TAP driver does
+not support persistent tunnels which we will use in the examples.
+Prior to running these examples, you should have OpenVPN installed on two
+machines with network connectivity between them.  If firewalls exist between
+the two machines, they should be set to forward UDP port 5000.  For purposes
+of our example, our two machines will be called
+.B may.kg
+and
+.B june.kg
+
+In addition the tunnel endpoint for may.kg
+will be 10.1.0.7 and for june.kg 10.1.0.8.
+On both may.kg and june.kg, issue the following
+command to create a persistent tunnel:
+.IP
+.B openvpn --mktun --dev tun7
+.LP
+Now on may, configure the tun device to use the point-to-point protocol.
+.IP
+.B ifconfig tun7 10.1.0.7 pointopoint 10.1.0.8 mtu 1450
+.LP
+Similarly on june:
+.IP
+.B ifconfig tun7 10.1.0.8 pointopoint 10.1.0.7 mtu 1450
+.LP
+.SS A simple tunnel without security:
+.LP
+On may:
+.IP
+.B openvpn --remote june.kg --dev tun7 --verb 7
+.LP
+On june:
+.IP
+.B openvpn --remote may.kg --dev tun7 --verb 7
+.LP
+Now verify the tunnel is working by pinging across the tunnel.
+.LP
+On may:
+.IP
+.B ping 10.1.0.8
+.LP
+On june:
+.IP
+.B ping 10.1.0.7
+.LP
+The
+.B --verb 7
+option will produce verbose output, similar to the
+.BR tcpdump (8)
+program.  Omit the
+.B --verb 7
+option to have OpenVPN run quietly.
+.SS A tunnel with static-key security:
+First build a static key on may.
+.IP
+.B openvpn --genkey --secret key
+.LP
+This command will build a random key file called
+.B key.
+Now copy
+.B key
+to june over a secure medium such as by
+using the
+.B scp
+program.
+.LP
+On may:
+.IP
+.B openvpn --remote june.kg --dev tun7 --verb 4 --secret key
+.LP
+On june:
+.IP
+.B openvpn --remote may.kg --dev tun7 --verb 4 --secret key
+.LP
+Now verify the tunnel is working by pinging across the tunnel.
+.LP
+On may:
+.IP
+.B ping 10.1.0.8
+.LP
+On june:
+.IP
+.B ping 10.1.0.7
+.SS A tunnel with full TLS-based security:
+For this test, we will designate
+.B may
+as the TLS client and
+.B june
+as the TLS server.
+.I Note that client or server designation only has meaning for the TLS subsystem.  It has no bearing on OpenVPN's peer-to-peer, UDP-based communication model.
+
+First, build a separate certificate/key pair
+for both may and june (see above where
+.B --cert
+is discussed for more info).  Then construct
+Diffie Hellman parameters (see above where
+.B --dh
+is discussed for more info).  You can also use the
+included test files client.crt, client.key,
+server.crt, server.key and tmp-ca.crt.
+The .crt files are certificates/public-keys, the .key
+files are private keys, and tmp-ca.crt is a certification
+authority who has signed both
+client.crt and server.crt.  For Diffie Hellman
+parameters you can use the included file dh1024.pem.
+.I Note that all client, server, and certificate authority certificates and keys included in the OpenVPN distribution are totally insecure and should be used for testing only.
+.LP
+On may:
+.IP
+.B openvpn --remote june.kg --dev tun7 --tls-client --ca tmp-ca.crt --cert client.crt --key client.key --reneg-sec 60 --packet-id --verb 5
+.LP
+On june:
+.IP
+.B openvpn --remote may.kg --dev tun7 --tls-server --dh dh1024.pem --ca tmp-ca.crt --cert server.crt --key server.key --reneg-sec 60 --packet-id --verb 5
+.LP
+Now verify the tunnel is working by pinging across the tunnel.
+.LP
+On may:
+.IP
+.B ping 10.1.0.8
+.LP
+On june:
+.IP
+.B ping 10.1.0.7
+.LP
+Notice the
+.B --reneg-sec 60
+option we used above.  That tells OpenVPN to renegotiate
+the data channel keys every minute.
+Since we used
+.B --verb 5
+above, you will see status information on each new key negotiation.
+.SS Routing:
+Assuming you can ping across the tunnel,
+the next step is to route a real subnet over
+the secure tunnel.  Suppose that may and june have two network
+interfaces each, one connected
+to the internet, and the other to a private
+network.  Our goal is to securely connect
+both private networks.  We will assume that may's private subnet
+is 10.0.0.0/24 and june's is 10.0.1.0/24.
+.LP
+First, ensure that IP forwarding is enabled on both peers:
+.IP
+.B echo 1 > /proc/sys/net/ipv4/ip_forward
+.LP
+On may:
+.IP
+.B route add -net 10.0.1.0 netmask 255.255.255.0 gw 10.1.0.8
+.LP
+On june:
+.IP
+.B route add -net 10.0.0.0 netmask 255.255.255.0 gw 10.1.0.7
+.LP
+Now any machine on the 10.0.0.0/24 subnet can
+access any machine on the 10.0.1.0/24 subnet
+over the secure tunnel (or vice versa).
+.SH PROTOCOL
+For a description of OpenVPN's underlying protocol,
+see the file ssl.h included in the OpenVPN source distribution.
+.SH BUGS
+Report all bugs to James Yonan <jim@yonan.net>.  Be sure to put
+"openvpn"
+in the subject line.
+.SH "SEE ALSO"
+.BR dhcpcd (8),
+.BR ifconfig (8),
+.BR openssl (1),
+.BR route (8),
+.BR scp (1)
+.BR ssh (1)
+.SH NOTES 
+.LP
+This product includes software developed by the
+OpenSSL Project (
+.I http://www.openssl.org/
+)
+
+For more information on the TLS protocol, see
+.I http://www.ietf.org/internet-drafts/draft-ietf-tls-rfc2246-bis-01.txt
+
+For more information on the TUN/TAP driver see
+.I http://vtun.sourceforge.net/tun/
+
+For more information on the LZO real-time compression library see
+.I http://www.oberhumer.com/opensource/lzo/
+.SH COPYRIGHT
+Copyright (C) 2002 by James Yonan. This program is free software;
+you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+.SH AUTHORS
+James Yonan <jim@yonan.net>

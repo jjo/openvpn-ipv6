@@ -1,0 +1,55 @@
+OpenVPN -- A Secure tunneling daemon
+
+Copyright (C) 2002 by James Yonan. This program is free software;
+you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Installation Instructions for OpenVPN
+
+REQUIRES:
+  (1) Linux Kernel 2.2 or higher (It will probably port easily to
+      other unices but I haven't tested it).
+  (2) Universal TUN/TAP driver 1.1 as a kernel module or compiled
+      into the kernel -- available from http://vtun.sourceforge.net/tun/
+
+OPTIONAL (but highly recommended):
+  (1) OpenSSL library (0.9.6 or higher)
+      -- available from http://www.openssl.org/
+  (2) LZO real-time compression library
+      -- available from http://www.oberhumer.com/opensource/lzo/
+
+OPTIONAL (for debugging only):
+  (1) Dmalloc library
+      -- available from http://dmalloc.com/
+
+BUILD commands:
+
+	./configure
+	make
+	make install
+
+OPTIONS for ./configure:
+
+--disable-lzo             Do not compile LZO compression support
+--disable-crypto          Do not compile OpenSSL crypto support
+--disable-ssl             Do not compile OpenSSL SSL support for
+                            TLS-based key exchange
+--disable-opto            Build without compiler optimizations
+--disable-debug           Build without debug info
+--with-ssl-headers=DIR    Crypto/SSL Include files location
+--with-ssl-lib=DIR        Crypto/SSL Library location
+--with-lzo-headers=DIR    LZO Include files location
+--with-lzo-lib=DIR        LZO Library location
+--with-leak-check=TYPE    Build with memory leak checking
+                            TYPE = dmalloc or ssl
+
+TUN/TAP Driver Configuration (for the latest version of the driver
+	included with Linux 2.4 or higher):
+
+add to /etc/modules.conf: alias char-major-10-200 tun
+make device: mknod /dev/net/tun c 10 200
+load driver: modprobe tun
+
+See the man page for more information and usage examples.
