@@ -34,10 +34,8 @@ openvpn_SOURCES = basic.h buffer.c buffer.h circ_list.h common.h \
 		  session_id.h shaper.c shaper.h socket.c socket.h \
 		  ssl.c ssl.h syshead.h thread.c thread.h tun.c tun.h
 
-KEY_FILES = dh1024.pem client.crt client.key server.crt server.key tmp-ca.crt tmp-ca.key
-
 man_MANS = openvpn.8
-EXTRA_DIST = $(KEY_FILES) $(man_MANS) \
+EXTRA_DIST = $(man_MANS) \
 	     COPYRIGHT.GPL PORTS openvpn.spec \
 	     easy-rsa sample-config-files sample-keys \
 	     sample-scripts
