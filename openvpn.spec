@@ -1,6 +1,6 @@
 Summary:	A Secure UDP Tunneling Daemon
 Name:		openvpn
-Version:	1.1.1.18
+Version:	1.2.0
 Release:	1
 URL:		http://sourceforge.net/projects/openvpn/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
@@ -45,7 +45,12 @@ UDP port.
 [ %{buildroot} != "/" ] && rm -rf %{buildroot}
 
 %post
-/bin/mknod /dev/net/tun c 10 200 >/dev/null 2>&1
+case "`uname -r`" in
+2.4*)
+	mkdir /dev/net >/dev/null 2>&1
+	mknod /dev/net/tun c 10 200 >/dev/null 2>&1
+	;;
+esac
 /sbin/chkconfig --add %{name}
 
 %preun
@@ -61,6 +66,9 @@ service %{name} stop
 /etc
 
 %changelog
+* Wed May 22 2002 James Yonan <jim@yonan.net> 1.2.0-1
+-- Added mknod for Linux 2.4
+
 * Wed May 15 2002 Doug Keller <dsk@voidstar.dyndns.org> 1.1.1.16-2
 - Added init scripts
 - Added conf file support
