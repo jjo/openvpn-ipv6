@@ -1,6 +1,6 @@
 Summary:	A Secure UDP Tunneling Daemon
 Name:		openvpn
-Version:	1.1.1.14
+Version:	1.1.1.16
 Release:	1
 URL:		http://sourceforge.net/projects/openvpn/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
@@ -26,26 +26,34 @@ UDP port.
 %__make
 
 %install
+[ %{buildroot} != "/" ] && rm -rf %{buildroot}
 #makeinstall
 
-%__install -c -d -m 755 ${RPM_BUILD_ROOT}%{_mandir}/man8
-%__install -c -m 755 %{name}.8 ${RPM_BUILD_ROOT}%{_mandir}/man8
-%__install -c -d -m 755 ${RPM_BUILD_ROOT}%{_sbindir}
-%__install -c -m 755 %{name} ${RPM_BUILD_ROOT}%{_sbindir}
+%__install -c -d -m 755 %{buildroot}%{_mandir}/man8
+%__install -c -m 755 %{name}.8 %{buildroot}%{_mandir}/man8
+%__install -c -d -m 755 %{buildroot}%{_sbindir}
+%__install -c -m 755 %{name} %{buildroot}%{_sbindir}
+
+%__mkdir_p %{buildroot}%{_datadir}/%{name}
+%__cp -pr easy-rsa sample-{config-file,key,script}s %{buildroot}%{_datadir}/%{name}
 
 %clean
-rm -rf $RPM_BUILD_ROOT
+[ %{buildroot} != "/" ] && rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root)
 %doc AUTHORS COPYING COPYRIGHT.GPL INSTALL NEWS PORTS README 
-%doc {client,server,tmp-ca}.{crt,key} dh1024.pem verify-cn
-%doc firewall.sh
-%doc {static,tls}-{home,office}.conf {home,office}.up
-%doc openvpn-{startup,shutdown}.sh
 %{_mandir}/man8/%{name}.8*
 %{_sbindir}/%{name}
+%{_datadir}/%{name}
 
 %changelog
+* Mon May 13 2002 bishop clark (LC957) <bishop@platypus.bc.ca> 1.1.1.14-1
+- Added new directories for config examples and such
+
+* Sun May 12 2002 bishop clark (LC957) <bishop@platypus.bc.ca> 1.1.1.13-1
+- Updated buildroot directive and cleanup command
+- added easy-rsa utilities
+
 * Mon Mar 25 2002 bishop clark (LC957) <bishop@platypus.bc.ca> 1.0-1
 - Initial build.

@@ -53,8 +53,32 @@ void do_ifconfig (const char *dev, const char* dev_type,
 /*
  * Inline functions
  */
+
 static inline void
 tun_adjust_frame_parameters (struct frame* frame, int size)
 {
   frame->extra_tun += size;
+}
+
+/*
+ * Should ifconfig be called before or after
+ * tun dev open?
+ */
+
+#define IFCONFIG_BEFORE_TUN_OPEN 0
+#define IFCONFIG_AFTER_TUN_OPEN  1
+#define IFCONFIG_DEFAULT         1
+
+static inline int
+ifconfig_order()
+{
+#if defined(TARGET_LINUX)
+  return IFCONFIG_AFTER_TUN_OPEN;
+#elif defined(TARGET_SOLARIS)
+  return IFCONFIG_AFTER_TUN_OPEN;
+#elif defined(TARGET_OPENBSD)
+  return IFCONFIG_BEFORE_TUN_OPEN;
+#else
+  return IFCONFIG_DEFAULT;
+#endif
 }

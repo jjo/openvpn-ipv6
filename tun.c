@@ -65,6 +65,7 @@ do_ifconfig (const char *dev, const char* dev_type,
 	msg (M_FATAL, "%s is not a tun device.  The --ifconfig option works only for tun devices.  You should use an --up script to ifconfig a tap device.", dev);
 
 #if defined(TARGET_LINUX)
+
       snprintf (command_line, sizeof (command_line),
 		"ifconfig %s %s pointopoint %s mtu %d",
 		dev,
@@ -72,7 +73,12 @@ do_ifconfig (const char *dev, const char* dev_type,
 		ifconfig_remote,
 		tun_mtu
 		);
+      msg (M_INFO, "%s", command_line);
+      if (openvpn_system (command_line) != 0)
+	msg (M_ERR, "linux ifconfig failed");
+
 #elif defined(TARGET_SOLARIS)
+
       /* example: ifconfig tun2 10.2.0.2 10.2.0.1 mtu 1450 netmask 255.255.255.255 up */
       snprintf (command_line, sizeof (command_line),
 		"ifconfig %s %s %s mtu %d netmask 255.255.255.255 up",
@@ -81,13 +87,41 @@ do_ifconfig (const char *dev, const char* dev_type,
 		ifconfig_remote,
 		tun_mtu
 		);
+      msg (M_INFO, "%s", command_line);
+      if (openvpn_system (command_line) != 0)
+	msg (M_ERR, "solaris ifconfig failed");
+
+#elif defined(TARGET_OPENBSD)
+
+      /*
+       * OpenBSD tun devices appear to be persistent by default.  It seems in order
+       * to make this work correctly, we need to delete the previous instance
+       * (if it exists), and re-ifconfig.  Let me know if you know a better way.
+       */
+
+      snprintf (command_line, sizeof (command_line),
+		"ifconfig %s delete",
+		dev);
+      msg (M_INFO, "%s", command_line);
+      openvpn_system (command_line);
+      msg (M_INFO, "NOTE: Tried to delete pre-existing tun instance -- No Problem if failure");
+
+
+      /* example: ifconfig tun2 10.2.0.2 10.2.0.1 mtu 1450 netmask 255.255.255.255 up */
+      snprintf (command_line, sizeof (command_line),
+		"ifconfig %s %s %s mtu %d netmask 255.255.255.255 up",
+		dev,
+		ifconfig_local,
+		ifconfig_remote,
+		tun_mtu
+		);
+      msg (M_INFO, "%s", command_line);
+      if (openvpn_system (command_line) != 0)
+	msg (M_ERR, "openbsd ifconfig failed");
+
 #else
       msg (M_FATAL, "Sorry, but I don't know how to do 'ifconfig' commands on this operating system.  You should ifconfig your tun/tap device manually or use an --up script.");
 #endif
-
-      msg (M_INFO, "%s", command_line);
-      if (openvpn_system (command_line) != 0)
-	msg (M_ERR, "ifconfig failed");
     }
 }
 
@@ -138,7 +172,7 @@ close_tun_generic (struct tuntap *tt)
   clear_tuntap (tt);
 }
 
-#ifdef TARGET_LINUX
+#if defined(TARGET_LINUX)
 
 #ifdef HAVE_LINUX_IF_TUN_H	/* New driver support */
 
@@ -232,9 +266,7 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
   return read (tt->fd, buf, len);
 }
 
-#endif /* TARGET_LINUX */
-
-#ifdef TARGET_SOLARIS
+#elif defined(TARGET_SOLARIS)
 
 void
 open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
@@ -375,9 +407,7 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
   return getmsg (tt->fd, NULL, &sbuf, &f) >= 0 ? sbuf.len : -1;
 }
 
-#endif /* TARGET_SOLARIS */
-
-#ifdef TARGET_OPENBSD
+#elif defined(TARGET_OPENBSD)
 
 void
 open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
@@ -428,9 +458,7 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
   return openbsd_modify_read_write_return (readv (tt->fd, iv, 2));
 }
 
-#endif /* TARGET_OPENBSD */
-
-#ifdef TARGET_FREEBSD
+#elif defined(TARGET_FREEBSD)
 
 void
 open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
@@ -465,9 +493,7 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
   return read (tt->fd, buf, len);
 }
 
-#endif /* TARGET_FREEBSD */
-
-#ifdef TARGET_DARWIN
+#else /* generic */
 
 void
 open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
@@ -493,32 +519,4 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
   return read (tt->fd, buf, len);
 }
 
-#endif /* TARGET_DARWIN */
-
-#ifdef TARGET_GENERIC
-
-void
-open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
-{
-  open_tun_generic (dev, tt);
-}
-
-void
-close_tun (struct tuntap* tt)
-{
-  close_tun_generic (tt);
-}
-
-int
-write_tun (struct tuntap* tt, uint8_t *buf, int len)
-{
-  return write (tt->fd, buf, len);
-}
-
-int
-read_tun (struct tuntap* tt, uint8_t *buf, int len)
-{
-  return read (tt->fd, buf, len);
-}
-
-#endif /* TARGET_GENERIC */
+#endif

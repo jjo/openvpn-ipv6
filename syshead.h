@@ -190,7 +190,7 @@
 
 #endif /* TARGET_FREEBSD */
 
-#ifdef _POSIX_MEMLOCK
+#ifdef HAVE_SYS_MMAN_H
 #include <sys/mman.h>
 #endif
 

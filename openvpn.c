@@ -86,12 +86,6 @@ static void print_frame_parms(int level, const struct frame *frame, const char* 
  * Used to disable paging.
  */
 
-#ifdef _POSIX_MEMLOCK
-#define	MLOCK (options->mlock) 
-#else
-#define MLOCK (false)
-#endif
-
 /*
  * Finish initialization of the frame MTU parameters
  * based on command line options and buffering requirements.
@@ -288,10 +282,8 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
       /* save process ID in a file */
       write_pid (options->writepid);
 
-#ifdef _POSIX_MEMLOCK
       if (options->mlock) /* should we disable paging? */
 	do_mlockall (true);
-#endif
 
       /* chroot if requested */
       do_chroot (options->chroot_dir);
@@ -552,17 +544,24 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
     }
 #endif
 
+  /* do ifconfig */
+  if (ifconfig_order() == IFCONFIG_BEFORE_TUN_OPEN)
+    do_ifconfig (options->dev, options->dev_type,
+		 options->ifconfig_local, options->ifconfig_remote,
+		 MAX_RW_SIZE_TUN (&frame));
+
   /* open the tun device */
   open_tun (options->dev, options->dev_type, &tuntap);
+
+  /* do ifconfig */  
+  if (ifconfig_order() == IFCONFIG_AFTER_TUN_OPEN)
+    do_ifconfig (tuntap.actual, options->dev_type,
+		 options->ifconfig_local, options->ifconfig_remote,
+		 MAX_RW_SIZE_TUN (&frame));
 
   /* initialize traffic shaper */
   if (options->shaper)
     shaper_init (&shaper, options->shaper);
-
-  /* do ifconfig */
-  do_ifconfig (tuntap.actual, options->dev_type,
-	       options->ifconfig_local, options->ifconfig_remote,
-	       MAX_RW_SIZE_TUN (&frame));
 
   /* run the up script */
   run_script (options->up_script, tuntap.actual, MAX_RW_SIZE_TUN (&frame), max_rw_size_udp,
@@ -584,7 +583,8 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
   /* start the TLS thread */
 #if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
   if (tls_multi)
-    tls_thread_socket = tls_thread_create (tls_multi, &udp_socket, options->nice_work, MLOCK);
+    tls_thread_socket = tls_thread_create (tls_multi, &udp_socket,
+					   options->nice_work, options->mlock);
 #endif
 
   /* change scheduling priority if requested */
@@ -1343,10 +1343,10 @@ main (int argc, char *argv[])
 	struct key key;
 	notnull (options.shared_secret_file,
 		 "shared secret output file (--secret)");
-#ifdef _POSIX_MEMLOCK
+
 	if (options.mlock)    /* should we disable paging? */
 	  do_mlockall(true);
-#endif
+
 	generate_key_random (&key, NULL);
 	write_key_file (&key, options.shared_secret_file);
 	CLEAR (key);

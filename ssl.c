@@ -1605,6 +1605,7 @@ tls_multi_process (struct tls_multi *multi,
  * When OpenVPN is built in pthread-mode, thread_func
  * will periodically call tls_multi_process.
  */
+
 #ifdef USE_PTHREAD
 
 /*
@@ -1629,10 +1630,8 @@ thread_func (void *arg)
   time_t current;
   bool fatal;
 
-#ifdef _POSIX_MEMLOCK
   if (parm.mlock) /* should we disable paging? */
     do_mlockall (true);  
-#endif
 
   /* change thread priority if requested */
   set_nice (parm.nice);

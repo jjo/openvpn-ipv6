@@ -34,9 +34,7 @@ void run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu,
 
 void write_pid (const char* filename);
 
-#ifdef _POSIX_MEMLOCK
 void do_mlockall (bool print_msg); /* Disable paging */
-#endif
 
 #ifndef HAVE_DAEMON
 int daemon (int nochdir, int noclose);

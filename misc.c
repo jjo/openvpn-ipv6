@@ -48,7 +48,7 @@ do_chroot (const char *path)
       msg (M_INFO, "chroot to '%s' and cd to '%s' succeeded", path, top);
     }
 #else
-  msg (M_FATAL, "Sorry but I can't chroot to '%s' because this operating system doesn't support the chroot() system call", path);
+  msg (M_FATAL, "Sorry but I can't chroot to '%s' because this operating system doesn't appear to support the chroot() system call", path);
 #endif
 }
 
@@ -69,7 +69,7 @@ set_user (const char *username)
       msg (M_INFO, "UID set to %s", username);
     }
 #else
-  msg (M_FATAL, "Sorry but I can't setuid to '%s' because this operating system doesn't support the getpwname() or setuid() system calls", username);
+  msg (M_FATAL, "Sorry but I can't setuid to '%s' because this operating system doesn't appear to support the getpwname() or setuid() system calls", username);
 #endif
 }
 
@@ -85,7 +85,7 @@ set_nice (int niceval)
       msg (M_INFO, "nice %d succeeded", niceval);
     }
 #else
-  msg (M_FATAL, "Sorry but I can't set nice priority to '%d' because this operating system doesn't support the nice() system call", niceval);
+  msg (M_FATAL, "Sorry but I can't set nice priority to '%d' because this operating system doesn't appear to support the nice() system call", niceval);
 #endif
 }
 
@@ -128,21 +128,23 @@ write_pid (const char* filename)
       fclose (fp);
     }
 #else
-  msg (M_FATAL, "Sorry but I can't write my pid to '%s' because this operating system doesn't support the getpid() system call", filename);
+  msg (M_FATAL, "Sorry but I can't write my pid to '%s' because this operating system doesn't appear to support the getpid() system call", filename);
 #endif
 }
 
-#ifdef _POSIX_MEMLOCK
 /* Disable paging */
 void
 do_mlockall(bool print_msg)
 {
+#ifdef HAVE_MLOCKALL
   if (mlockall (MCL_CURRENT | MCL_FUTURE))
     msg (M_ERR, "mlockall failed");
   if (print_msg)
     msg (M_INFO, "mlockall() succeeded");
-}
+#else
+  msg (M_FATAL, "Sorry but this operating system doesn't appear to support the mlockall() system call");
 #endif
+}
 
 #ifndef HAVE_DAEMON
 
@@ -177,7 +179,7 @@ daemon(int nochdir, int noclose)
 	close (fd);
     }
 #else
-  msg (M_FATAL, "Sorry but I can't become a daemon because this operating system doesn't support either the daemon(), fork() or dup2() system calls");
+  msg (M_FATAL, "Sorry but I can't become a daemon because this operating system doesn't appear to support either the daemon(), fork() or dup2() system calls");
 #endif
   return (0);
 }
@@ -193,7 +195,7 @@ openvpn_system (char *command)
 #ifdef HAVE_SYSTEM
   return system (command);
 #else
-  msg (M_FATAL, "Sorry but I can't execute the shell command '%s' because this operating system doesn't support the system() call", command);
+  msg (M_FATAL, "Sorry but I can't execute the shell command '%s' because this operating system doesn't appear to support the system() call", command);
   return -1; /* NOTREACHED */
 #endif
 }

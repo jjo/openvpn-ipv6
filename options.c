@@ -72,10 +72,8 @@ static const char usage_message[] =
   "                  UDP MTU from it (default=%d).\n"
   "--udp-mtu n     : Take the UDP device MTU to be n and derive the tun MTU\n"
   "                  from it (disabled by default).\n"
-#ifdef _POSIX_MEMLOCK
   "--mlock         : Disable Paging -- ensures key material and tunnel\n"
   "                  data will never be written to disk.\n"
-#endif
   "--up cmd        : Shell cmd to execute after successful tun device open.\n"
   "                  Execute as: cmd tun/tap-dev tun-mtu udp-mtu \\\n"
   "                              ifconfig-local-ip ifconfig-remote-ip\n"
@@ -271,9 +269,7 @@ show_settings (const struct options *o)
   SHOW_BOOL (tun_mtu_defined);
   SHOW_INT (udp_mtu);
   SHOW_BOOL (udp_mtu_defined);
-#ifdef _POSIX_MEMLOCK
   SHOW_BOOL (mlock);
-#endif
   SHOW_INT (inactivity_timeout);
   SHOW_INT (ping_send_timeout);
   SHOW_INT (ping_rec_timeout);
@@ -646,12 +642,10 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       options->daemon = true;
     }
-#ifdef _POSIX_MEMLOCK
   else if (streq (p1, "mlock"))
     {
       options->mlock = true;
     }
-#endif
   else if (streq (p1, "verb") && p2)
     {
       ++i;

@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.05.13 -- Version 1.1.1.14
+2002.05.15 -- Version 1.1.1.16
 
 * Added configuration file support via
   the --config option.
@@ -12,6 +12,8 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   to improve tunnel packet forwarding
   latency.  pthread support can be enabled
   with the --enable-pthread configure option.
+  Pthread support is currently available
+  only for Linux and Solaris.
 * Added --dev-type option so that tun/tap
   device names don't need to begin with
   "tun" or "tap".
@@ -19,9 +21,12 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   process ID to a file.
 * Numerous portability fixes to ease
   porting to other OSes including changing
-  all network types to uint8_t and uint32_t.
+  all network types to uint8_t and uint32_t,
+  and not assuming that time_t is 32 bits.
 * Backported to OpenSSL 0.9.5.
 * Ported to Solaris.
+* Finished OpenBSD port except for
+  pthread support.
 * Ported to Mac OS X (Christoph Pfisterer).
 * Improved resilience to DoS attacks when
   TLS mode is used without --remote or

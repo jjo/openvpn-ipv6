@@ -15,12 +15,11 @@ For the latest development version of OpenVPN, go to:
 	http://openvpn.sourceforge.net/beta/
 
 SUPPORTED PLATFORMS:
-  (1) Linux 2.2 or higher (Though Linux Kernel 2.4 releases prior
-      to 2.4.7 should be avoided -- see BUGS below).
-  (2) Solaris.
-  (3) Mac OS X Darwin (Experimental).
-  (4) OpenBSD (experimental, see BUGS below).
-  (5) FreeBSD (experimental).
+  (1) Linux 2.2 or higher
+  (2) Solaris
+  (3) OpenBSD
+  (4) Mac OS X Darwin (Experimental)
+  (5) FreeBSD (experimental)
 
 REQUIRES:
   (1) tun and/or tap driver to allow user-space programs to control
@@ -55,7 +54,7 @@ OPTIONS for ./configure:
 
   --enable-pthread          Compile pthread support for
                             improved latency during SSL/TLS key
-                            negotiations
+                            negotiations (Linux or Solaris only)
 
   --with-ssl-headers=DIR    Crypto/SSL Include files location
   --with-ssl-lib=DIR        Crypto/SSL Library location
@@ -99,9 +98,4 @@ BUGS:
   being in a state of flux, so I wouldn't recommend using OpenVPN on these
   kernels unless you are prepared to do some debugging and testing.
 
-* The OpenBSD tun driver for some reason prepends an AF_INET to all packets,
-  making it incompatible with the Linux, Solaris, or Mac OS X tun drivers.
-  So far attempts to work around this incompatibility without changing the
-  tun driver code have only been partially successful.
-  Small packets are handled fine, but large packets which fragment are
-  still broken.
+* Pthread support is not yet stable on OpenBSD.

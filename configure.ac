@@ -74,7 +74,7 @@ AC_DEFUN([TYPE_SOCKLEN_T],
 #include <sys/socket.h>])
 ])
 
-AC_INIT([OpenVPN], [1.1.1.14], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.1.1.16], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 
 AC_ARG_ENABLE(lzo,
@@ -180,6 +180,7 @@ AC_CHECK_HEADERS(sys/time.h)
 AC_CHECK_HEADERS(sys/socket.h)
 AC_CHECK_HEADERS(sys/ioctl.h)
 AC_CHECK_HEADERS(sys/stat.h)
+AC_CHECK_HEADERS(sys/mman.h)
 AC_CHECK_HEADERS(fcntl.h)
 AC_CHECK_HEADERS(stdlib.h)
 AC_CHECK_HEADERS(stdint.h)
@@ -252,6 +253,7 @@ AC_CHECK_FUNCS(getpass)
 AC_CHECK_FUNCS(strerror)
 AC_CHECK_FUNCS(syslog)
 AC_CHECK_FUNCS(openlog)
+AC_CHECK_FUNCS(mlockall)
 
 dnl Required library functions
 AC_FUNC_MEMCMP
@@ -266,14 +268,29 @@ dnl
 if test "$PTHREAD" = "yes"; then
    AC_CHECKING([for pthread Library and Header files])
    AC_CHECK_HEADER(pthread.h, 
-        [AC_CHECK_LIB(pthread, pthread_create,
+        [
+	  case "$target" in
+	  *solaris*)
+		CFLAGS="$CFLAGS -pthreads"
+		;;
+	  *openbsd*)
+		CFLAGS="$CFLAGS -pthread"
+		;;
+	  *)
+		CFLAGS="$CFLAGS -pthread"
+		;;
+	  esac
+	  AC_CHECK_FUNCS(pthread_create,
 	    [
-	       OPENVPN_ADD_LIBS(-lpthread)
 	       AC_DEFINE(USE_PTHREAD, 1, [Use pthread-based multithreading])
 	       AC_DEFINE(_REENTRANT, 1, [Use thread-safe versions of library functions])
 	    ],
-	    [AC_MSG_ERROR([pthread headers were found but pthread library was not found.])]
-	)],
+	    [
+	       AC_MSG_RESULT([pthread headers were found but pthread library was not found.])
+	       AC_MSG_ERROR([try ./configure --disable-pthread])
+	    ]
+	  )
+	],
 	[
           AC_MSG_RESULT([pthread library and headers not found.])
 	  AC_MSG_ERROR([try ./configure --disable-pthread])

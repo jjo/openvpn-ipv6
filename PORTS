@@ -13,9 +13,8 @@ CURRENTLY SUPPORTED PLATFORMS:
 
   * Linux 2.2+
   * Solaris
+  * OpenBSD 3.0
   * Max OS X Darwin (experimental)
-  * OpenBSD 3.0 (experimental) -- maintained
-    by Janne Johansson <icepic@users.sourceforge.net>
   * FreeBSD (experimental)
 
 PORTING NOTES:
@@ -36,6 +35,9 @@ PORTING NOTES:
   * Add an #ifdef TARGET_YOUROS to the do_ifconfig()
     function in tun.c to generate a correct "ifconfig"
     command for your platform.
+  * Add a ifconfig_order() variant for your OS so
+    openvpn knows whether to call ifconfig before
+    or after tun dev open.
   * Add an #ifdef TARGET_YOUROS block in tun.c and define
     the open_tun, close_tun, read_tun, and write_tun
     functions.  See the TARGET_GENERIC block for an
