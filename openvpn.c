@@ -330,7 +330,7 @@ openvpn (const struct options *options,
       init_key_type (&key_type, options->ciphername,
 		     options->ciphername_defined, options->authname,
 		     options->authname_defined, options->keysize,
-		     false);
+		     options->test_crypto);
 
       /* Compute MTU parameters */
       crypto_adjust_frame_parameters(&frame,
@@ -847,6 +847,9 @@ openvpn (const struct options *options,
       if (!signal_received)
 	stat = select (fm, &reads, &writes, NULL, tv);
 
+      /* current should always be a reasonably up-to-date timestamp */
+      current = time (NULL);
+
       /*
        * Did we get a signal before or while we were waiting
        * in select() ?
@@ -889,7 +892,6 @@ openvpn (const struct options *options,
 	    }
 	  break;
 	}
-      current = time (NULL);
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
       if (!stat) /* timeout? */

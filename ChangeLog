@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.05.29 -- Version 1.2.0.3
+2002.06.01 -- Version 1.2.0.4
 
 * Added --ping-restart option to restart
   connection on ping timeout using SIGUSR1
@@ -24,6 +24,8 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   options for a given platform.
 * Broke out macro definitions from
   configure.ac to acinclude.m4.
+* All changes maintain protocol compatibility
+  with 1.1.0+.
 
 2002.05.22 -- Version 1.2.0
 

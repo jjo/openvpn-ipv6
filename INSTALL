@@ -16,13 +16,12 @@ For the latest development version of OpenVPN, go to:
 
 	http://openvpn.sourceforge.net/beta/
 
-
 *************************************************************************
 
 SUPPORTED PLATFORMS:
   (1) Linux 2.2 or higher
   (2) Solaris
-  (3) OpenBSD (Comes with OpenSSL and tun devices by default)
+  (3) OpenBSD 3.0+ (Comes with OpenSSL and tun devices by default)
   (4) Mac OS X Darwin (Experimental)
   (5) FreeBSD (experimental)
 
@@ -108,6 +107,9 @@ automatically start or stop one or more OpenVPN tunnels on system
 startup or shutdown, based on OpenVPN .conf files in /etc/openvpn.
 See the comments in openvpn.init for more information.
 
+Installing the RPM will also configure the TUN/TAP device node
+for linux 2.4.
+
 Note that the current openvpn.spec file, which instructs the rpm tool
 how to build a package, will build OpenVPN with all options enabled,
 including OpenSSL, LZO, and pthread linkage.  Therefore all of
@@ -161,7 +163,10 @@ CAVEATS & BUGS:
   being in a state of flux, so I wouldn't recommend using OpenVPN on these
   kernels unless you are prepared to do some debugging and testing.
 
-* Pthread support is not yet stable on OpenBSD.
+* Pthread support is not yet stable on OpenBSD or any platform that implements
+  threads in user-space without supporting true preemptive scheduling
+  between threads.  Pthread implementations which are compatible with Linux
+  or Solaris implementations should work fine with OpenVPN.
 
 * If run through a firewall using OpenBSDs packet filter PF and the
   filter rules include a "scrub" directive, you may get problems talking
