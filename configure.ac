@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.4.0.3], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.4.1], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -57,6 +57,12 @@ AC_ARG_ENABLE(strict,
    [  --enable-strict         Enable strict compiler warnings],
    [STRICT="$enableval"],
    [STRICT="no"]
+)
+
+AC_ARG_ENABLE(mtu-dynamic,
+   [  --enable-mtu-dynamic    Enable dynamic MTU support],
+   [DYNAMIC_MTU="$enableval"],
+   [DYNAMIC_MTU="no"]
 )
 
 AC_ARG_ENABLE(strict-options,
@@ -400,6 +406,11 @@ fi
 dnl enable strict options check between peers
 if test "$STRICT_OPTIONS" = "yes"; then
    AC_DEFINE(STRICT_OPTIONS_CHECK, 1, [Enable strict options check between peers])
+fi
+
+dnl enable dynamic MTU capability
+if test "$DYNAMIC_MTU" = "yes"; then
+   AC_DEFINE(FRAGMENT_ENABLE, 1, [Enable dynamic MTU capability])
 fi
 
 AC_OUTPUT(Makefile openvpn.spec)

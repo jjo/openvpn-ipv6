@@ -39,7 +39,7 @@
 #define INTERVAL_H
 
 #include "error.h"
-#include "common.h"
+#include "misc.h"
 
 /*
  * Used to determine in how many seconds we should be
@@ -193,6 +193,44 @@ event_timeout_wakeup (struct event_timeout* et, time_t current, struct timeval* 
 	  tv->tv_sec = wakeup;
 	}
     }
+}
+
+/*
+ * Measure time intervals in microseconds
+ */
+
+#define USEC_TIMER_MAX      60 /* maximum interval size in seconds */
+
+#define USEC_TIMER_MAX_USEC (USEC_TIMER_MAX * 1000000)
+
+struct usec_timer {
+  struct timeval start;
+  struct timeval end;
+};
+
+static inline void
+usec_timer_start (struct usec_timer *obj)
+{
+  CLEAR (*obj);
+  gettimeofday (&obj->start, NULL);
+}
+
+static inline void
+usec_timer_end (struct usec_timer *obj)
+{
+  gettimeofday (&obj->end, NULL);
+}
+
+static inline bool
+usec_timer_interval_defined (struct usec_timer *obj)
+{
+  return obj->start.tv_sec && obj->end.tv_sec;
+}
+
+static inline int
+usec_timer_interval (struct usec_timer *obj)
+{
+  return tv_subtract (&obj->end, &obj->start, USEC_TIMER_MAX);
 }
 
 #endif /* INTERVAL_H */

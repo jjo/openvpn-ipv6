@@ -27,6 +27,7 @@
 #define MISC_H
 
 #include "basic.h"
+#include "common.h"
 
 /* socket descriptor passed by inetd/xinetd server to us */
 #define INETD_SOCKET_DESCRIPTOR 0
@@ -114,5 +115,27 @@ long int get_random(void);
 #else
 #define get_random random
 #endif
+
+/* struct timeval functions */
+
+static inline bool
+tv_defined (const struct timeval *tv)
+{
+  return tv->tv_sec > 0;
+}
+
+/* return tv1 - tv2 in usec, constrained by max_seconds */
+static inline int
+tv_subtract (const struct timeval *tv1, const struct timeval *tv2, bool max_seconds)
+{
+  const int max_usec = max_seconds * 1000000;
+  const int sec_diff = tv1->tv_sec - tv2->tv_sec;
+
+  if (sec_diff > (max_seconds + 10))
+    return max_usec;
+  else if (sec_diff < -(max_seconds + 10))
+    return -max_usec;
+  return constrain_int (sec_diff * 1000000 + (tv1->tv_usec - tv2->tv_usec), -max_usec, max_usec);
+}
 
 #endif

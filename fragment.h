@@ -33,14 +33,14 @@
 #include "interval.h"
 #include "mtu.h"
 #include "shaper.h"
+#include "error.h"
 
 #define N_FRAG_BUF                   10      /* number of packet buffers, should be <= N_FRAG_ID */
 #define FRAG_TTL_SEC                 10      /* number of seconds time-to-live for a fragment */
 #define FRAG_WAKEUP_INTERVAL         5       /* wakeup code called once per n seconds */
 
-#if 0
 #define FRAG_INITIAL_BANDWIDTH       10000   /* starting point (bytes per sec) for adaptive bandwidth */
-#endif
+#define BANDWIDTH_THROTTLE_EXPIRE    10      /* adaptive bandwidth expire (seconds) */
 
 struct fragment {
   bool defined;
@@ -72,49 +72,30 @@ struct fragment_master {
 
   struct event_timeout wakeup;     /* when should main openvpn event loop wake us up */
 
+  /* keep track of largest packet size which was successfully received by peer */
+  int max_packet_size_received;       /* zeroed after send to peer */
+  int max_packet_size_sent;           /* without confirming receipt */
+  int max_packet_size_sent_sync;      /* kept in temporal sync with max_packet_size_sent_confirmed */
+  int max_packet_size_sent_pending;   /* queued but not yet sent */
+  int max_packet_size_sent_confirmed; /* confirmed by peer */
+
+  /* set to true if we are returning the last fragment of a packet (or a whole packet)
+     to openvpn.c for UDP send */
+  bool wrote_last_fragment;
+
+  /* used by transfer event functions to measure correct output bandwidth */
+  bool need_output_bandwidth_throttle;
+  time_t output_bandwidth_throttle_expire;
+  int transfer_bytes;
+  int transfer_bytes_save;
+  int bw_adjust;
+  time_t bw_adjust_time;
+  struct usec_timer timer_tda;
+  struct usec_timer timer_udw;
   struct shaper shaper;            /* output bandwidth */
-
-  /* this value is bounced back to peer in FRAG_SIZE with FRAG_WHOLE/FRAG_YES_NOTLAST set */
-  int n_packets_received;          /* value is zeroed after send to peer */
-
-  /* number of packets we've sent (without confirming receipt) */
-  int n_packets_sent;
-
-  /* a version of n_packets_sent kept in temporal sync with n_packets_sent_confirmed */
-  int n_packets_sent_sync;
-
-  /* number of packets queued for send but not actually sent yet */
-  int n_packets_sent_pending;
-
-  /* number of packets sent, which were received and confirmed by our peer */
-  int n_packets_sent_confirmed;
-
-  /* similar to n_packets_sent, but used to keep track of largest packet size
-     which was successfully received by peer */
-  int max_packet_size_received;
-  int max_packet_size_sent;
-  int max_packet_size_sent_sync;
-  int max_packet_size_sent_pending;
-  int max_packet_size_sent_confirmed;
-
-  /* used to determine whether or not a bandwidth increase was successful */
-  int bytes_sent;
-  int bytes_sent_sync;
-
-  /* tracking parameters used to determine when outgoing mtu or bandwidth should be raised/lowered */ 
-  int mtu_trend;
-  int bandwidth_trend;
 
   /* true if the OS has explicitly recommended an MTU value */
   bool received_os_mtu_hint;
-
-  /* determines which confirmation statistic (number of packets or max packet size)
-     is sent in the fragment header */
-  bool which_stat_to_send;
-
-  /* storage for possible backtrack in MTU and/or bandwidth parameters */
-  struct frame known_good_frame;
-  int known_good_bandwidth;
 
   /* a sequence ID describes a set of fragments that make up one datagram */
 # define N_SEQ_ID            256   /* sequence number wraps to 0 at this value (should be a power of 2) */
@@ -181,23 +162,17 @@ typedef uint32_t fragment_header_type;
 
 #define FRAG_SIZE_ROUND_MASK ((1 << FRAG_SIZE_ROUND_SHIFT) - 1)
 
-
 /*
  * FRAG_EXTRA 16 bits
  *
  * IF FRAG_WHOLE or FRAG_YES_NOTLAST
- *   if FRAG_EXTRA_FLAG_MASK, max packet size received recently, or 0 if no packets received.
- *   if !FRAG_EXTRA_FLAG_MASK, number of packets received recently, or 0 if no packets received.
- *   The remote peer will reset its stored version of both values to 0 after each send.
+ *   Max packet size received recently, or 0 if no packets received.
+ *   The sender will reset its stored version to 0 after each send.
  */
-
-#define FRAG_EXTRA_FLAG_MASK    0x00008000
 
 /* FRAG_EXTRA 16 bits */
 #define FRAG_EXTRA_MASK         0x0000ffff
-#define FRAG_EXTRA_SHIFT        16
-
-#define FRAG_EXTRA_IS_MAX       FRAG_EXTRA_FLAG_MASK
+#define FRAG_EXTRA_SHIFT        15
 
 /*
  * Public functions
@@ -216,12 +191,11 @@ void fragment_outgoing (struct fragment_master *f, struct buffer *buf,
 			const struct frame* frame, const time_t current);
 
 bool fragment_ready_to_send (struct fragment_master *f, struct buffer *buf,
-			     const struct frame* frame, const time_t current);
+			     const struct frame* frame);
 
-bool fragment_icmp (struct fragment_master *f, struct buffer *buf,
-		    const struct frame* frame, const time_t current);
-
-void fragment_received_os_mtu_hint (struct fragment_master *f, const struct frame* frame);
+void fragment_check_fragmentability (struct fragment_master *f,
+				     struct frame *frame_fragment,
+				     struct buffer *buf);
 
 /*
  * Private functions.
@@ -246,15 +220,85 @@ fragment_outgoing_defined (struct fragment_master *f)
   return f->outgoing.len > 0;
 }
 
+static inline bool
+fragment_icmp (struct fragment_master *f, struct buffer *buf)
+{
+  if (f->icmp_buf.len > 0)
+    {
+      *buf = f->icmp_buf;
+      f->icmp_buf.len = 0;
+      return true;
+    }
+  else
+    return false;
+}
+
+/*
+ * fragment transfer event functions, for dynamic output bandwidth management
+ */
+
+/*
+ * Compute the adaptive output bandwidth
+ */
+static inline void
+fragment_transfer_event_adjust_bandwidth (struct fragment_master *f)
+{
+  /* frequency of packets appearing on TUN/TAP interface */
+  const int tda = usec_timer_interval (&f->timer_tda);
+
+  /* frequency of datagrams being sent over UDP port */
+  const int udw = usec_timer_interval (&f->timer_udw);
+
+  /* do magic */
+  if (udw * 16 > tda && f->transfer_bytes_save < MAX_FRAG_PKT_SIZE)
+    {
+      const int bytes_per_sec = (f->transfer_bytes_save * 32768) / ((tda + udw) / 128);
+      shaper_reset (&f->shaper, bytes_per_sec);
+    }
+
+  msg (D_FRAG_DEBUG, "FRAG adjust_bandwidth tda=%d udw=%d bps=%d",
+       tda, udw, shaper_current_bandwidth (&f->shaper));
+}
+
+static inline void
+fragment_transfer_event_tuntap_data_read (struct fragment_master *f)
+{
+  f->transfer_bytes = 0;
+  usec_timer_start (&f->timer_tda);
+  f->timer_udw = f->timer_tda;
+}
+
+static inline void
+fragment_transfer_event_tuntap_data_available (struct fragment_master *f)
+{
+  usec_timer_end (&f->timer_tda);
+  if (usec_timer_interval_defined (&f->timer_udw))
+    fragment_transfer_event_adjust_bandwidth (f);
+}
+
+static inline void
+fragment_transfer_event_udp_data_write (struct fragment_master *f)
+{
+  f->transfer_bytes_save = f->transfer_bytes;
+  usec_timer_end (&f->timer_udw);
+  if (usec_timer_interval_defined (&f->timer_tda))
+    fragment_transfer_event_adjust_bandwidth (f);
+}
+
 static inline void
 fragment_post_send (struct fragment_master *f, int len)
 {
-  shaper_wrote_bytes (&f->shaper, len);
-
-  f->bytes_sent += len;
-  f->n_packets_sent += f->n_packets_sent_pending;
   f->max_packet_size_sent = max_int (f->max_packet_size_sent, f->max_packet_size_sent_pending);
-  f->n_packets_sent_pending = f->max_packet_size_sent_pending = 0;
+  if (f->need_output_bandwidth_throttle)
+    {
+      shaper_wrote_bytes (&f->shaper, len);
+      f->transfer_bytes += len;
+      if (f->wrote_last_fragment)
+	{
+	  fragment_transfer_event_udp_data_write (f);
+	  f->wrote_last_fragment = false;
+	}
+    }
 }
 
 #endif /* FRAGMENT_ENABLE */

@@ -44,6 +44,14 @@
 #define OPENVPN_EXIT_STATUS_CANNOT_OPEN_DEBUG_FILE  1
 
 /*
+ * When should we daemonize?
+ *
+ * Level 0 -- after option parsing (early)
+ * Level 1 -- after all initialization (late)
+ */
+#define DAEMONIZATION_LEVEL 1
+
+/*
  * Special command line debugging mode.
  * If OPENVPN_DEBUG_COMMAND_LINE
  * is defined, contents of argc/argv will

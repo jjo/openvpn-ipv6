@@ -127,7 +127,9 @@ OPTIONS for ./configure:
 
   --enable-strict           Enable strict compiler warnings
 
-  --enable-strict-options   Enable strict options check between peers.
+  --enable-strict-options   Enable strict options check between peers
+
+  --enable-mtu-dynamic      Enable dynamic MTU support
 
 *************************************************************************
 

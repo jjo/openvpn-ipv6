@@ -3,7 +3,7 @@ Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
 
 $Id$
 
-Upcoming Version 1.4.1
+2003.05.15 -- Version 1.4.1
 
 * Modified the Linux 2.4 TUN/TAP open code to
   fall back to the 2.2 TUN/TAP interface if the
@@ -15,7 +15,9 @@ Upcoming Version 1.4.1
   such as Linux 2.4.
 * Fixed typo in tun.c that was preventing
   OpenBSD build.
-
+* Added --enable-mtu-dynamic configure option
+  to enable --mtu-dynamic experimental option.
+	
 2003.05.07 -- Version 1.4.0
 
 * Added --replay-persist feature to allow replay

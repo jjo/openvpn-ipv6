@@ -169,11 +169,6 @@ struct frame {
 #define MAX_RW_SIZE_UDP(f)       (EXPANDED_SIZE(f))
 
 /*
- * Delta between UDP datagram size and total IP packet size
- */
-#define IPv4_UDP_HEADER_SIZE              28
-
-/*
  * Function prototypes.
  */
 
@@ -233,13 +228,28 @@ frame_add_to_extra_buffer (struct frame *frame, int increment)
 }
 
 /*
+ * Delta between UDP datagram size and total IP packet size.
+ */
+#define IPv4_UDP_HEADER_SIZE              28
+#define IPv6_UDP_HEADER_SIZE              40
+
+static inline int
+datagram_overhead (bool ipv6)
+{
+  if (ipv6)
+    return IPv6_UDP_HEADER_SIZE;
+  else
+    return IPv4_UDP_HEADER_SIZE;
+}
+
+/*
  * Adjust frame structure based on a Path MTU value given
- * to us by the OS.  Assumes IPv4.
+ * to us by the OS.
  */
 static inline void
-frame_adjust_path_mtu (struct frame *frame, int pmtu)
+frame_adjust_path_mtu (struct frame *frame, int pmtu, bool ipv6)
 {
-  frame_set_mtu_dynamic (frame, pmtu - IPv4_UDP_HEADER_SIZE);
+  frame_set_mtu_dynamic (frame, pmtu - datagram_overhead (ipv6));
   frame_dynamic_finalize (frame);
 }
 
