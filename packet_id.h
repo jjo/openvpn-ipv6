@@ -43,16 +43,52 @@
 #include "buffer.h"
 #include "error.h"
 
+#if 1
+/*
+ * These are the types that members of
+ * a struct packet_id_net are converted
+ * to for network transmission.
+ */
 typedef uint32_t packet_id_type;
 typedef uint32_t net_time_t;
 
-/* convert a packet_id_type to and from network order */
+/*
+ * In TLS mode, when a packet ID gets to this level,
+ * start thinking about triggering a new
+ * SSL/TLS handshake.
+ */
+#define PACKET_ID_WRAP_TRIGGER 0xFF000000
+
+/* convert a packet_id_type from host to network order */
 #define htonpid(x) htonl(x)
+
+/* convert a packet_id_type from network to host order */
 #define ntohpid(x) ntohl(x)
 
-/* convert a net_time_t to and from network order */
-#define htontime(x) htonl(x)
-#define ntohtime(x) ntohl(x)
+/* convert a time_t in host order to a net_time_t in network order */
+#define htontime(x) htonl((net_time_t)x)
+
+/* convert a net_time_t in network order to a time_t in host order */
+#define ntohtime(x) ((time_t)ntohl(x))
+
+#else
+
+/*
+ * DEBUGGING ONLY.
+ * Make packet_id_type and net_time_t small.
+ */
+
+typedef uint8_t packet_id_type;
+typedef uint16_t net_time_t;
+
+#define PACKET_ID_WRAP_TRIGGER 0x80
+
+#define htonpid(x) (x)
+#define ntohpid(x) (x)
+#define htontime(x) htons((net_time_t)x)
+#define ntohtime(x) ((time_t)ntohs(x))
+
+#endif
 
 /*
  * Printf formats for special types
@@ -67,7 +103,7 @@ typedef uint32_t net_time_t;
  */
 #define PACKET_BACKTRACK_MAX   1024
 
-CIRC_LIST (pkt_id, char, PACKET_BACKTRACK_MAX);
+CIRC_LIST (pkt_id, uint8_t, PACKET_BACKTRACK_MAX);
 
 /*
  * This is the data structure we keep on the receiving side,
@@ -101,12 +137,23 @@ struct packet_id_send
  * CFB/OFB ciphers.
  *
  * This data structure is always sent
- * over the net in network byte order.
+ * over the net in network byte order,
+ * by calling htonpid, ntohpid,
+ * htontime, and ntohtime on the
+ * data elements to change them
+ * to and from standard sizes.
+ *
+ * In addition, time is converted to
+ * a net_time_t before sending,
+ * since openvpn always
+ * uses a 32-bit time_t but some
+ * 64 bit platforms use a
+ * 64 bit time_t.
  */
 struct packet_id_net
 {
   packet_id_type id;
-  time_t time;
+  time_t time; /* converted to net_time_t before transmission */
 };
 
 struct packet_id
@@ -134,13 +181,13 @@ void packet_id_interactive_test();
 static inline int
 packet_id_size (bool long_form)
 {
-  return sizeof (packet_id_type) + (long_form ? sizeof (time_t) : 0);
+  return sizeof (packet_id_type) + (long_form ? sizeof (net_time_t) : 0);
 } 
 
 static inline bool
 packet_id_close_to_wrapping (const struct packet_id_send *p)
 {
-  return p->id >= 0xFF000000;
+  return p->id >= PACKET_ID_WRAP_TRIGGER;
 }
 
 /*

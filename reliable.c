@@ -267,7 +267,8 @@ reliable_send_purge (struct reliable *rel, struct reliable_ack *ack)
 	  struct reliable_entry *e = &rel->array[j];
 	  if (e->active && e->packet_id == pid)
 	    {
-	      msg (D_REL_DEBUG, "ACK received for pid " packet_id_format ", deleting from send buffer",
+	      msg (D_REL_DEBUG,
+		   "ACK received for pid " packet_id_format ", deleting from send buffer",
 		   pid);
 #if 0
 	      /* DEBUGGING -- how close were we timing out on ACK failure and resending? */
@@ -460,7 +461,7 @@ reliable_mark_deleted (struct reliable *rel, struct buffer *buf, bool inc_pid)
   ASSERT (0);
 }
 
-#if 1
+#if 0
 
 void
 reliable_ack_debug_print (const struct reliable_ack *ack, char *desc)

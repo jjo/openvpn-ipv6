@@ -177,6 +177,7 @@ typedef unsigned long counter_type;
 #define D_TLS_NO_SEND_KEY    7  /* show when no data channel send-key is available */
 #define D_THREAD_DEBUG       7  /* show debug information from the pthread code */
 #define D_REL_LOW            7	/* show low frequency info from reliable routines */
+#define D_PID_DEBUG          7  /* show packet-id debugging info */
 
 #define D_SHAPER             8  /* show traffic shaper info */
 
@@ -186,10 +187,11 @@ typedef unsigned long counter_type;
  * OpenVPN static mutex locks, by mutex type
  */
 #define L_MSG       0
-#define L_INET_NTOA 1
-#define L_TLS       2
-#define L_SOCK      3
-#define N_MUTEXES   4
+#define L_TLS       1
+#define L_SOCK      2
+#define L_INET_NTOA 3
+#define L_CTIME     4
+#define N_MUTEXES   5
 
 /* TLS time constants */
 

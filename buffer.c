@@ -184,7 +184,7 @@ void _gc_free (void *p) {
   free (p);
 }
 
-#if 1
+#if 0
 void
 debug_gc_check_corrupt (const char *file, int line)
 {

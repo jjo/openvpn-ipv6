@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.05.09 -- Version 1.1.1.12
+2002.05.09 -- Version 1.1.1.13
 
 * Added configuration file support via
   the --config option.

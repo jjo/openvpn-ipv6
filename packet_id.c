@@ -82,6 +82,10 @@ packet_id_test (const struct packet_id_rec *p, const struct packet_id_net *pin)
 {
   packet_id_type diff;
 
+  msg (D_PID_DEBUG,
+       "PID TEST " time_format ":" packet_id_format " " time_format ":" packet_id_format "",
+       p->time, p->id, pin->time, pin->id);
+
   if (!pin->id)
     return false;
 
@@ -112,7 +116,9 @@ packet_id_net_print (const struct packet_id_net *pin)
   buf_printf (&out, "[ #" packet_id_format, pin->id);
   if (pin->time)
     {
-      buf_printf (&out, " / %s", ctime (&pin->time));
+      mutex_lock (L_CTIME);
+      buf_printf (&out, " / time = (" packet_id_format ") %s", pin->time, ctime (&pin->time));
+      mutex_unlock (L_CTIME);
       if (*BLAST (&out) =='\n')
 	--out.len;
     }
@@ -121,8 +127,7 @@ packet_id_net_print (const struct packet_id_net *pin)
   return out.data;
 }
 
-//#ifdef PID_TEST
-#if 1
+#ifdef PID_TEST
 
 void packet_id_interactive_test ()
 {

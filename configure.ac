@@ -74,7 +74,7 @@ AC_DEFUN([TYPE_SOCKLEN_T],
 #include <sys/socket.h>])
 ])
 
-AC_INIT([OpenVPN], [1.1.1.12], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.1.1.13], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 
 AC_ARG_ENABLE(lzo,
