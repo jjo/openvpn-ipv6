@@ -39,9 +39,6 @@
 #define FRAG_TTL_SEC                 10      /* number of seconds time-to-live for a fragment */
 #define FRAG_WAKEUP_INTERVAL         5       /* wakeup code called once per n seconds */
 
-#define FRAG_INITIAL_BANDWIDTH       1000    /* starting point (bytes per sec) for adaptive bandwidth */
-#define BANDWIDTH_THROTTLE_EXPIRE    10      /* adaptive bandwidth expire (seconds) */
-
 struct fragment {
   bool defined;
 
@@ -82,18 +79,6 @@ struct fragment_master {
   /* set to true if we are returning the last fragment of a packet (or a whole packet)
      to openvpn.c for UDP send */
   bool wrote_last_fragment;
-
-  /* used by transfer event functions to measure correct output bandwidth */
-  bool enable_output_bandwidth_throttle;
-  bool need_output_bandwidth_throttle;
-  time_t output_bandwidth_throttle_expire;
-  int transfer_bytes;
-  int transfer_bytes_save;
-  int bw_adjust;
-  time_t bw_adjust_time;
-  struct usec_timer timer_tda;
-  struct usec_timer timer_udw;
-  struct shaper shaper;            /* output bandwidth */
 
   /* true if the OS has explicitly recommended an MTU value */
   bool received_os_mtu_hint;
@@ -179,7 +164,7 @@ typedef uint32_t fragment_header_type;
  * Public functions
  */
 
-struct fragment_master *fragment_init (struct frame *frame, int enable_output_bandwidth_throttle);
+struct fragment_master *fragment_init (struct frame *frame);
 
 void fragment_frame_init (struct fragment_master *f, const struct frame *frame, bool generate_icmp);
 
@@ -234,84 +219,10 @@ fragment_icmp (struct fragment_master *f, struct buffer *buf)
     return false;
 }
 
-/*
- * fragment transfer event functions, for dynamic output bandwidth management
- */
-
-/*
- * Compute the adaptive output bandwidth
- */
-static inline void
-fragment_transfer_event_adjust_bandwidth (struct fragment_master *f)
-{
-  /* as this parm gets bigger, output bandwidth becomes more stable */
-  const int rel_ceil = 2;
-
-  /* frequency of packets appearing on TUN/TAP interface */
-  int tda = usec_timer_interval (&f->timer_tda);
-
-  /* frequency of datagrams being sent over UDP port */
-  int udw = usec_timer_interval (&f->timer_udw);
-
-  //fprintf (stderr, "[%d,%d", tda, udw); // CHANGEME
-
-  /* each of udw, tda should be no more than rel_ceil times the other */
-  udw = min_int (tda * rel_ceil, udw);
-  tda = min_int (udw * rel_ceil, tda);
-
-  /* compute rate */
-  if (f->transfer_bytes_save < MAX_FRAG_PKT_SIZE)
-    {
-      const int bytes_per_sec = (f->transfer_bytes_save * 32768) / ((tda + udw) / 128);
-      shaper_reset (&f->shaper, bytes_per_sec);
-      //fprintf (stderr, ",%d", bytes_per_sec); // CHANGEME
-    }
-
-  //fprintf (stderr, "]"); // CHANGEME
-
-  msg (D_FRAG_DEBUG, "FRAG adjust_bandwidth tda=%d udw=%d bps=%d",
-       tda, udw, shaper_current_bandwidth (&f->shaper));
-}
-
-static inline void
-fragment_transfer_event_tuntap_data_read (struct fragment_master *f)
-{
-  f->transfer_bytes = 0;
-  usec_timer_start (&f->timer_tda);
-  f->timer_udw = f->timer_tda;
-}
-
-static inline void
-fragment_transfer_event_tuntap_data_available (struct fragment_master *f)
-{
-  usec_timer_end (&f->timer_tda);
-  if (usec_timer_interval_defined (&f->timer_udw))
-    fragment_transfer_event_adjust_bandwidth (f);
-}
-
-static inline void
-fragment_transfer_event_udp_data_write (struct fragment_master *f)
-{
-  f->transfer_bytes_save = f->transfer_bytes;
-  usec_timer_end (&f->timer_udw);
-  if (usec_timer_interval_defined (&f->timer_tda))
-    fragment_transfer_event_adjust_bandwidth (f);
-}
-
 static inline void
 fragment_post_send (struct fragment_master *f, int len)
 {
   f->max_packet_size_sent = max_int (f->max_packet_size_sent, f->max_packet_size_sent_pending);
-  if (f->need_output_bandwidth_throttle)
-    {
-      shaper_wrote_bytes (&f->shaper, len);
-      f->transfer_bytes += len;
-      if (f->wrote_last_fragment)
-	{
-	  fragment_transfer_event_udp_data_write (f);
-	  f->wrote_last_fragment = false;
-	}
-    }
 }
 
 #endif /* FRAGMENT_ENABLE */

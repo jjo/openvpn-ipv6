@@ -76,23 +76,8 @@ fragment_list_get_buf (struct fragment_list *list, int seq_id)
   return &list->fragments[modulo_add (list->index, diff, N_FRAG_BUF)];
 }
 
-static inline void
-fragment_shaper_init (struct fragment_master *f, const time_t current)
-{
-  if (f->enable_output_bandwidth_throttle)
-    {
-      f->output_bandwidth_throttle_expire = current + BANDWIDTH_THROTTLE_EXPIRE;
-      if (!f->need_output_bandwidth_throttle)
-	{
-	  shaper_reset_wakeup (&f->shaper);
-	  f->need_output_bandwidth_throttle = true;
-	  msg (D_FRAG_DEBUG, "FRAG started adaptive bandwidth throttle");
-	}
-    }
-}
-
 struct fragment_master *
-fragment_init (struct frame *frame, int enable_output_bandwidth_throttle)
+fragment_init (struct frame *frame)
 {
   struct fragment_master *ret;
 
@@ -109,14 +94,8 @@ fragment_init (struct frame *frame, int enable_output_bandwidth_throttle)
    * fragmentation control information resides inside of the encrypted/authenticated envelope.
    */
   ret->outgoing_seq_id = (int)get_random() & (N_SEQ_ID - 1);
-  ret->enable_output_bandwidth_throttle = enable_output_bandwidth_throttle;
 
   event_timeout_init (&ret->wakeup, 0, FRAG_WAKEUP_INTERVAL);
-
-  if (enable_output_bandwidth_throttle) {
-    shaper_init (&ret->shaper, FRAG_INITIAL_BANDWIDTH);
-    fragment_shaper_init (ret, time (NULL)); // CHANGEME
-  }
 
   return ret;
 }
@@ -350,7 +329,6 @@ fragment_outgoing (struct fragment_master *f, struct buffer *buf,
 	  /*
 	   * Send the datagram as a series of 2 or more fragments.
 	   */
-	  fragment_shaper_init (f, current);
 	  f->outgoing_frag_size = optimal_fragment_size (buf->len, PAYLOAD_SIZE_DYNAMIC(frame));
 	  if (buf->len > f->outgoing_frag_size * MAX_FRAGS)
 	    FRAG_ERR ("too many fragments would be required to send datagram");
@@ -448,13 +426,6 @@ fragment_wakeup (struct fragment_master *f, struct frame *frame, time_t current)
 {
   /* delete fragments with expired TTLs */
   fragment_ttl_reap (f, current);
-
-  /* cancel output bandwidth throttle mode if TTL expired */
-  if (f->need_output_bandwidth_throttle && current >= f->output_bandwidth_throttle_expire)
-    {
-      f->need_output_bandwidth_throttle = false;
-      msg (D_FRAG_DEBUG, "FRAG end adaptive bandwidth throttle");
-    }
 
   /*
    * TODO:

@@ -253,20 +253,6 @@ openvpn (const struct options *options,
   struct fragment_master *fragment = NULL;
   struct frame frame_fragment;
   struct frame frame_fragment_omit;
-
-  /*
-   * Set to true if our select call should wait on TUN/TAP data, not necessarily because
-   * we are ready to read it, but rather because we want to time the rate at which data
-   * is being sent to us so that we can calculate the effective incoming bandwidth on
-   * the TUN/TAP device.
-   */
-  bool tuntap_bandwidth_sample_mode = false;
-
-  /*
-   * Set to true if we are ready to read data from the TUN/TAP device in the normal
-   * fashion, independent of the setting of tuntap_bandwidth_sample_mode.
-   */
-  bool tuntap_ready_to_read;
 #endif
 
   /* Always set to current time. */
@@ -409,7 +395,7 @@ openvpn (const struct options *options,
    */
 #ifdef FRAGMENT_ENABLE
   if (options->mtu_dynamic)
-    fragment = fragment_init (&frame, /*!options->shaper*/ false); // CHANGEME
+    fragment = fragment_init (&frame);
 #endif
 
 #ifdef USE_CRYPTO
@@ -1082,9 +1068,6 @@ openvpn (const struct options *options,
        */
       FD_ZERO (&reads);
       FD_ZERO (&writes);
-#ifdef FRAGMENT_ENABLE
-      tuntap_ready_to_read = false;
-#endif
 
       /*
        * If outgoing data (for UDP port) pending, wait for ready-to-send
@@ -1099,19 +1082,12 @@ openvpn (const struct options *options,
 	   */
 	  int delay = 0;
 
-#ifdef FRAGMENT_ENABLE
-	  /* fragmenting code needs an adaptive bandwidth throttle */
-	  if (fragment && fragment->need_output_bandwidth_throttle)
-	    delay = shaper_delay (&fragment->shaper);
-#endif
-
 	  /* set traffic shaping delay in microseconds */
 	  if (options->shaper)
 	    delay = max_int (delay, shaper_delay (&shaper));
 
-	  if (delay >= 1000) // CHANGEME
+	  if (delay >= 1000)
 	    {
-	      fprintf (stderr, "[%d]", delay); // CHANGEME
 	      shaper_soonest_event (&timeval, delay);
 	      tv = &timeval;
 	    }
@@ -1129,10 +1105,6 @@ openvpn (const struct options *options,
 	  if (tuntap->fd >= 0)
 	    {
 	      FD_SET (tuntap->fd, &reads);
-#ifdef FRAGMENT_ENABLE
-	      if (fragment && fragment->need_output_bandwidth_throttle)
-		tuntap_ready_to_read = true;
-#endif
 	    }
 #if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
 	  if (tls_multi)
@@ -1153,20 +1125,6 @@ openvpn (const struct options *options,
 	{
 	  FD_SET (udp_socket.sd, &reads);
 	}
-
-      /*
-       * If we are not ready to read incoming TUN/TAP packets, however we still
-       * want to measure effective incoming bandwidth on the TUN/TAP device,
-       * then wait for incoming TUN/TAP packets to become available but do
-       * not read them.
-       */
-#ifdef FRAGMENT_ENABLE
-      if (fragment && fragment->need_output_bandwidth_throttle)
-	{
-	  if (tuntap_bandwidth_sample_mode && !tuntap_ready_to_read && tuntap->fd >= 0)
-	    FD_SET (tuntap->fd, &reads);
-	}
-#endif
 
       /*
        * Possible scenarios:
@@ -1246,23 +1204,6 @@ openvpn (const struct options *options,
 
       if (stat > 0)
 	{
-	  bool tuntap_data_available = (tuntap->fd >= 0 && FD_ISSET (tuntap->fd, &reads));
-
-#ifdef FRAGMENT_ENABLE
-	  if (fragment && fragment->need_output_bandwidth_throttle)
-	    {
-	      if (tuntap_data_available)
-		{
-		  if (tuntap_bandwidth_sample_mode)
-		    {
-		      fragment_transfer_event_tuntap_data_available (fragment);
-		      tuntap_bandwidth_sample_mode = false;
-		    }
-		  tuntap_data_available = tuntap_ready_to_read;
-		}
-	    }
-#endif
-
 	  /* Incoming data on UDP port */
 	  if (FD_ISSET (udp_socket.sd, &reads))
 	    {
@@ -1424,7 +1365,7 @@ openvpn (const struct options *options,
 #endif
 
 	  /* Incoming data on TUN device */
-	  else if (tuntap_data_available)
+	  else if (tuntap->fd >= 0 && FD_ISSET (tuntap->fd, &reads))
 	    {
 	      /*
 	       * Setup for read() call on TUN/TAP device.
@@ -1455,13 +1396,6 @@ openvpn (const struct options *options,
 
 	      if (buf.len > 0)
 		{
-#ifdef FRAGMENT_ENABLE
-		  if (fragment && fragment->need_output_bandwidth_throttle)
-		    {
-		      fragment_transfer_event_tuntap_data_read (fragment);
-		      tuntap_bandwidth_sample_mode = true;
-		    }
-#endif
 #if PASSTOS_CAPABILITY
 		  if (options->passtos)
 		    {
