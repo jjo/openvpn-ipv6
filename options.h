@@ -327,6 +327,8 @@ struct options
   const char *auth_user_pass_file;
   struct options_pre_pull *pre_pull;
 
+  int scheduled_exit_interval;
+
 #endif
 
 #ifdef USE_CRYPTO

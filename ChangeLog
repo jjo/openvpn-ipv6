@@ -3,14 +3,26 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.12.16 -- Version 2.0-rc5
+
+* The --client-config-dir option will now try to open
+  a default file called "DEFAULT" if no file matching
+  the common name of the incoming client was found.
+* The --client-connect script/plugin can now veto client
+  authentication by returning a failure code.
+* The --learn-address script/plugin can now prevent a
+  client-instance/address association from being learned
+  by returning a failure code.
+* Changed RPM group in .spec file to Applications/Internet.
+
 2004.12.14 -- Version 2.0-rc4
 
 * SuSE only -- Fixed interaction between openvpn.spec and
   suse/openvpn.init where the .spec file was writing the
   OpenVPN binary to a different location than where the
   .init script was referencing it (Stefan Engel).
-* Solaris only -- Split Solaris ifconfig command into two parts
-  (Jan Just Keijser).
+* Solaris only -- Split Solaris ifconfig command into two
+  parts (Jan Just Keijser).
 * Some cleanup in add_option().
 * Better error checking on input dotted quad IP addresses.
 * Verify that --push argument is quoted, if there is

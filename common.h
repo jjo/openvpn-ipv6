@@ -54,4 +54,7 @@ typedef int interval_t;
 typedef unsigned long time_type;
 typedef unsigned long ptr_type;
 
+/* the --client-config-dir default file */
+#define CCD_DEFAULT "DEFAULT"
+
 #endif

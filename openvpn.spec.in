@@ -19,7 +19,7 @@ URL:		http://openvpn.sourceforge.net/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
 
 License:	GPL
-Group:		Networking/Tunnels
+Group:		Applications/Internet
 Vendor:		James Yonan <jim@yonan.net>
 Packager:	James Yonan <jim@yonan.net>
 BuildRoot:	%{_tmppath}/%{name}-%(id -un)

@@ -256,3 +256,28 @@
    Memcheck:Cond
    fun:ssl3_get_cert_verify
 }
+
+{
+   test44
+   Memcheck:Leak
+   fun:malloc
+   fun:gc_malloc
+   fun:alloc_buf_gc
+   fun:construct_name_value
+}
+
+{
+   test45
+   Memcheck:Leak
+   fun:malloc
+   fun:default_malloc_ex
+}
+
+{
+   test46
+   Memcheck:Leak
+   fun:malloc
+   fun:gc_malloc
+   fun:add_env_item
+   fun:manage_env
+}

@@ -56,7 +56,7 @@ id (struct multi_instance *mi)
 }
 #endif
 
-static void
+static bool
 learn_address_script (const struct multi_context *m,
 		      const struct multi_instance *mi,
 		      const char *op,
@@ -64,6 +64,7 @@ learn_address_script (const struct multi_context *m,
 {
   struct gc_arena gc = gc_new ();
   struct env_set *es;
+  bool ret = true;
 
   /* get environmental variable source */
   if (mi && mi->context.c2.es)
@@ -82,8 +83,10 @@ learn_address_script (const struct multi_context *m,
 	buf_printf (&cmd, " \"%s\"", tls_common_name (mi->context.c2.tls_multi, false));
 
       if (plugin_call (m->top.c1.plugins, OPENVPN_PLUGIN_LEARN_ADDRESS, BSTR (&cmd), es))
-	msg (M_WARN, "WARNING: learn-address plugin call failed");
-
+	{
+	  msg (M_WARN, "WARNING: learn-address plugin call failed");
+	  ret = false;
+	}
     }
 
   if (m->top.options.learn_address_script)
@@ -99,11 +102,12 @@ learn_address_script (const struct multi_context *m,
       if (mi)
 	buf_printf (&cmd, " \"%s\"", tls_common_name (mi->context.c2.tls_multi, false));
 
-      system_check (BSTR (&cmd), es, S_SCRIPT, "WARNING: learn-address command failed");
-
+      if (!system_check (BSTR (&cmd), es, S_SCRIPT, "WARNING: learn-address command failed"))
+	ret = false;
     }
 
   gc_free (&gc);
+  return ret;
 }
 
 void
@@ -397,26 +401,29 @@ static void
 multi_client_disconnect_script (struct multi_context *m,
 				struct multi_instance *mi)
 {
-  multi_client_disconnect_setenv (m, mi);
-
-  if (plugin_defined (m->top.c1.plugins, OPENVPN_PLUGIN_CLIENT_DISCONNECT))
+  if (mi->context.c2.context_auth == CAS_SUCCEEDED)
     {
-      if (plugin_call (m->top.c1.plugins, OPENVPN_PLUGIN_CLIENT_DISCONNECT, NULL, mi->context.c2.es))
-	msg (M_WARN, "WARNING: client-disconnect plugin call failed");
-    }
+      multi_client_disconnect_setenv (m, mi);
 
-  if (mi->context.options.client_disconnect_script)
-    {
-      struct gc_arena gc = gc_new ();
-      struct buffer cmd = alloc_buf_gc (256, &gc);
+      if (plugin_defined (m->top.c1.plugins, OPENVPN_PLUGIN_CLIENT_DISCONNECT))
+	{
+	  if (plugin_call (m->top.c1.plugins, OPENVPN_PLUGIN_CLIENT_DISCONNECT, NULL, mi->context.c2.es))
+	    msg (M_WARN, "WARNING: client-disconnect plugin call failed");
+	}
 
-      setenv_str (mi->context.c2.es, "script_type", "client-disconnect");
+      if (mi->context.options.client_disconnect_script)
+	{
+	  struct gc_arena gc = gc_new ();
+	  struct buffer cmd = alloc_buf_gc (256, &gc);
 
-      buf_printf (&cmd, "%s", mi->context.options.client_disconnect_script);
+	  setenv_str (mi->context.c2.es, "script_type", "client-disconnect");
+	  
+	  buf_printf (&cmd, "%s", mi->context.options.client_disconnect_script);
 
-      system_check (BSTR (&cmd), mi->context.c2.es, S_SCRIPT, "client-disconnect command failed");
-
-      gc_free (&gc);
+	  system_check (BSTR (&cmd), mi->context.c2.es, S_SCRIPT, "client-disconnect command failed");
+	  
+	  gc_free (&gc);
+	}
     }
 }
 
@@ -558,6 +565,8 @@ multi_create_instance (struct multi_context *m, const struct mroute_addr *real)
   if (IS_SIG (&mi->context))
     goto err;
   mi->did_open_context = true;
+
+  mi->context.c2.context_auth = CAS_PENDING;
 
   if (hash_n_elements (m->hash) >= m->max_clients)
     {
@@ -749,8 +758,13 @@ multi_print_status (struct multi_context *m, struct status_output *so, const int
 
 /*
  * Learn a virtual address or route.
+ * The learn will fail if the learn address
+ * script/plugin fails.  In this case the
+ * return value may be != mi.
+ * Return the instance which owns this route,
+ * or NULL if none.
  */
-static void
+static struct multi_instance *
 multi_learn_addr (struct multi_context *m,
 		  struct multi_instance *mi,
 		  const struct mroute_addr *addr,
@@ -760,22 +774,25 @@ multi_learn_addr (struct multi_context *m,
   const uint32_t hv = hash_value (m->vhash, addr);
   struct hash_bucket *bucket = hash_bucket (m->vhash, hv);
   struct multi_route *oldroute = NULL;
-  
-  hash_bucket_lock (bucket);
-  he = hash_lookup_fast (m->vhash, bucket, addr, hv);
+  struct multi_instance *owner = NULL;
 
+  hash_bucket_lock (bucket);
+
+  /* if route currently exists, get the instance which owns it */
+  he = hash_lookup_fast (m->vhash, bucket, addr, hv);
   if (he)
     oldroute = (struct multi_route *) he->value;
+  if (oldroute && multi_route_defined (m, oldroute))
+    owner = oldroute->instance;
 
   /* do we need to add address to hash table? */
-  if ((!oldroute
-       || oldroute->instance != mi
-       || !multi_route_defined (m, oldroute))
+  if ((!owner || owner != mi)
       && mroute_learnable_address (addr)
       && !mroute_addr_equal (addr, &m->local))
     {
       struct gc_arena gc = gc_new ();
       struct multi_route *newroute;
+      bool learn_succeeded = false;
 
       ALLOC_OBJ (newroute, struct multi_route);
       newroute->addr = *addr;
@@ -788,33 +805,48 @@ multi_learn_addr (struct multi_context *m,
       if (flags & MULTI_ROUTE_CACHE)
 	newroute->cache_generation = m->route_helper->cache_generation;
 
-      multi_instance_inc_refcount (mi);
-
       if (oldroute) /* route already exists? */
 	{
-	  /* delete old route */
-	  multi_route_del (oldroute);
+	  if (learn_address_script (m, mi, "update", &newroute->addr))
+	    {
+	      learn_succeeded = true;
+	      owner = mi;
+	      multi_instance_inc_refcount (mi);
 
-	  /* modify hash table entry, replacing old route */
-	  he->key = &newroute->addr;
-	  he->value = newroute;
-	  learn_address_script (m, mi, "update", &newroute->addr);
+	      /* delete old route */
+	      multi_route_del (oldroute);
+
+	      /* modify hash table entry, replacing old route */
+	      he->key = &newroute->addr;
+	      he->value = newroute;
+	    }
 	}
       else
 	{
-	  /* add new route */
-	  hash_add_fast (m->vhash, bucket, &newroute->addr, hv, newroute);
-	  learn_address_script (m, mi, "add", &newroute->addr);
-	}
+	  if (learn_address_script (m, mi, "add", &newroute->addr))
+	    {
+	      learn_succeeded = true;
+	      owner = mi;
+	      multi_instance_inc_refcount (mi);
 
-      msg (D_MULTI_LOW, "MULTI: Learn: %s -> %s",
+	      /* add new route */
+	      hash_add_fast (m->vhash, bucket, &newroute->addr, hv, newroute);
+	    }
+	}
+      
+      msg (D_MULTI_LOW, "MULTI: Learn%s: %s -> %s",
+	   learn_succeeded ? "" : " FAILED",
 	   mroute_addr_print (&newroute->addr, &gc),
 	   multi_instance_string (mi, false, &gc));
+
+      if (!learn_succeeded)
+	free (newroute);
 
       gc_free (&gc);
     }
 
   hash_bucket_unlock (bucket);
+  return owner;
 }
 
 /*
@@ -901,7 +933,7 @@ multi_get_instance_by_virtual_addr (struct multi_context *m,
 /*
  * Helper function to multi_learn_addr().
  */
-static void
+static struct multi_instance *
 multi_learn_in_addr_t (struct multi_context *m,
 		       struct multi_instance *mi,
 		       in_addr_t a,
@@ -920,7 +952,7 @@ multi_learn_in_addr_t (struct multi_context *m,
       addr.type |= MR_WITH_NETBITS;
       addr.netbits = (uint8_t) netbits;
     }
-  multi_learn_addr (m, mi, &addr, 0);
+  return multi_learn_addr (m, mi, &addr, 0);
 }
 
 /*
@@ -1142,6 +1174,7 @@ multi_connection_established (struct multi_context *m, struct multi_instance *mi
       struct gc_arena gc = gc_new ();
       unsigned int option_types_found = 0;
       const unsigned int option_permissions_mask = OPT_P_PUSH|OPT_P_INSTANCE|OPT_P_TIMER|OPT_P_CONFIG|OPT_P_ECHO;
+      int cc_succeeded = true; /* client connect script status */
 
       ASSERT (mi->context.c1.tuntap);
 
@@ -1164,9 +1197,13 @@ multi_connection_established (struct multi_context *m, struct multi_instance *mi
        */
       if (mi->context.options.client_config_dir)
 	{
-	  const char *ccd_file = gen_path (mi->context.options.client_config_dir,
-					   tls_common_name (mi->context.c2.tls_multi, false),
-					   &gc);
+	  const char *ccd_file;
+	  
+	  ccd_file = gen_path (mi->context.options.client_config_dir,
+			       tls_common_name (mi->context.c2.tls_multi, false),
+			       &gc);
+
+	  /* try common-name file */
 	  if (test_file (ccd_file))
 	    {
 	      options_server_import (&mi->context.options,
@@ -1175,6 +1212,22 @@ multi_connection_established (struct multi_context *m, struct multi_instance *mi
 				     option_permissions_mask,
 				     &option_types_found,
 				     mi->context.c2.es);
+	    }
+	  else /* try default file */
+	    {
+	      ccd_file = gen_path (mi->context.options.client_config_dir,
+				   CCD_DEFAULT,
+				   &gc);
+
+	      if (test_file (ccd_file))
+		{
+		  options_server_import (&mi->context.options,
+					 ccd_file,
+					 D_IMPORT_ERRORS|M_OPTERR,
+					 option_permissions_mask,
+					 &option_types_found,
+					 mi->context.c2.es);
+		}
 	    }
 	}
 
@@ -1203,15 +1256,18 @@ multi_connection_established (struct multi_context *m, struct multi_instance *mi
 	  delete_file (dc_file);
 
 	  if (plugin_call (m->top.c1.plugins, OPENVPN_PLUGIN_CLIENT_CONNECT, dc_file, mi->context.c2.es))
-	    msg (M_WARN, "WARNING: client-connect plugin call failed");
-
-	  multi_client_connect_post (m, mi, dc_file, option_permissions_mask, &option_types_found);
+	    {
+	      msg (M_WARN, "WARNING: client-connect plugin call failed");
+	      cc_succeeded = false;
+	    }
+	  else
+	    multi_client_connect_post (m, mi, dc_file, option_permissions_mask, &option_types_found);
 	}
 
       /*
        * Run --client-connect script.
        */
-      if (mi->context.options.client_connect_script)
+      if (mi->context.options.client_connect_script && cc_succeeded)
 	{
 	  struct buffer cmd = alloc_buf_gc (256, &gc);
 	  const char *dc_file = NULL;
@@ -1226,58 +1282,70 @@ multi_connection_established (struct multi_context *m, struct multi_instance *mi
 		      mi->context.options.client_connect_script,
 		      dc_file);
 
-	  system_check (BSTR (&cmd), mi->context.c2.es, S_SCRIPT, "client-connect command failed");
-
-	  multi_client_connect_post (m, mi, dc_file, option_permissions_mask, &option_types_found);
+	  if (system_check (BSTR (&cmd), mi->context.c2.es, S_SCRIPT, "client-connect command failed"))
+	    multi_client_connect_post (m, mi, dc_file, option_permissions_mask, &option_types_found);
+	  else
+	    cc_succeeded = false;
 	}
 
-      /*
-       * Process sourced options.
-       */
-      do_deferred_options (&mi->context, option_types_found);
-
-      /*
-       * make sure we got ifconfig settings from somewhere
-       */
-      if (!mi->context.c2.push_ifconfig_defined)
+      if (cc_succeeded)
 	{
-	  msg (D_MULTI_ERRORS, "MULTI: no dynamic or static remote --ifconfig address is available for %s",
-	       multi_instance_string (mi, false, &gc));
-	}
-
-      /*
-       * For routed tunnels, set up internal route to endpoint
-       * plus add all iroute routes.
-       */
-      if (TUNNEL_TYPE (mi->context.c1.tuntap) == DEV_TYPE_TUN)
-	{
-	  if (mi->context.c2.push_ifconfig_defined)
-	    {
-	      multi_learn_in_addr_t (m, mi, mi->context.c2.push_ifconfig_local, -1);
-	      msg (D_MULTI_LOW, "MULTI: primary virtual IP for %s: %s",
-		   multi_instance_string (mi, false, &gc),
-		   print_in_addr_t (mi->context.c2.push_ifconfig_local, 0, &gc));
-	    }
-
-	  /* add routes locally, pointing to new client, if
-	     --iroute options have been specified */
-	  multi_add_iroutes (m, mi);
+	  /*
+	   * Process sourced options.
+	   */
+	  do_deferred_options (&mi->context, option_types_found);
 
 	  /*
-	   * iroutes represent subnets which are "owned" by a particular
-	   * client.  Therefore, do not actually push a route to a client
-	   * if it matches one of the client's iroutes.
+	   * make sure we got ifconfig settings from somewhere
 	   */
-	  remove_iroutes_from_push_route_list (&mi->context.options);
-	}
-      else if (mi->context.options.iroutes)
-	{
-	  msg (D_MULTI_ERRORS, "MULTI: --iroute options rejected for %s -- iroute only works with tun-style tunnels",
-	       multi_instance_string (mi, false, &gc));
-	}
+	  if (!mi->context.c2.push_ifconfig_defined)
+	    {
+	      msg (D_MULTI_ERRORS, "MULTI: no dynamic or static remote --ifconfig address is available for %s",
+		   multi_instance_string (mi, false, &gc));
+	    }
 
-      /* set our client's VPN endpoint for status reporting purposes */
-      mi->reporting_addr = mi->context.c2.push_ifconfig_local;
+	  /*
+	   * For routed tunnels, set up internal route to endpoint
+	   * plus add all iroute routes.
+	   */
+	  if (TUNNEL_TYPE (mi->context.c1.tuntap) == DEV_TYPE_TUN)
+	    {
+	      if (mi->context.c2.push_ifconfig_defined)
+		{
+		  multi_learn_in_addr_t (m, mi, mi->context.c2.push_ifconfig_local, -1);
+		  msg (D_MULTI_LOW, "MULTI: primary virtual IP for %s: %s",
+		       multi_instance_string (mi, false, &gc),
+		       print_in_addr_t (mi->context.c2.push_ifconfig_local, 0, &gc));
+		}
+
+	      /* add routes locally, pointing to new client, if
+		 --iroute options have been specified */
+	      multi_add_iroutes (m, mi);
+
+	      /*
+	       * iroutes represent subnets which are "owned" by a particular
+	       * client.  Therefore, do not actually push a route to a client
+	       * if it matches one of the client's iroutes.
+	       */
+	      remove_iroutes_from_push_route_list (&mi->context.options);
+	    }
+	  else if (mi->context.options.iroutes)
+	    {
+	      msg (D_MULTI_ERRORS, "MULTI: --iroute options rejected for %s -- iroute only works with tun-style tunnels",
+		   multi_instance_string (mi, false, &gc));
+	    }
+
+	  /* set our client's VPN endpoint for status reporting purposes */
+	  mi->reporting_addr = mi->context.c2.push_ifconfig_local;
+
+	  /* set context-level authentication flag */
+	  mi->context.c2.context_auth = CAS_SUCCEEDED;
+	}
+      else
+	{
+	  /* set context-level authentication flag */
+	  mi->context.c2.context_auth = CAS_FAILED;
+	}
 
       /* set flag so we don't get called again */
       mi->connection_established_flag = true;
@@ -1566,29 +1634,35 @@ multi_process_incoming_link (struct multi_context *m, struct multi_instance *ins
 
 	      if (mroute_flags & MROUTE_EXTRACT_SUCCEEDED)
 		{
-		  /* check for broadcast */
-		  if (m->enable_c2c)
+		  if (multi_learn_addr (m, m->pending, &src, 0) == m->pending)
 		    {
-		      if (mroute_flags & (MROUTE_EXTRACT_BCAST|MROUTE_EXTRACT_MCAST))
+		      /* check for broadcast */
+		      if (m->enable_c2c)
 			{
-			  multi_bcast (m, &c->c2.to_tun, m->pending);
-			}
-		      else /* try client-to-client routing */
-			{
-			  mi = multi_get_instance_by_virtual_addr (m, &dest, false);
-
-			  /* if dest addr is a known client, route to it */
-			  if (mi)
+			  if (mroute_flags & (MROUTE_EXTRACT_BCAST|MROUTE_EXTRACT_MCAST))
 			    {
-			      multi_unicast (m, &c->c2.to_tun, mi);
-			      register_activity (c);
-			      c->c2.to_tun.len = 0;
+			      multi_bcast (m, &c->c2.to_tun, m->pending);
+			    }
+			  else /* try client-to-client routing */
+			    {
+			      mi = multi_get_instance_by_virtual_addr (m, &dest, false);
+
+			      /* if dest addr is a known client, route to it */
+			      if (mi)
+				{
+				  multi_unicast (m, &c->c2.to_tun, mi);
+				  register_activity (c);
+				  c->c2.to_tun.len = 0;
+				}
 			    }
 			}
 		    }
-		  
-		  /* learn source address */
-		  multi_learn_addr (m, m->pending, &src, 0);
+		  else
+		    {
+		      msg (D_MULTI_DROPPED, "MULTI: bad source address from client [%s], packet dropped",
+			   mroute_addr_print (&src, &gc));
+		      c->c2.to_tun.len = 0;
+		    }
 		}
 	      else
 		{

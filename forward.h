@@ -78,4 +78,8 @@ bool send_control_channel_string (struct context *c, const char *str, int msglev
 
 void process_ipv4_header (struct context *c, unsigned int flags, struct buffer *buf);
 
+#if P2MP
+void schedule_exit (struct context *c, const int n_seconds);
+#endif
+
 #endif /* FORWARD_H */

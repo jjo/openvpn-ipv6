@@ -119,6 +119,23 @@ check_inactivity_timeout (struct context *c)
     check_inactivity_timeout_dowork (c);
 }
 
+#if P2MP
+/*
+ * Scheduled exit?
+ */
+static inline void
+check_scheduled_exit (struct context *c)
+{
+  void check_scheduled_exit_dowork (struct context *c);
+
+  if (event_timeout_defined (&c->c2.scheduled_exit))
+    {
+      if (event_timeout_trigger (&c->c2.scheduled_exit, &c->c2.timeval, ETT_DEFAULT))
+	check_scheduled_exit_dowork (c);
+    }
+}
+#endif
+
 /*
  * Should we write timer-triggered status file.
  */

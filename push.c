@@ -180,12 +180,13 @@ process_incoming_push_msg (struct context *c,
 #if P2MP_SERVER
   if (buf_string_compare_advance (&buf, "PUSH_REQUEST"))
     {
-      if (!tls_authenticated (c->c2.tls_multi))
+      if (!tls_authenticated (c->c2.tls_multi) || c->c2.context_auth == CAS_FAILED)
 	{
 	  send_auth_failed (c);
+	  schedule_exit (c, c->options.scheduled_exit_interval);
 	  ret = PUSH_MSG_AUTH_FAILURE;
 	}
-      else if (!c->c2.push_reply_deferred)
+      else if (!c->c2.push_reply_deferred && c->c2.context_auth == CAS_SUCCEEDED)
 	{
 	  if (send_push_reply (c))
 	    ret = PUSH_MSG_REQUEST;

@@ -568,6 +568,9 @@ init_options (struct options *o)
   o->max_clients = 1024;
   o->ifconfig_pool_persist_refresh_freq = 600;
 #endif
+#if P2MP
+  o->scheduled_exit_interval = 5;
+#endif
 #ifdef USE_CRYPTO
   o->ciphername = "BF-CBC";
   o->ciphername_defined = true;
@@ -2342,7 +2345,7 @@ options_server_import (struct options *o,
 		       unsigned int *option_types_found,
 		       struct env_set *es)
 {
-  msg (D_PUSH, "OPTIONS IMPORT: reading client specific options from %s", filename);
+  msg (D_PUSH, "OPTIONS IMPORT: reading client specific options from: %s", filename);
   read_config_file (o,
 		    filename,
 		    0,

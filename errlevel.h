@@ -90,6 +90,7 @@
 #define D_MULTI_DROPPED      LOGLEV(3, 39, 0)        /* show point-to-multipoint packet drops */
 #define D_PLUGIN             LOGLEV(3, 40, 0)        /* show plugin calls */
 #define D_MANAGEMENT         LOGLEV(3, 41, 0)        /* show --management info */
+#define D_SCHED_EXIT         LOGLEV(3, 42, 0)        /* show arming of scheduled exit */
 
 #define D_SHOW_PARMS         LOGLEV(4, 50, 0)        /* show all parameters on program initiation */
 #define D_SHOW_OCC           LOGLEV(4, 51, 0)        /* show options compatibility string */

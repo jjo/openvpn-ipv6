@@ -28,7 +28,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "8 December 2004"
+.TH openvpn 8 "15 December 2004"
 .\"*********************************************************
 .SH NAME
 openvpn \- secure IP tunnel daemon.
@@ -273,16 +273,34 @@ openvpn \- secure IP tunnel daemon.
 .ti +4
 .hy
 .\"*********************************************************
+.SH INTRODUCTION
+.LP
+OpenVPN is an open source VPN daemon by James Yonan.
+Because OpenVPN tries to
+be a universal VPN tool offering a great deal of flexibility,
+there are a lot of options on this manual page.
+If you're new to OpenVPN, you might want to skip ahead to the
+examples section where you will see how to construct simple
+VPNs on the command line without even needing a configuration file.
+
+Also note that there's more documentation and examples on
+the OpenVPN web site:
+.I http://openvpn.sourceforge.net/
+
+And if you would like to see a shorter version of this manual,
+see the openvpn usage message which can be obtained by
+running
+.B openvpn
+without any parameters.
+.\"*********************************************************
 .SH DESCRIPTION
 .LP
-OpenVPN is a robust and highly configurable VPN (Virtual Private Network)
-daemon which can be used to securely link two or more private networks
-using an encrypted tunnel over the Internet. OpenVPN's principal strengths
-include wide cross-platform portability, excellent stability,
-support for dynamic IP addresses and NAT, adaptive link compression,
-single TCP/UDP port usage, a modular design that offloads most crypto
-tasks to the OpenSSL library, and relatively easy installation that in
-most cases doesn't require a special kernel module.
+OpenVPN is a robust and highly flexible VPN daemon.
+OpenVPN supports SSL/TLS security, ethernet bridging,
+TCP or UDP tunnel transport through proxies or NAT,
+support for dynamic IP addresses and DHCP,
+scalability to hundreds or thousands of users,
+and portability to most major OS platforms.
 
 OpenVPN is tightly bound to the OpenSSL library, and derives much
 of its crypto capabilities from it.
@@ -2058,7 +2076,8 @@ OpenVPN in the order that they are declared in the config
 file.  If both a plugin and script are configured for the same
 callback, the script will be called last.  If the
 return code of the module/script controls an authentication
-function (such as tls-verify or auth-user-pass-verify), then
+function (such as tls-verify, auth-user-pass-verify, or
+client-connect), then
 every module and script must return success (0) in order for
 the connection to be authenticated.
 .\"*********************************************************
@@ -2403,12 +2422,27 @@ options, it can write them to this file.  See the
 .B --client-config-dir
 option below for options which
 can be legally used in a client-specific context.
+
+Note that the return value of
+.B script
+is significant.  If
+.B script
+returns a non-zero error status, it will cause the client
+to be disconnected without the
+.B --client-disconnect
+script being called.
 .\"*********************************************************
 .TP
 .B --client-disconnect
 Like
 .B --client-connect
-but called on client instance shutdown.
+but called on client instance shutdown.  Will not be called
+unless the
+.B --client-connect
+script and plugins (if defined)
+were previously called on this instance with
+successful (0) status returns.
+.B 
 .\"*********************************************************
 .TP
 .B --client-config-dir dir
@@ -2418,8 +2452,10 @@ for custom client config files.  After
 a connecting client has been authenticated, OpenVPN will
 look in this directory for a file having the same name
 as the client's X509 common name.  If a matching file
-exists, it will be opened and processed for client-specific
-configuration options.
+exists, it will be opened and parsed for client-specific
+configuration options.  If no matching file is found, OpenVPN
+will instead try to open and parse a default file called
+"DEFAULT", which may be provided but is not required.
 
 This file can specify a fixed IP address for a given
 client using
@@ -2508,7 +2544,7 @@ and
 .B --learn-address cmd
 Run script or shell command
 .B cmd
-to validate client virtual addresses.
+to validate client virtual addresses or routes.
 
 .B cmd
 will be executed with 3 parameters:
@@ -2529,6 +2565,10 @@ is being used) such as "00:FF:01:02:03:04".
 The common name on the certificate associated with the
 client linked to this address.  Only present for "add"
 or "update" operations, not "delete".
+
+On "add" or "update" methods, if the script returns
+a failure code (non-zero), OpenVPN will reject the address
+and will not modify its internal routing table.
 
 Normally, the
 .B cmd
@@ -4810,16 +4850,13 @@ OpenSSL Project (
 )
 
 For more information on the TLS protocol, see
-.I http://www.ietf.org/internet-drafts/draft-ietf-tls-rfc2246-bis-01.txt
-
-For more information on the TUN/TAP driver see
-.I http://vtun.sourceforge.net/tun/
+.I http://www.ietf.org/rfc/rfc2246.txt
 
 For more information on the LZO real-time compression library see
 .I http://www.oberhumer.com/opensource/lzo/
 .\"*********************************************************
 .SH COPYRIGHT
-Copyright (C) 2002 by James Yonan. This program is free software;
+Copyright (C) 2002-2004 by James Yonan. This program is free software;
 you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or

@@ -285,12 +285,36 @@ check_add_routes_dowork (struct context *c)
 void
 check_inactivity_timeout_dowork (struct context *c)
 {
-  struct gc_arena gc = gc_new ();
   msg (M_INFO, "Inactivity timeout (--inactive), exiting");
   c->sig->signal_received = SIGTERM;
   c->sig->signal_text = "inactive";
-  gc_free (&gc);
 }
+
+#if P2MP
+
+/*
+ * Schedule a SIGTERM n_seconds from now.
+ */
+void
+schedule_exit (struct context *c, const int n_seconds)
+{
+  update_time ();
+  reset_coarse_timers (c);
+  event_timeout_init (&c->c2.scheduled_exit, n_seconds, now);
+  msg (D_SCHED_EXIT, "Delayed exit in %d seconds", n_seconds);
+}
+
+/*
+ * Scheduled exit?
+ */
+void
+check_scheduled_exit_dowork (struct context *c)
+{
+  c->sig->signal_received = SIGTERM;
+  c->sig->signal_text = "delayed-exit";
+}
+
+#endif
 
 /*
  * Should we write timer-triggered status file.
@@ -343,6 +367,15 @@ encrypt_sign (struct context *c, bool comp_frag)
 {
   struct context_buffers *b = c->c2.buffers;
   const uint8_t *orig_buf = c->c2.buf.data;
+
+#if P2MP_SERVER
+  /*
+   * Drop non-TLS outgoing packet if client-connect script/plugin
+   * has not yet succeeded.
+   */
+  if (c->c2.context_auth != CAS_SUCCEEDED)
+    c->c2.buf.len = 0;
+#endif
 
   if (comp_frag)
     {
@@ -445,6 +478,12 @@ process_coarse_timers (struct context *c)
   check_ping_restart (c);
   if (c->sig->signal_received)
     return;
+
+#if P2MP
+  check_scheduled_exit (c);
+  if (c->sig->signal_received)
+    return;
+#endif
 
 #ifdef ENABLE_OCC
   /* Should we send an OCC_REQUEST message? */
@@ -677,6 +716,14 @@ process_incoming_link (struct context *c)
 		event_timeout_reset (&c->c2.ping_rec_interval);
 	    }
 	}
+#if P2MP_SERVER
+      /*
+       * Drop non-TLS packet if client-connect script/plugin has not
+       * yet succeeded.
+       */
+      if (c->c2.context_auth != CAS_SUCCEEDED)
+	c->c2.buf.len = 0;
+#endif
 #endif /* USE_SSL */
 
       /* authenticate and decrypt the incoming packet */

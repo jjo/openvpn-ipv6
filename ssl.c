@@ -2654,8 +2654,9 @@ key_method_2_read (struct buffer *buf, struct tls_multi *multi, struct tls_sessi
   /* verify --client-config-dir based authentication */
   if (ks->authenticated && session->opt->client_config_dir_exclusive)
     {
-      const char *path = gen_path (session->opt->client_config_dir_exclusive, session->common_name, &gc);
-      if (!test_file (path))
+      const char *cn = session->common_name;
+      const char *path = gen_path (session->opt->client_config_dir_exclusive, cn, &gc);
+      if (!cn || !strcmp (cn, CCD_DEFAULT) || !test_file (path))
 	{
 	  ks->authenticated = false;
 	  msg (D_TLS_ERRORS, "TLS Auth Error: --client-config-dir authentication failed for common name '%s' file='%s'",
