@@ -32,6 +32,9 @@
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
 
+#include "syshead.h"
+
+#include "buffer.h"
 #include "error.h"
 #include "common.h"
 #include "reliable.h"
@@ -95,7 +98,7 @@ error:
   return false;
 }
 
-#define ACK_SIZE(n) (sizeof (unsigned char) + ((n) ? sizeof (struct session_id) : 0) + sizeof (packet_id_type) * (n))
+#define ACK_SIZE(n) (sizeof (unsigned char) + ((n) ? SID_SIZE : 0) + sizeof (packet_id_type) * (n))
 
 /* write a packet ID acknowledgement record to buf, */
 /* removing all acknowledged entries from ack */
@@ -143,6 +146,42 @@ reliable_ack_adjust_frame_parameters (struct frame* frame, int max)
 {
   frame->extra_frame += ACK_SIZE(max);
 }
+
+/* print a reliable ACK record coming off the wire */
+const char*
+reliable_ack_print(struct buffer* buf)
+{
+  int i;
+  unsigned char n_ack;
+  struct session_id sid_ack;
+  packet_id_type pid;
+  struct buffer out = alloc_buf_gc (256);
+
+  buf_printf (&out, "[");
+  if (!buf_read (buf, &n_ack, sizeof (n_ack)))
+    goto done;
+  for (i = 0; i < n_ack; ++i)
+    {
+      if (!buf_read (buf, &pid, sizeof (pid)))
+	goto done;
+      pid = ntohpid (pid);
+      buf_printf (&out, " %u", pid);
+    }
+  if (n_ack)
+    {
+      if (!session_id_read (&sid_ack, buf))
+	goto done;
+      buf_printf (&out, " sid=%s", session_id_print (&sid_ack));
+    }
+
+ done:
+  buf_printf (&out, " ]");
+  return out.data;
+}
+
+/*
+ * struct reliable member functions.
+ */
 
 void
 reliable_init (struct reliable *rel, int size, int offset)

@@ -76,12 +76,19 @@ struct frame {
    * data.
    */
   int extra_buffer;
+
+  /*
+   * extra_tun: max number of bytes that might be removed from head
+   * of incoming packet from tun device, or prepended to outgoing
+   * tun packet.
+   */
+  int extra_tun;
 };
 
 /* Routines which read struct frame should use the macros below */
 
-#define BUF_SIZE(f)          ((f)->mtu + (f)->extra_frame + (f)->extra_buffer)
-#define EXTRA_FRAME(f)       ((f)->extra_frame)
+#define BUF_SIZE(f)          ((f)->mtu + (f)->extra_frame + (f)->extra_buffer + (f)->extra_tun)
+#define EXTRA_FRAME(f)       ((f)->extra_frame + (f)->extra_tun)
 #define MTU_SIZE(f)          ((f)->mtu)
 #define MTU_EXTRA_SIZE(f)    ((f)->mtu + (f)->extra_frame)
 
@@ -89,7 +96,7 @@ struct frame {
  * These values are used as maximum size constraints
  * on read() or write() from TUN/TAP device or UDP port.
  */
-#define MAX_RW_SIZE_TUN(f)   ((f)->mtu)
+#define MAX_RW_SIZE_TUN(f)   ((f)->mtu + (f)->extra_tun)
 #define MAX_RW_SIZE_UDP(f)   ((f)->mtu + (f)->extra_frame)
 
 #ifdef USE_CRYPTO
@@ -145,11 +152,14 @@ struct frame {
 #define D_HANDSHAKE_VERBOSE  6	/* show detailed description of each handshake */
 
 #define D_TLS_DEBUG          7	/* show detailed info from tls_session routines */
+#define D_CRYPTO_DEBUG       7  /* show detailed info from crypto.c routines */
 #define D_COMP               7	/* show compression info */
 #define D_READ_WRITE         7	/* verbose account of all tun/UDP reads/writes */
 #define D_REL_DEBUG          7	/* show detailed info from reliable routines */
 #define D_PACKET_CONTENT     7	/* show before/after encryption packet content */
 #define D_GREMLIN_VERBOSE    7  /* show verbose info from gremlin module */
 #define D_TLS_NO_SEND_KEY    7  /* show when no data channel send-key is available */
+
+#define D_SHAPER             8  /* show traffic shaper info */
 
 #endif

@@ -25,23 +25,21 @@
 
 #include "config.h"
 
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <signal.h>
-#include <stdio.h>
+#include "syshead.h"
 
+#include "error.h"
+#include "socket.h"
 #include "openvpn.h"
 #include "common.h"
 #include "buffer.h"
 #include "crypto.h"
 #include "ssl.h"
 #include "misc.h"
-#include "error.h"
 #include "lzo.h"
-#include "socket.h"
+#include "tun.h"
 #include "gremlin.h"
 #include "interval.h"
+#include "shaper.h"
 
 #include "memdbg.h"
 
@@ -65,10 +63,19 @@ static const char usage_message[] =
   "--nobind        : Do not bind to local address and port.\n"
   "--dev tunX|tapX : tun/tap device (X can be omitted for dynamic device in\n"
   "                  Linux 2.4+).\n"
+  "--shaper n      : Restrict output to peer to n bytes per second.\n"
   "--tun-mtu n     : Take the TUN device MTU to be n and derive the UDP MTU\n"
   "                  from it (default=%d).\n"
   "--udp-mtu n     : Take the UDP device MTU to be n and derive the TUN MTU\n"
   "                  from it (disabled by default).\n"
+  "--tun-af-inet   : Remove a leading htonl(AF_INET) from incoming tunnel\n"
+  "                  data and add it onto outgoing tunnel data.\n"
+  "                  This option should be used on the OpenBSD side of an\n"
+  "                  OpenBSD <-> Linux tunnel.\n"
+#ifdef _POSIX_MEMLOCK
+  "--mlock         : Disable Paging -- ensures key material and tunnel\n"
+  "                  data will never be written to disk.\n"
+#endif
   "--up cmd        : Shell cmd to execute after successful tun device open.\n"
   "                  Execute as: cmd tun/tap-dev tun-mtu udp-mtu\n"
   "                  (pre --user UID change)\n"
@@ -80,6 +87,8 @@ static const char usage_message[] =
   "--daemon        : Become a daemon.\n"
   "--nice n        : Change process priority (>0 = lower, <0 = higher).\n"
   "--verb n        : Set output verbosity to n (default=%d):\n"
+  "                  (Level 5 is recommended if you want a good summary\n"
+  "                  of what's happening without being swamped by output).\n"
   "                : 0 -- no output except fatal errors\n"
   "                : 1 -- startup header + non-fatal encryption & net errors\n"
   "                : 2 -- show all parameter settings\n"
@@ -110,19 +119,10 @@ static const char usage_message[] =
   "--cipher alg    : Encrypt packets with cipher algorithm alg\n"
   "                  (default=%s).\n"
   "                  Set alg=none to disable encryption.\n"
-  "--timestamp n   : Use packet timestamp to defeat replay attacks\n"
-  "                  (adds 4 bytes/pkt), n = max # of seconds difference\n"
-  "                  between peer timestamps (default=%d).  This is the\n"
-  "                  recommended form of replay protection for static key\n"
-  "                  encryption mode.\n"
-  "                  NOTE: requires that peer clocks be synchronized.\n"
-  "--packet-id     : Use packet-id to defeat replay attacks\n"
-  "                  (adds 4 bytes/pkt).  This is the recommended form of\n"
-  "                  replay protection for TLS key negotiation mode.\n"
   "--keysize n     : Size of cipher key in bits (optional).\n"
   "                  If unspecified, defaults to cipher-specific default.\n"
-  "--rand-iv       : Use a random IV for each packet encryption\n"
-  "                  (adds 8 bytes/pkt).\n"
+  "--no-replay     : Disable replay protection.\n"
+  "--no-iv         : Disable cipher IV -- only allowed with CBC mode ciphers.\n"
 #ifdef USE_SSL
   "\n"
   "TLS Key Negotiation Options:\n"
@@ -143,21 +143,13 @@ static const char usage_message[] =
   "--reneg-bytes n : Renegotiate data chan. key after n bytes sent and recvd.\n"
   "--reneg-pkts n  : Renegotiate data chan. key after n packets sent and recvd.\n"
   "--reneg-sec n   : Renegotiate data chan. key after n seconds (default=%d).\n"
-  "--reneg-err n   : Renegotiate data chan. key after n auth errors (default=%d).\n"
   "--hand-window n : Data channel key exchange must finalize within n seconds\n"
   "                  of handshake initiation by any peer (default=%d).\n"
   "--tran-window n : Transition window -- old key can live this many seconds\n"
   "                  after new key renegotiation begins (default=%d).\n"
-  "--tls-freq n    : Wait n seconds between each TLS packet transmit if we\n"
-  "                  already possess a key.  Prevents the TLS control channel\n"
-  "                  from hogging bandwidth during key exchanges (default=%d).\n"
-  "                  Set to 0 to disable.\n"
-  "--tls-auth f t  : Add an additional layer of authentication on top of the TLS\n"
+  "--tls-auth f    : Add an additional layer of authentication on top of the TLS\n"
   "                  control channel to protect against DOS attacks.\n"
   "                  f (required) is a shared-secret passphrase file.\n"
-  "                  t (optional) is max number of seconds timestamp delta\n"
-  "                  between peers (default=%d, 0 to disable).\n"
-  "                  NOTE: t requires that peer clocks be synchronized.\n"
   "--askpass       : Get PEM password from controlling tty before we daemonize.\n"
   "--tls-verify cmd: Execute shell command cmd to verify the X509 name of a\n"
   "                  pending TLS connection that has otherwise passed all other\n"
@@ -201,6 +193,8 @@ signal_handler (int signum)
 
 /*
  * This is where the options defaults go.
+ * Any option not explicitly set here
+ * will be set to 0.
  */
 static void
 init_options (struct options *o)
@@ -218,15 +212,13 @@ init_options (struct options *o)
   o->ciphername_defined = true;
   o->authname = "SHA1";
   o->authname_defined = true;
-  o->timestamp = 30;
+  o->packet_id = true;
+  o->iv = true;
 #ifdef USE_SSL
   o->tls_timeout = 5;
   o->renegotiate_seconds = 3600;
-  o->renegotiate_errors = 20;
   o->handshake_window = 60;
   o->transition_window = 3600;
-  o->tls_freq = 2;
-  o->tls_auth_mtd = 3600;
 #endif
 #endif
 }
@@ -249,10 +241,15 @@ show_settings (const struct options *o)
   SHOW_STR (ipchange);
   SHOW_BOOL (bind_local);
   SHOW_STR (dev);
+  SHOW_INT (shaper);
   SHOW_INT (tun_mtu);
   SHOW_BOOL (tun_mtu_defined);
   SHOW_INT (udp_mtu);
   SHOW_BOOL (udp_mtu_defined);
+  SHOW_BOOL (tun_af_inet);
+#ifdef _POSIX_MEMLOCK
+  SHOW_BOOL (mlock);
+#endif
 
   SHOW_STR (username);
   SHOW_STR (chroot_dir);
@@ -274,11 +271,9 @@ show_settings (const struct options *o)
   SHOW_STR (ciphername);
   SHOW_BOOL (authname_defined);
   SHOW_STR (authname);
-  SHOW_BOOL (timestamp_defined);
-  SHOW_INT (timestamp);
-  SHOW_BOOL (packet_id);
   SHOW_INT (keysize);
-  SHOW_BOOL (random_ivec);
+  SHOW_BOOL (packet_id);
+  SHOW_BOOL (iv);
 
 #ifdef USE_SSL
   SHOW_BOOL (tls_server);
@@ -288,20 +283,18 @@ show_settings (const struct options *o)
   SHOW_STR (cert_file);
   SHOW_STR (priv_key_file);
   SHOW_STR (cipher_list);
+  SHOW_STR (tls_verify);
 
   SHOW_INT (tls_timeout);
 
   SHOW_INT (renegotiate_bytes);
   SHOW_INT (renegotiate_packets);
   SHOW_INT (renegotiate_seconds);
-  SHOW_INT (renegotiate_errors);
 
   SHOW_INT (handshake_window);
   SHOW_INT (transition_window);
-  SHOW_INT (tls_freq);
 
   SHOW_STR (tls_auth_file);
-  SHOW_INT (tls_auth_mtd);
 #endif
 #endif
 }
@@ -323,12 +316,10 @@ options_string (const struct options *o)
   if (o->authname_defined)
     buf_printf (&out, " --auth %s", o->authname);
 
-  if (o->timestamp_defined)
-    buf_printf (&out, " --timestamp");
-  if (o->packet_id)
-    buf_printf (&out, " --packet-id");
-  if (o->random_ivec)
-    buf_printf (&out, " --rand-iv");
+  if (!o->packet_id)
+    buf_printf (&out, " --no-replay");
+  if (!o->iv)
+    buf_printf (&out, " --no-iv");
 #ifdef USE_LZO
   if (o->comp_lzo)
     buf_printf (&out, " --comp-lzo");
@@ -365,16 +356,13 @@ usage ()
 	  o.tun_mtu,
 	  o.verbosity
 #ifdef USE_CRYPTO
-	  , o.authname, o.ciphername, o.timestamp
+	  , o.authname, o.ciphername
 #ifdef USE_SSL
 	  ,
 	  o.tls_timeout,
 	  o.renegotiate_seconds,
-	  o.renegotiate_errors,
 	  o.handshake_window,
-	  o.transition_window,
-	  o.tls_freq,
-	  o.tls_auth_mtd
+	  o.transition_window
 #endif
 #endif
     );
@@ -407,8 +395,7 @@ notnull (char *arg, char *description)
 #define PROTO_DUMP(buf) protocol_dump(buf, \
 				      PD_SHOW_DATA | \
 				      (tls_multi ? PD_TLS : 0) | \
-				      (options->tls_auth_file ? key_type.hmac_length : 0) | \
-				      (options->tls_auth_mtd ? PD_TLS_AUTH_TIMESTAMP : 0) \
+				      (options->tls_auth_file ? key_type.hmac_length : 0) \
 				      )
 #else
 #define TLS_MODE (false)
@@ -417,11 +404,12 @@ notnull (char *arg, char *description)
 
 static void print_frame_parms(int level, const struct frame *frame, const char* prefix)
 {
-  msg (level, "%s: mtu=%d extra_frame=%d extra_buffer=%d",
+  msg (level, "%s: mtu=%d extra_frame=%d extra_buffer=%d extra_tun=%d",
        prefix,
        frame->mtu,
        frame->extra_frame,
-       frame->extra_buffer);
+       frame->extra_buffer,
+       frame->extra_tun);
 }
 
 static void frame_finalize(struct frame *frame, const struct options *options)
@@ -442,7 +430,7 @@ static void frame_finalize(struct frame *frame, const struct options *options)
       print_frame_parms (M_FATAL, frame, "MTU is too small");
     }
 
-  frame->extra_buffer += frame->extra_frame;
+  frame->extra_buffer += frame->extra_frame + frame->extra_tun;
 }
 
 /*
@@ -476,6 +464,8 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 
   time_t current;
 
+  struct shaper shaper;
+
 #ifdef USE_CRYPTO
 
 #ifdef USE_SSL
@@ -491,9 +481,9 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
   struct buffer encrypt_buf = clear_buf ();
   struct buffer decrypt_buf = clear_buf ();
 
-  struct packet_id packet_id;
-
   struct crypto_options crypto_options;
+  struct packet_id packet_id;
+  unsigned char iv[EVP_MAX_IV_LENGTH];
 #endif
 
 #ifdef USE_LZO
@@ -509,6 +499,10 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 
   if (!*one_time_init)
     {
+#ifdef _POSIX_MEMLOCK
+      if (options->mlock) /* should we disable paging? */
+	do_mlockall(true);
+#endif
       /* chroot if requested */
       do_chroot (options->chroot_dir);
     }
@@ -529,15 +523,14 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
   /* Initialize crypto options */
 
   CLEAR (crypto_options);
-  crypto_options.max_timestamp_delta =
-    (options->timestamp_defined ? options->timestamp : 0);
-  crypto_options.random_ivec = options->random_ivec;
+  CLEAR (packet_id);
+  CLEAR (iv);
 
-  /* Initialize packet ID tracking */
-  if (options->packet_id)
+  /* Start with a random IV and carry forward the residuals */
+  if (options->iv)
     {
-      CLEAR (packet_id);
-      crypto_options.packet_id = &packet_id;
+      randomize_iv (iv);
+      crypto_options.iv = iv;
     }
 
   if (options->shared_secret_file)
@@ -547,24 +540,40 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
        */
       struct key key;
 
+      /* Initialize packet ID tracking */
+      if (options->packet_id)
+	{
+	  crypto_options.packet_id = &packet_id;
+	  crypto_options.packet_id_long_form = true;
+	}
+
       /* Get cipher & hash algorithms */
       init_key_type (&key_type, options->ciphername,
 		     options->ciphername_defined, options->authname,
 		     options->authname_defined, options->keysize);
 
+      /* Compute MTU parameters */
       crypto_adjust_frame_parameters(&frame,
 				     &key_type,
 				     options->ciphername_defined,
+				     options->iv,
 				     options->packet_id,
-				     options->random_ivec,
-				     options->timestamp_defined);
+				     true);
+
+      check_replay_iv_consistency(&key_type, options->packet_id, options->iv);
 
       /* Read cipher and hmac keys from shared secret file */
       read_key_file (&key, options->shared_secret_file);
 
+      /* Fix parity for DES keys and make sure not a weak key */
+      fixup_key (&key, &key_type);
+      if (!check_key (&key, &key_type)) /* This should be a very improbable failure */
+	msg (M_FATAL, "Key in %s is bad.  Try making a new key with --genkey.",
+	     options->shared_secret_file);
+
       /* Init cipher & hmac */
-      init_key_ctx (&key_ctx_bi.encrypt, &key, &key_type, "Static");
-      key_ctx_bi.decrypt = key_ctx_bi.encrypt;
+      init_key_ctx (&key_ctx_bi.encrypt, &key, &key_type, "Static Encrypt");
+      init_key_ctx (&key_ctx_bi.decrypt, &key, &key_type, "Static Decrypt");
       crypto_options.key_ctx_bi = &key_ctx_bi;
 
       /* Erase the key */
@@ -578,18 +587,25 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
        */
       struct tls_options to;
       struct key tls_auth_key;
+      bool packet_id_long_form;
 
       /* Get cipher & hash algorithms */
       init_key_type (&key_type, options->ciphername,
 		     options->ciphername_defined, options->authname,
 		     options->authname_defined, options->keysize);
 
+      check_replay_iv_consistency(&key_type, options->packet_id, options->iv);
+
+      /* In short form, unique datagram identifier is 32 bits, in long form 64 bits */
+      packet_id_long_form = cfb_ofb_mode (&key_type);
+
+      /* Compute MTU parameters */
       crypto_adjust_frame_parameters(&frame,
 				     &key_type,
 				     options->ciphername_defined,
+				     options->iv,
 				     options->packet_id,
-				     options->random_ivec,
-				     options->timestamp_defined);
+				     packet_id_long_form);
 
       tls_adjust_frame_parameters(&frame);
 
@@ -602,28 +618,27 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
       to.server = options->tls_server;
       to.options = data_channel_options = options_string (options);
       to.packet_id = options->packet_id;
+      to.packet_id_long_form = packet_id_long_form;
       to.transition_window = options->transition_window;
-      to.tls_freq = options->tls_freq;
       to.handshake_window = options->handshake_window;
       to.packet_timeout = options->tls_timeout;
       to.renegotiate_bytes = options->renegotiate_bytes;
       to.renegotiate_packets = options->renegotiate_packets;
       to.renegotiate_seconds = options->renegotiate_seconds;
-      to.renegotiate_errors = options->renegotiate_errors;
 
       /* TLS handshake authentication */
-      if (options->tls_auth_file) {
-	get_tls_handshake_key (&key_type, &to.tls_auth_key,
-			       options->tls_auth_file);
-	to.tls_auth.max_timestamp_delta = options->tls_auth_mtd;
-
-	crypto_adjust_frame_parameters(&to.frame,
-				       &key_type,
-				       false,
-				       true,
-				       false,
-				       options->tls_auth_mtd);
-      }
+      if (options->tls_auth_file)
+	{
+	  get_tls_handshake_key (&key_type, &to.tls_auth_key,
+				 options->tls_auth_file);
+	  to.tls_auth.packet_id_long_form = true;
+	  crypto_adjust_frame_parameters(&to.frame,
+					 &key_type,
+					 false,
+					 false,
+					 true,
+					 true);
+	}
 
       to.ssl_ctx = ssl_ctx = init_ssl (options->tls_server,
 				       options->ca_file,
@@ -657,28 +672,35 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
   if (options->comp_lzo)
     {
       lzo_compress_init (&lzo_compwork, options->comp_lzo_adaptive);
-      lzo_adjust_frame_parameters(&frame);
+      lzo_adjust_frame_parameters (&frame);
     }
 #endif
+
+  /*
+   * Make space for a uint32 to be removed from incoming TUN packets
+   * and added to outgoing TUN packets.
+   */
+  if (options->tun_af_inet)
+    tun_adjust_frame_parameters (&frame, sizeof (u_int32_t));
 
   /*
    * Fill in the blanks in the frame parameters structure,
    * make sure values are rational, etc.
    */
-  frame_finalize(&frame, options);
+  frame_finalize (&frame, options);
   max_rw_size_udp = MAX_RW_SIZE_UDP (&frame);
-  print_frame_parms(D_SHOW_PARMS, &frame, "Data Channel MTU parms");
+  print_frame_parms (D_SHOW_PARMS, &frame, "Data Channel MTU parms");
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
   if (tls_multi)
     {
       int size;
 
-      tls_multi_init_finalize(tls_multi, &frame);
+      tls_multi_init_finalize (tls_multi, &frame);
       size = MAX_RW_SIZE_UDP (&tls_multi->opt.frame);
       if (size > max_rw_size_udp)
 	max_rw_size_udp = size;
-      print_frame_parms(D_SHOW_PARMS, &tls_multi->opt.frame, "Control Channel MTU parms");
+      print_frame_parms (D_SHOW_PARMS, &tls_multi->opt.frame, "Control Channel MTU parms");
     }
 #endif
 
@@ -696,9 +718,16 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 #endif
 
 #ifdef USE_LZO
-  lzo_compress_buf = alloc_buf (BUF_SIZE (&frame));
-  lzo_decompress_buf = alloc_buf (BUF_SIZE (&frame));
+  if (options->comp_lzo)
+    {
+      lzo_compress_buf = alloc_buf (BUF_SIZE (&frame));
+      lzo_decompress_buf = alloc_buf (BUF_SIZE (&frame));
+    }
 #endif
+
+  /* initialize traffic shaper */
+  if (options->shaper)
+    shaper_init (&shaper, options->shaper);
 
   /* run the up script */
   run_script (options->up_script, actual_dev, MAX_RW_SIZE_TUN (&frame), max_rw_size_udp);
@@ -740,6 +769,11 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
     {
       struct timeval *tv = NULL;
       struct timeval timeval;
+      bool shaper_caused_timeout = false;
+
+      /* initialize select() timeout */
+      timeval.tv_sec = 0;
+      timeval.tv_usec = 0;
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
       /*
@@ -752,16 +786,18 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
        */
       if (tls_multi)
 	{
-	  timeval.tv_sec = 0;
-	  timeval.tv_usec = 0;
-	  tv = &timeval;
+	  time_t t = 0;
+
 	  if (interval_test (&tmp_int, current))
 	    {
-	      if (tls_multi_process (tls_multi, &to_udp, &to_udp_addr,
-				     &udp_socket, &timeval.tv_sec, current))
+	      if (tls_multi_process (tls_multi, &to_udp, &to_udp_addr, &udp_socket, &t, current))
 		interval_trigger(&tmp_int, current);
 	    }
-	  interval_set_timeout (&tmp_int, current, &timeval.tv_sec);
+	  interval_set_timeout (&tmp_int, current, &t);
+
+	  tv = &timeval;
+	  timeval.tv_sec = t;
+	  timeval.tv_usec = 0;
 	}
 #endif
 
@@ -773,22 +809,36 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
        */
       FD_ZERO (&reads);
       FD_ZERO (&writes);
+
       if (to_udp.len > 0)
 	{
-	  FD_SET (udp_socket.sd, &writes);
+	  if (options->shaper)
+	    {
+	      const int delay = shaper_delay (&shaper); /* traffic shaping delay in microseconds */
+	      if (delay)
+		{
+		  shaper_soonest_event (&timeval, delay, &shaper_caused_timeout);
+		  tv = &timeval;
+		}
+	      else
+		{
+		  FD_SET (udp_socket.sd, &writes);
+		}
+	    }
+	  else
+	    {
+	      FD_SET (udp_socket.sd, &writes);
+	    }
 	}
       else
 	{
 	  FD_SET (td, &reads);
 	}
+
       if (to_tun.len > 0)
-	{
-	  FD_SET (td, &writes);
-	}
+	FD_SET (td, &writes);
       else
-	{
-	  FD_SET (udp_socket.sd, &reads);
-	}
+	FD_SET (udp_socket.sd, &reads);
 
       /*
        * Possible scenarios:
@@ -797,16 +847,19 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
        *  (3) tun dev has data available to read
        *  (4) tun dev is ready to accept more data to write
        *  (5) we received a SIGINT or SIGTERM (handler sets signal_received)
-       *  (6) timeout (tv) expired (timeout is always set by TLS level)
+       *  (6) timeout (tv) expired (timeout is set by either TLS level or traffic shaper)
        */
       stat = select (fm, &reads, &writes, NULL, tv);
       if (signal_received)
 	break;
       current = time (NULL);
+
 #if defined(USE_CRYPTO) && defined(USE_SSL)
       if (!stat) /* timeout? */
 	{
-	  interval_select_timeout(&tmp_int);
+	  if (!shaper_caused_timeout)
+	    interval_select_timeout (&tmp_int); /* TLS level timeout trigger -- don't call */
+	                                        /*   if traffic shaper brought us here. */
 	  continue;
 	}
 #endif
@@ -845,7 +898,7 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 			interval_trigger(&tmp_int, current);
 		    }
 #endif
-		  decrypt (&buf, decrypt_buf, &crypto_options, &frame, current);
+		  openvpn_decrypt (&buf, decrypt_buf, &crypto_options, &frame, current);
 #endif
 #ifdef USE_LZO
 		  if (options->comp_lzo)
@@ -872,6 +925,8 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 	      check_status (buf.len, "read from tun");
 	      if (buf.len > 0)
 		{
+		  if (options->tun_af_inet)
+		    tun_rm_head (&buf, AF_INET);
 #ifdef USE_LZO
 		  if (options->comp_lzo)
 		    lzo_compress (&buf, lzo_compress_buf, &lzo_compwork, &frame, current);
@@ -882,7 +937,7 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 		    tls_pre_encrypt (tls_multi, &buf, &crypto_options);
 #endif
 
-		  encrypt (&buf, encrypt_buf, &crypto_options, &frame, current);
+		  openvpn_encrypt (&buf, encrypt_buf, &crypto_options, &frame, current);
 #endif
 		  udp_socket_get_outgoing_addr (&buf, &udp_socket,
 						&to_udp_addr);
@@ -904,32 +959,59 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 	  /* TUN device ready to accept write */
 	  if (FD_ISSET (td, &writes))
 	    {
-	      int size;
-	      ASSERT (to_tun.len > 0 && to_tun.len <= MAX_RW_SIZE_TUN(&frame));
-	      size = write (td, BPTR (&to_tun), BLEN (&to_tun));
-	      check_status (size, "write to tun");
+	      ASSERT (to_tun.len > 0);
+	      if (options->tun_af_inet)
+		tun_add_head (&to_tun, AF_INET);
+	      if (to_tun.len <= MAX_RW_SIZE_TUN(&frame))
+		{
+		  const int size = write (td, BPTR (&to_tun), BLEN (&to_tun));
+		  check_status (size, "write to tun");
+		}
+	      else
+		{
+		  msg (D_LINK_ERRORS, "TUN packet too large on write (%d,%d)",
+		       to_tun.len,
+		       MAX_RW_SIZE_TUN(&frame));
+		}
 	      to_tun = nullbuf;
 	    }
 
 	  /* UDP port ready to accept write */
 	  if (FD_ISSET (udp_socket.sd, &writes))
 	    {
-	      socklen_t tolen = sizeof (to_udp_addr);
-	      int size;
+	      if (to_udp.len > 0 && to_udp.len <= max_rw_size_udp)
+		{
+		  int size;
+		  ASSERT (ADDR (to_udp_addr));
+		  if (!options->gremlin || ask_gremlin())
+		    {
+		      if (options->shaper)
+			shaper_wrote_bytes (&shaper, BLEN (&to_udp));
+		      size = sendto (udp_socket.sd, BPTR (&to_udp), BLEN (&to_udp), 0,
+				     (struct sockaddr *) &to_udp_addr,
+				     (socklen_t) sizeof (to_udp_addr));
+		    }
+		  else
+		    size = 0;
+		  check_status (size, "write to udp");
 
-	      ASSERT (to_udp.len > 0 && to_udp.len <= max_rw_size_udp);
-	      ASSERT (ADDR (to_udp_addr));
-	      if (!options->gremlin || ask_gremlin())
-		size = sendto (udp_socket.sd, BPTR (&to_udp), BLEN (&to_udp), 0,
-			       (struct sockaddr *) &to_udp_addr, tolen);
+		  if (size > 0)
+		    {
+		      if (size != BLEN (&to_udp))
+			msg (D_LINK_ERRORS, "UDP packet was fragmented on write to %s",
+			     print_sockaddr (&to_udp_addr));
+		    }
+
+		  msg (D_PACKET_CONTENT, "UDP WRITE to %s: %s",
+		       print_sockaddr (&to_udp_addr), PROTO_DUMP (&to_udp));
+		}
 	      else
-		size = 0;
-	      check_status (size, "write to udp");
-	      if (size > 0 && size != BLEN (&to_udp))
-		msg(D_LINK_ERRORS, "UDP packet was fragmented on write to %s",
-		    print_sockaddr (&to_udp_addr));
-	      msg (D_PACKET_CONTENT, "UDP WRITE to %s: %s",
-		   print_sockaddr (&to_udp_addr), PROTO_DUMP (&to_udp));
+		{
+		  msg (D_LINK_ERRORS, "UDP packet too large on write to %s (%d,%d)",
+		       print_sockaddr (&to_udp_addr),
+		       to_udp.len,
+		       max_rw_size_udp);
+		}
 	      to_udp = nullbuf;
 	    }
 	}
@@ -944,14 +1026,17 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
   free_buf (&read_tun_buf);
 
 #ifdef USE_LZO
-  lzo_compress_uninit (&lzo_compwork);
-  free_buf (&lzo_compress_buf);
-  free_buf (&lzo_decompress_buf);
+  if (options->comp_lzo)
+    {
+      lzo_compress_uninit (&lzo_compwork);
+      free_buf (&lzo_compress_buf);
+      free_buf (&lzo_decompress_buf);
+    }
 #endif
 
 #ifdef USE_CRYPTO
   if (options->shared_secret_file)
-    CLEAR (key_ctx_bi);
+    free_key_ctx_bi (&key_ctx_bi);
 
   free_buf (&encrypt_buf);
   free_buf (&decrypt_buf);
@@ -1020,6 +1105,11 @@ main (int argc, char *argv[])
   init_options (&options);
 
   error_reset ();
+
+#ifdef PID_TEST
+  packet_id_interactive_test();
+  return 0;
+#endif
 
   /* usage message */
   if (argc <= 1)
@@ -1099,6 +1189,13 @@ main (int argc, char *argv[])
 	{
 	  options.daemon = true;
 	}
+#ifdef _POSIX_MEMLOCK
+      else if (streq (p1, "--mlock"))
+	{
+	  options.mlock = true;
+	  do_mlockall(false);
+	}
+#endif
       else if (streq (p1, "--verb") && p2)
 	{
 	  ++i;
@@ -1116,16 +1213,31 @@ main (int argc, char *argv[])
 	  options.tun_mtu = positive (atoi (p2));
 	  options.tun_mtu_defined = true;
 	}
+      else if (streq (p1, "--tun-af-inet"))
+	{
+	  options.tun_af_inet = true;
+	}
       else if (streq (p1, "--nice") && p2)
 	{
 	  ++i;
 	  options.nice = atoi (p2);
 	}
+      else if (streq (p1, "--shaper") && p2)
+	{
+	  ++i;
+	  options.shaper = atoi (p2);
+	  if (options.shaper < SHAPER_MIN || options.shaper > SHAPER_MAX)
+	    {
+	      msg (M_WARN, "bad --shaper value, must be between %d and %d",
+		   SHAPER_MIN, SHAPER_MAX);
+	      usage_small ();
+	    }
+	}
       else if (streq (p1, "--port") && p2)
 	{
 	  ++i;
 	  options.local_port = options.remote_port = atoi (p2);
-	  if (!options.local_port || !options.remote_port)
+	  if (options.local_port <= 0 || options.remote_port <= 0)
 	    {
 	      msg (M_WARN, "Bad port number: %s", p2);
 	      usage_small ();
@@ -1135,7 +1247,7 @@ main (int argc, char *argv[])
 	{
 	  ++i;
 	  options.local_port = atoi (p2);
-	  if (!options.local_port)
+	  if (options.local_port <= 0)
 	    {
 	      msg (M_WARN, "Bad local port number: %s", p2);
 	      usage_small ();
@@ -1145,7 +1257,7 @@ main (int argc, char *argv[])
 	{
 	  ++i;
 	  options.remote_port = atoi (p2);
-	  if (!options.remote_port)
+	  if (options.remote_port <= 0)
 	    {
 	      msg (M_WARN, "Bad remote port number: %s", p2);
 	      usage_small ();
@@ -1213,28 +1325,13 @@ main (int argc, char *argv[])
 	{
 	  options.ciphername_defined = true;
 	}
-      else if (streq (p1, "--timestamp") && p2)
+      else if (streq (p1, "--no-replay"))
 	{
-	  ++i;
-	  options.timestamp_defined = true;
-	  options.timestamp = positive (atoi (p2));
-	  if (options.timestamp < 1)
-	    {
-	      msg (M_WARN, "Bad timestamp value: %s", p2);
-	      usage_small ();
-	    }
+	  options.packet_id = false;
 	}
-      else if (streq (p1, "--timestamp"))
+      else if (streq (p1, "--no-iv"))
 	{
-	  options.timestamp_defined = true;
-	}
-      else if (streq (p1, "--packet-id"))
-	{
-	  options.packet_id = true;
-	}
-      else if (streq (p1, "--rand-iv"))
-	{
-	  options.random_ivec = true;
+	  options.iv = false;
 	}
       else if (streq (p1, "--keysize") && p2)
 	{
@@ -1313,11 +1410,6 @@ main (int argc, char *argv[])
 	  ++i;
 	  options.renegotiate_seconds = positive (atoi (p2));
 	}
-      else if (streq (p1, "--reneg-err") && p2)
-	{
-	  ++i;
-	  options.renegotiate_errors = positive (atoi (p2));
-	}
       else if (streq (p1, "--hand-window") && p2)
 	{
 	  ++i;
@@ -1328,20 +1420,10 @@ main (int argc, char *argv[])
 	  ++i;
 	  options.transition_window = positive (atoi (p2));
 	}
-      else if (streq (p1, "--tls-freq") && p2)
-	{
-	  ++i;
-	  options.tls_freq = positive (atoi (p2));
-	}
       else if (streq (p1, "--tls-auth") && p2)
 	{
 	  ++i;
 	  options.tls_auth_file = p2;
-	  if (p3)
-	    {
-	      ++i;
-	      options.tls_auth_mtd = positive (atoi (p3));
-	    }
 	}
       else if (streq (p1, "--sizeof"))
 	{
@@ -1414,7 +1496,7 @@ main (int argc, char *argv[])
       if (options.tun_mtu_defined && options.udp_mtu_defined)
 	{
 	  printf
-	    ("only one of --tun-mtu or --tun-udp may be defined\n");
+	    ("only one of --tun-mtu or --udp-mtu may be defined\n");
 	  usage_small ();
 	}
 

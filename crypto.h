@@ -27,19 +27,51 @@
 #define CRYPTO_H
 #ifdef USE_CRYPTO
 
-#include <sys/time.h>
+#include <openssl/objects.h>
+#include <openssl/rand.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+#include <openssl/des.h>
+
+#if 0
+#include <openssl/engine.h>
+#endif
 
 #include "basic.h"
 #include "buffer.h"
 #include "packet_id.h"
 #include "common.h"
 
-/* convert a time_t to and from network order */
-#define htontime(x) htonl(x)
-#define ntohtime(x) ntohl(x)
 
+/*
+ * Deal with incompatibilites between OpenSSL libraries.
+ * Right now we accept OpenSSL libraries from 0.9.6 to 0.9.7.
+ */
+#if SSLEAY_VERSION_NUMBER < 0x00907000L
+
+/* Workaround: this macro is defined wrong in OpenSSL 0.9.6 but is fixed in 0.9.7 */
+#undef EVP_CIPHER_mode
+#define EVP_CIPHER_mode(e)  (((e)->flags) & EVP_CIPH_MODE)
+
+#define DES_cblock              des_cblock
+#define DES_is_weak_key         des_is_weak_key
+#define DES_check_key_parity    des_check_key_parity
+#define DES_set_odd_parity      des_set_odd_parity
+
+#define HMAC_CTX_cleanup        HMAC_cleanup
+#define EVP_MD_CTX_cleanup(md)  CLEAR (*md)
+
+#define INFO_CALLBACK_SSL_CONST
+
+#endif
+
+#ifndef INFO_CALLBACK_SSL_CONST
+#define INFO_CALLBACK_SSL_CONST const
+#endif
+
+/*
+ * Defines a key type and key length for both cipher and HMAC.
+ */
 struct key_type
 {
   unsigned char cipher_length;
@@ -48,20 +80,28 @@ struct key_type
   const EVP_MD *digest;
 };
 
+/*
+ * A random key.
+ */
 struct key
 {
   unsigned char cipher[MAX_CIPHER_KEY_LENGTH];
   unsigned char hmac[MAX_HMAC_KEY_LENGTH];
 };
 
+/*
+ * A key context for cipher and/or HMAC.
+ */
 struct key_ctx
 {
-  bool cipher_defined;
-  bool hmac_defined;
-  EVP_CIPHER_CTX cipher;
-  HMAC_CTX hmac;
+  EVP_CIPHER_CTX *cipher;
+  HMAC_CTX *hmac;
 };
 
+/*
+ * Cipher/HMAC key context for both sending and receiving
+ * directions.
+ */
 struct key_ctx_bi
 {
   struct key_ctx encrypt;
@@ -69,14 +109,15 @@ struct key_ctx_bi
 };
 
 
+/*
+ * Options for encrypt/decrypt.
+ */
 struct crypto_options
 {
   struct key_ctx_bi *key_ctx_bi;
-  int max_timestamp_delta;
-  int peer_time_adjust;
   struct packet_id *packet_id;
-  bool random_ivec;
-  int *n_auth_errors;
+  bool packet_id_long_form;
+  unsigned char *iv;
 };
 
 void init_key_type (struct key_type *kt, const char *ciphername,
@@ -89,35 +130,50 @@ void write_key_file (const struct key *key, const char *filename);
 
 void generate_key_random (struct key *key, const struct key_type *kt);
 
+void randomize_iv (unsigned char *iv);
+
+void check_replay_iv_consistency(const struct key_type *kt, bool packet_id, bool iv);
+
+bool check_key (struct key *key, const struct key_type *kt);
+
+void fixup_key (struct key *key, const struct key_type *kt);
+
 void write_key (const struct key *key, const struct key_type *kt,
 		struct buffer *buf);
 
 int read_key (struct key *key, const struct key_type *kt, struct buffer *buf);
 
-void init_key_ctx (struct key_ctx *key_ctx, struct key *key,
+bool cfb_ofb_mode(const struct key_type* kt);
+
+void init_key_ctx (struct key_ctx *ctx, struct key *key,
 		   const struct key_type *kt, const char *prefix);
 
-void encrypt (struct buffer *buf, struct buffer work,
-	      const struct crypto_options *opt,
-	      const struct frame* frame,
-	      const time_t current);
+void free_key_ctx (struct key_ctx *ctx);
+void free_key_ctx_bi (struct key_ctx_bi *ctx);
 
-void decrypt (struct buffer *buf, struct buffer work,
-	      const struct crypto_options *opt,
-	      const struct frame* frame,
-	      const time_t current);
+void openvpn_encrypt (struct buffer *buf, struct buffer work,
+		      const struct crypto_options *opt,
+		      const struct frame* frame,
+		      const time_t current);
+
+void openvpn_decrypt (struct buffer *buf, struct buffer work,
+		      const struct crypto_options *opt,
+		      const struct frame* frame,
+		      const time_t current);
 
 
-void crypto_adjust_frame_parameters(struct frame *frame,
-				    const struct key_type* kt,
-				    bool cipher_defined,
-				    bool packet_id,
-				    bool random_ivec,
-				    bool timestamp);
+void crypto_adjust_frame_parameters (struct frame *frame,
+				     const struct key_type* kt,
+				     bool cipher_defined,
+				     bool iv,
+				     bool packet_id,
+				     bool packet_id_long_form);
 
 void show_available_ciphers ();
 
 void show_available_digests ();
+
+void init_crypto_lib();
 
 #ifdef USE_SSL
 
@@ -130,5 +186,6 @@ void init_ssl_lib ();
 void free_ssl_lib ();
 
 #endif /* USE_SSL */
+
 #endif /* USE_CRYPTO */
 #endif /* CRYPTO_H */

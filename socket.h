@@ -26,7 +26,6 @@
 #ifndef SOCKET_H
 #define SOCKET_H
 
-#include <arpa/inet.h>
 #include "buffer.h"
 #include "common.h"
 

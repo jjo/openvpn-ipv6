@@ -25,10 +25,7 @@
 
 #include "config.h"
 
-#include <netdb.h>		/* gethostbyname */
-#include <netinet/in.h>		/* struct sockaddr_in */
-#include <linux/if.h>		/* inet stuff */
-#include <stdlib.h>		/* system() */
+#include "syshead.h"
 
 #include "socket.h"
 #include "fdmisc.h"
@@ -132,7 +129,7 @@ udp_socket_set_outgoing_addr (const struct buffer *buf,
 	    {
 	      char command[256];
 	      struct buffer out;
-	      buf_set (&out, command, sizeof (command));
+	      buf_set_write (&out, command, sizeof (command));
 	      buf_printf (&out, "%s %s",
 			  sock->ipchange_command,
 			  print_sockaddr_ex (sock->actual, true, " "));

@@ -24,8 +24,10 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-rport\fR\ \fIport\fR\ ]
 [\ \fB\-\-nobind\fR\ ]
 [\ \fB\-\-dev\fR\ \fITUNx\ |\ TAPx\fR\ ]
+[\ \fB\-\-shaper\fR\ \fIn\fR\ ]
 [\ \fB\-\-tun\-mtu\fR\ \fIn\fR\ ]
 [\ \fB\-\-udp\-mtu\fR\ \fIn\fR\ ]
+[\ \fB\-\-tun\-af\-inet\fR\ ]
 [\ \fB\-\-up\fR\ \fIcmd\fR\ ]
 [\ \fB\-\-down\fR\ \fIcmd\fR\ ]
 [\ \fB\-\-user\fR\ \fIuser\fR\ ]
@@ -40,9 +42,8 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-auth\fR\ \fIalg\fR\ ]
 [\ \fB\-\-cipher\fR\ \fIalg\fR\ ]
 [\ \fB\-\-keysize\fR\ \fIn\fR\ ]
-[\ \fB\-\-timestamp\fR\ \fIn\fR\ ]
-[\ \fB\-\-packet\-id\fR\ ]
-[\ \fB\-\-rand\-iv\fR\ ]
+[\ \fB\-\-no\-replay\fR\ ]
+[\ \fB\-\-no\-iv\fR\ ]
 [\ \fB\-\-tls\-server\fR\ ]
 [\ \fB\-\-tls\-client\fR\ ]
 [\ \fB\-\-ca\fR\ \fIfile\fR\ ]
@@ -54,11 +55,9 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-reneg\-bytes\fR\ \fIn\fR\ ]
 [\ \fB\-\-reneg\-pkts\fR\ \fIn\fR\ ]
 [\ \fB\-\-reneg\-sec\fR\ \fIn\fR\ ]
-[\ \fB\-\-reneg\-err\fR\ \fIn\fR\ ]
 [\ \fB\-\-hand\-window\fR\ \fIn\fR\ ]
 [\ \fB\-\-tran\-window\fR\ \fIn\fR\ ]
-[\ \fB\-\-tls\-auth\fR\ \fIf\ t\fR\ ]
-[\ \fB\-\-tls\-freq\fR\ \fIn\fR\ ]
+[\ \fB\-\-tls\-auth\fR\ \fIf\fR\ ]
 [\ \fB\-\-askpass\fR\ ]
 [\ \fB\-\-tls\-verify\fR\ \fIcmd\fR\ ]
 [\ \fB\-\-show\-ciphers\fR\ ]
@@ -81,8 +80,8 @@ library.
 
 OpenVPN supports
 conventional encryption
-using a shared private key
-.B (static key mode)
+using a pre-shared secret key
+.B (Static Key mode)
 or
 public key encryption
 .B (TLS-mode)
@@ -129,7 +128,14 @@ OpenVPN is designed to work with the
 .B TUN/TAP driver
 which supports both IP and Ethernet
 tunneling.  OpenVPN supports both dynamic and persistent TUN/TAP tunnels.
-.LP
+OpenVPN can construct multiple tunnels to or from the same peer and
+will peacefully co-exist with other applications which construct TUN/TAP tunnels.
+
+OpenVPN supports building multiple tunnels between the same two peers, where
+each tunnel has a different maximum bandwidth (see the
+.B --shaper
+option below).
+
 OpenVPN is designed to work well on systems which have dynamically assigned IP
 addresses such as dial-in or DHCP users.  OpenVPN has no problem remaining in sync
 even if
@@ -154,6 +160,8 @@ which add packet overhead can be enabled or disabled with
 command line options.
 
 OpenVPN's build system is based on
+.B automake
+and
 .B autoconf
 and offers
 several build options.  It can be built standalone, in which
@@ -307,6 +315,41 @@ can be omitted for dynamic device in
 Linux 2.4+).  See examples section below
 for an example on setting up a TUN device.
 .TP
+.B --shaper n
+Limit bandwidth of outgoing tunnel data to
+.B n
+bytes per second on the UDP port.
+If you want to limit the bandwidth
+in both directions, use this option on both peers.
+
+OpenVPN uses the following algorithm to implement
+traffic shaping: Given a shaper rate of
+.I n
+bytes per second, after a datagram write of
+.I b
+bytes is queued on the UDP port, wait a minimum of
+.I (b / n)
+seconds before queuing the next write.
+
+It should be noted that OpenVPN supports multiple
+tunnels between the same two peers, allowing you
+to construct full-speed and reduced bandwidth tunnels
+at the same time,
+routing low-priority data such as off-site backups
+over the reduced bandwidth tunnel, and other data
+over the full-speed tunnel.
+
+Also note that for low bandwidth tunnels
+(under 1000 bytes per second), you should probably
+use lower MTU values as well (see below), otherwise
+the packet latency will grow so large as to trigger
+timeouts in the TLS layer and TCP connections running
+over the tunnel.
+
+OpenVPN allows
+.B n
+to be between 100 bytes/sec and 100 Mbytes/sec.
+.TP
 .B --tun-mtu n
 Take the TUN device MTU to be
 .B n
@@ -316,7 +359,10 @@ from it (default=1450).
 Note: It's not necessary to define this option if you are
 using an MTU size of 1450 when you
 .BR ifconfig (8)
-the TUN/TAP device. 
+the TUN/TAP device, however see
+.B --udp-mtu
+below for more information on having the TUN MTU be set
+automatically.
 
 The MTU (Maximum Transmission Units) is
 the maximum packet size in bytes that can be sent unfragmented
@@ -347,7 +393,27 @@ above more more information on MTU.
 Note: It's not necessary to define this option if you are
 using an MTU size of 1450 when you
 .BR ifconfig (8)
-the TUN/TAP device. 
+the TUN/TAP device. However, the recommended configuration of
+MTU is to use
+.B --udp-mtu n
+where
+.B n
+is usually 1500 for internet tunnels and then use the
+.B --up
+script and the
+.B $2
+parameter to set the TUN/TAP MTU.  See the
+.B --up
+option below.
+.TP
+.B --tun-af-inet
+Remove a leading htonl(AF_INET) from incoming tunnel
+data and add it onto outgoing tunnel data.
+This option should be used on the OpenBSD side of an
+OpenBSD <-> Linux tunnel.
+
+This option is necessary to work around an incompatibility
+between the Linux and OpenBSD TUN/TAP drivers.
 .TP
 .B --up cmd
 Shell command to run after successful TUN/TAP device open
@@ -364,6 +430,8 @@ Typically,
 will run a script such as:
 
 .B ifconfig $1 10.1.0.1 pointopoint 10.1.0.2 mtu $2
+
+(Note: remove "pointopoint" from command line on OpenBSD).
 
 If you use
 .B --udp-mtu 1500
@@ -438,6 +506,8 @@ intensive, so use caution in raising OpenVPN's priority.
 Set output verbosity to
 .B n
 (default=1).  Each level shows all info from the previous levels.
+Level 5 is recommended if you want a good summary
+of what's happening without being swamped by output.
 
 .B 0 --
 no output except fatal errors
@@ -479,7 +549,7 @@ this option will stress-test the ability of OpenVPN peers to recover
 from errors and remain in sync.
 Current parameter settings will cause
 .B --gremlin
-to drop 2% of packets and corrupt 4%.  A packet corruption will
+to drop 2% of packets and corrupt another 2%.  A packet corruption will
 alter a random byte in the packet to a random value.  It might
 also increase or decrease the size of the packet by one byte.
 .B --gremlin
@@ -516,7 +586,7 @@ These options are meaningful for both Static & TLS-negotiated key modes
 .TP
 .B --secret file
 Enable Static Key encryption mode (non-TLS).
-Use shared secret file which was generated with
+Use pre-shared secret file which was generated with
 .B --genkey.
 Static key encryption mode has certain advantages, the biggest
 probably being the ease of configuration.  There are no certificates
@@ -544,14 +614,9 @@ a data string, a secure hash algorithm, and a key, to produce
 a digital signature.  HMAC has the property that it is infeasable
 for an attacker with access to a signed string to find another string
 which would sign to the same signature or generate a valid signature
-for his own string.  One weakness of HMAC is that it does not
-protect against replay attacks, where a man-in-the-middle
-attacker tries to play back packets which have already been sent.
-To defeat replay attacks, OpenVPN provides the
-.B --timestamp
-and
-.B --packet-id
-options (see below).  In static-key encryption mode, the HMAC key
+for his own string.
+
+In static-key encryption mode, the HMAC key
 is included in the key file generated by
 .B --genkey.
 In TLS mode, the HMAC key is dynamically generated and shared
@@ -582,6 +647,9 @@ To see other ciphers that are available with
 OpenVPN, use the
 .B --show-ciphers
 option.
+
+OpenVPN supports the CBC, CFB, and OFB cipher modes.
+
 Set
 .B alg=none
 to disable encryption.
@@ -598,61 +666,70 @@ cryptanalyzed with non-standard key lengths, and a
 larger key may offer no real guarantee of greater
 security, or may even reduce security.
 .TP
-.B --timestamp n
-Use a packet timestamp scheme to defeat replay attacks
-(adds 4 bytes/packet),
-.B n
-= max number of seconds difference
-between peer timestamps (default=30).  This is the
-recommended form of replay protection for static key
-encryption mode, though it requires that both peer clocks be synchronized.
-When timestamp mode is enabled, OpenVPN will write the current system
-time to every packet it sends to its peer.  The timestamp will be protected
-against alteration by the HMAC signature.  When a packet is received,
-OpenVPN will take the difference between the current system time and the
-packet timestamp.  If that difference is greater than
-.B n,
-OpenVPN will drop the packet.  Note that
-.B --timestamp
-does not offer complete replay protection.  An attacker could replay a packet
-immediately after transit and that packet would be accepted because the time
-delta would be less than
-.B n.
-If you want better protection against replays, use TLS mode and
-.B --packet-id.
+.B --no-replay
+Disable OpenVPN's protection against replay attacks.
+Don't use this option unless you are prepared to make
+a tradeoff of greater efficiency in exchange for less
+security.
+
+OpenVPN provides datagram replay protection by default.
+
+Replay protection is accomplished
+by tagging each outgoing datagram with an identifier
+that is guaranteed to be unique for the key being used.
+The peer that receives the datagram will check for
+the uniqueness of the identifier.  If the identifier
+was already received in a previous datagram, OpenVPN
+will drop the packet.  Replay protection is important
+to defeat attacks such as a SYN flood attack, where
+the attacker listens in the wire, intercepts a TCP
+SYN packet (identifying it by the context in which
+it occurs in relation to other packets), then floods
+the receiving peer with copies of this packet.
+
+OpenVPN's replay protection is implemented in slightly
+different ways, depending on the key management mode
+you have selected.
+
+In Static Key mode
+or when using an CFB or OFB mode cipher, OpenVPN uses a
+64 bit unique identifier that combines a time stamp with
+an incrementing sequence number.
+
+When using TLS mode for key exchange and a CBC cipher
+mode, OpenVPN uses only a 32 bit sequence number without
+a time stamp, since OpenVPN can guarantee the uniqueness
+of this value for each key.  As in IPSec, if the sequence number is
+close to wrapping back to zero, OpenVPN will trigger
+a new key exchange.
+
+To check for replays, OpenVPN uses
+the
+.I sliding window
+algorithm used
+by IPSec.
 .TP
-.B --packet-id
-Use a unique packet identifier to defeat replay attacks
-(adds 4 bytes/pkt).  This is the recommended form of
-replay protection for TLS mode.  This option tags each
-packet with an incrementing 32-bit ID which is unique
-for the current key.  The receiver of the packet ID
-uses a recognition algorithm that guarantees that
-each packet ID will be accepted only once.  In the
-unlikely event that you try to encrypt more than
-2^32 packets with the same key, OpenVPN will trigger
-a key renegotiation before you wrap the packet ID
-back to zero.  While
-.B --packet-id
-can be used
-in static key encryption mode, there are some caveats.
-One is that you cannot encrypt more than 2^32 packets
-in one OpenVPN session.  Another is that if you
-restart OpenVPN, you will be reusing
-the same packet-id sequence with the same key.
-That essentially defeats the purpose of using
-packet IDs for replay protection in the first place,
-since a recycled packet ID sequence cannot be used to ensure
-that the same packet
-is never accepted more than once.
-.TP
-.B --rand-iv
-Use a random IV for each packet encryption
-(adds 8 bytes/packet).  The IV is the initial state
-of the encryption or decryption process.  If the
-IV is randomized it provides additional barriers
-to cryptanalysis, since identical plaintext will
-nearly always encrypt to different ciphertext.
+.B --no-iv
+Disable OpenVPN's use of IV (cipher initialization vector).
+Don't use this option unless you are prepared to make
+a tradeoff of greater efficiency in exchange for less
+security.
+
+OpenVPN uses an IV by default, and requires it for CFB and
+OFB cipher modes (which are totally insecure without it).
+Using an IV is important for security when multiple
+messages are being encrypted/decrypted with the same key.
+
+IV is implemented differently depending on the cipher mode used.
+
+In CBC mode, OpenVPN will start with a random IV and carry forward
+the residuals across datagrams in a manner similar
+to that used by IPSec (see RFC 2405 for more information). 
+
+In CFB/OFB mode, OpenVPN uses a unique sequence number and time stamp
+as the IV.  In fact, in CFB/OFB mode, OpenVPN uses a datagram
+space-saving optimization that uses the unique identifier for
+datagram replay protection as the IV.
 .SS TLS Mode Options:
 TLS mode is the most powerful mode of OpenVPN in both security and flexibility.
 TLS mode works by establishing control and
@@ -792,17 +869,6 @@ Renegotiate data channel key after
 .B n
 seconds (default=3600).
 .TP
-.B --reneg-err n
-Renegotiate data channel key after
-.B n
-HMAC authentication errors (default=20).  This option deals with an improbable
-scenario where two OpenVPN peers get their keys out of sync.  I've never seen
-this occur in practice, though the
-.B --gremlin
-mode has shown that in theory it could occur in a highly unreliable network
-environment with a large percentage of dropped packets.  Basically, this option
-forces a key renegotiation if we get too many HMAC errors on the data channel.
-.TP
 .B --hand-window n
 Handshake Window -- the TLS-based key exchange must finalize within
 .B n
@@ -826,17 +892,11 @@ significant dropped packets, OpenVPN
 will never let the failure of a key exchange handshake interfere with
 the continuing transmission of tunnel data.
 .TP
-.B --tls-auth f t
+.B --tls-auth f
 Add an additional layer of authentication on top of the TLS
-control channel to protect against DOS attacks.
+control channel to protect against DoS attacks.
 .B f
 (required) is a shared-secret passphrase file.
-.B t
-(optional) is a maximum number of seconds timestamp delta
-between peers (default=3600, 0 to disable).
-NOTE: using 
-.B t
-requires that peer clocks be synchronized.
 
 The rationale for
 this feature is as follows.  TLS requires a multi-packet exchange
@@ -856,17 +916,18 @@ fallen to buffer overflow attacks.
 
 So as a second line of defense, OpenVPN offers
 this special layer of authentication on top of the TLS control channel so that
-every packet on either the control or data channels is authenticated by an
-HMAC signature.
-This signature will also help protect against DOS (Denial of Service) attacks.
-An important rule of thumb in reducing vulnerability to DOS attacks is to
+every packet on the control channel is authenticated by an
+HMAC signature and a unique ID for replay protection.
+This signature will also help protect against DoS (Denial of Service) attacks.
+An important rule of thumb in reducing vulnerability to DoS attacks is to
 minimize the amount of resources a potential, but as yet unauthenticated,
 client is able to consume.
 
 .B --tls-auth
 does this by signing every TLS control channel packet with an HMAC signature,
 including packets which are sent before the TLS level has had a chance
-to authenticate the peer.  The result is that packets without
+to authenticate the peer.
+The result is that packets without
 the correct signature can be dropped immediately upon reception,
 before they have a chance to consume additional system resources
 such as by initiating a TLS handshake.
@@ -875,14 +936,6 @@ passphrase file used with
 .B --tls-auth
 gives a peer nothing more than the power to initiate a TLS
 handshake.  It is not used to encrypt or authenticate any tunnel data.
-.TP
-.B --tls-freq n
-Wait
-.B n
-seconds between each TLS packet transmit if we
-already possess a valid but retiring key.  Prevents the TLS control channel
-from hogging bandwidth during key exchanges (default = 2 seconds).
-Set to 0 to disable.
 .TP
 .B --askpass
 Get PEM password from controlling tty before we daemonize.  For the extremely
@@ -983,6 +1036,13 @@ provide uninterrupted connectivity through the tunnel in the event of a DHCP
 reset of the peer's public IP address (see the
 .B --ipchange
 option above).
+
+One disadvantage of persistent tunnels is that it is harder to automatically
+configure their MTU value (see
+.B --udp-mtu
+and
+.B --tun-mtu
+above).
 .TP
 .B --rmtun
 Remove a persistent tunnel.
@@ -1039,7 +1099,9 @@ command to create a persistent tunnel:
 .IP
 .B openvpn --mktun --dev tun7
 .LP
-Now on may, configure the tun device to use the point-to-point protocol.
+Now on may, configure the tun device to use the point-to-point protocol
+(Note: remove "pointopoint" from command line on OpenBSD).
+
 .IP
 .B ifconfig tun7 10.1.0.7 pointopoint 10.1.0.8 mtu 1450
 .LP
@@ -1131,11 +1193,11 @@ parameters you can use the included file dh1024.pem.
 .LP
 On may:
 .IP
-.B openvpn --remote june.kg --dev tun7 --tls-client --ca tmp-ca.crt --cert client.crt --key client.key --reneg-sec 60 --packet-id --verb 5
+.B openvpn --remote june.kg --dev tun7 --tls-client --ca tmp-ca.crt --cert client.crt --key client.key --reneg-sec 60 --verb 5
 .LP
 On june:
 .IP
-.B openvpn --remote may.kg --dev tun7 --tls-server --dh dh1024.pem --ca tmp-ca.crt --cert server.crt --key server.key --reneg-sec 60 --packet-id --verb 5
+.B openvpn --remote may.kg --dev tun7 --tls-server --dh dh1024.pem --ca tmp-ca.crt --cert server.crt --key server.key --reneg-sec 60 --verb 5
 .LP
 Now verify the tunnel is working by pinging across the tunnel.
 .LP

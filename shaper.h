@@ -23,41 +23,25 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include "basic.h"
+
 /*
- * Each session is identified by a random 8-byte session identifier.
- *
- * For efficiency, the session id is only transmitted over the control
- * channel (which only sees traffic occasionally when keys are being
- * negotiated).  The data channel sees a smaller version of the session-id --
- * it is called the key_id and is currently 2 bits long.
+ * A simple traffic shaper for
+ * the output direction.
  */
 
-#include "config.h"
+#define SHAPER_MIN 100          /* bytes per second */
+#define SHAPER_MAX 100000000
 
-#if defined(USE_CRYPTO) && defined(USE_SSL)
+#define MAX_TIMEOUT 10          /* seconds */
 
-#include "syshead.h"
-
-#include <openssl/rand.h>
-
-#include "error.h"
-#include "common.h"
-#include "session_id.h"
-
-#include "memdbg.h"
-
-const struct session_id _session_id_zero;
-
-void
-session_id_random (struct session_id *sid)
+struct shaper 
 {
-  ASSERT (RAND_bytes (sid->id, SID_SIZE));
-}
+  int bytes_per_second;
+  struct timeval wakeup;
+};
 
-const char *
-session_id_print (const struct session_id *sid)
-{
-  return format_hex (sid->id, SID_SIZE, 0);
-}
-
-#endif /* USE_CRYPTO && USE_SSL*/
+void shaper_init (struct shaper *s, int bytes_per_second);
+int shaper_delay (struct shaper* s);
+void shaper_soonest_event (struct timeval *tv, int delay, bool *changed_tv);
+void shaper_wrote_bytes (struct shaper* s, int nbytes);

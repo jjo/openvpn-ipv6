@@ -23,48 +23,10 @@
 #  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-CC = @CC@
-CFLAGS = @CFLAGS@ @CPPFLAGS@
-LDFLAGS = @LIBS@
+sbin_PROGRAMS = openvpn
+openvpn_SOURCES = acconfig.h buffer.h crypto.c error.h gremlin.c lzo.c misc.c openvpn.h reliable.c session_id.h ssl.c tun.h basic.h circ_list.h crypto.h fdmisc.c gremlin.h lzo.h misc.h packet_id.c reliable.h shaper.c socket.c ssl.h buffer.c common.h error.c fdmisc.h interval.h memdbg.h openvpn.c packet_id.h session_id.c socket.h syshead.h tun.c shaper.h
 
-INSTALL = @INSTALL@
-INSTALL_OWNER = -o root -g 0
+KEY_FILES = dh1024.pem client.crt client.key server.crt server.key tmp-ca.crt tmp-ca.key
 
-prefix = @prefix@
-exec_prefix = @exec_prefix@
-
-sbindir       = @sbindir@
-mandir        = @mandir@
-sysconfdir    = @sysconfdir@
-localstatedir = @localstatedir@
-
-OBJS =  openvpn.o crypto.o ssl.o socket.o fdmisc.o misc.o \
-	tun.o lzo.o reliable.o packet_id.o session_id.o \
-        error.o buffer.o gremlin.o
-
-CONFIGURE_FILES = Makefile config.status config.cache config.h config.log 
-
-.c.o:
-	$(CC) $(CFLAGS) $(DEFS) -c $<
-
-openvpn: $(OBJS)
-	$(CC) $(CFLAGS) -o openvpn $(OBJS) $(LFD_OBJS) $(LDFLAGS)
-
-depend:
-	makedepend -- $(CFLAGS) -- *.c
-
-clean:
-	rm -f core *.o *~ *.bak openvpn
-
-distclean: clean
-	rm -f $(CONFIGURE_FILES)
-
-install_man:
-	$(INSTALL) -d -m 755 $(INSTALL_OWNER) $(mandir)/man8
-	$(INSTALL) -m 644 $(INSTALL_OWNER) openvpn.8 $(mandir)/man8
-
-install: openvpn install_man
-	$(INSTALL) -d -m 755 $(INSTALL_OWNER) $(sbindir)
-	$(INSTALL) -m 755 $(INSTALL_OWNER) openvpn $(sbindir)
-
-# DO NOT DELETE THIS LINE -- make depend depends on it.
+man_MANS = openvpn.8
+EXTRA_DIST = $(KEY_FILES)

@@ -27,7 +27,8 @@
 
 #ifdef USE_LZO
 
-#include <stdlib.h>
+#include "syshead.h"
+
 #include "lzo.h"
 #include "error.h"
 

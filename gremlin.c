@@ -30,8 +30,8 @@
 
 #include "config.h"
 
-#include <stdlib.h>
-#include <sys/time.h>
+#include "syshead.h"
+
 #include "error.h"
 #include "common.h"
 #include "gremlin.h"
@@ -45,12 +45,12 @@
 /*
  * Probability that we will drop a packet is 1 / DROP_FREQ
  */
-#define DROP_FREQ 25
+#define DROP_FREQ 50
 
 /*
  * Probability that we will corrupt a packet is 1 / CORRUPT_FREQ
  */
-#define CORRUPT_FREQ 25
+#define CORRUPT_FREQ 50
 
 /*
  * When network goes up, it will be up for between
@@ -93,7 +93,7 @@ bool
 ask_gremlin()
 {
   struct timeval tv;
-  ASSERT( !gettimeofday (&tv, NULL));
+  ASSERT (!gettimeofday (&tv, NULL));
 
   if (!initialized)
     {

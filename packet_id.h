@@ -34,37 +34,72 @@
 #ifndef PACKET_ID_H
 #define PACKET_ID_H
 
+/*
+ * Enables OpenVPN to be compiled in special packet_id test mode.
+ */
+/*#define PID_TEST*/
+
 #include "circ_list.h"
+#include "buffer.h"
 #include "error.h"
 
-/*
- * Routines to catch replay attacks.
- */
-
-typedef unsigned long packet_id_type;
+typedef u_int32_t packet_id_type;
 
 /* convert a packet_id_type to and from network order */
 #define htonpid(x) htonl(x)
 #define ntohpid(x) ntohl(x)
 
+/* convert a time_t to and from network order */
+#define htontime(x) htonl(x)
+#define ntohtime(x) ntohl(x)
+
 /*
  * Maximum allowed backtrack in
- * packet ID due to packets arriving
+ * sequence number due to packets arriving
  * out of order.
  */
 #define PACKET_BACKTRACK_MAX   1024
 
 CIRC_LIST (pkt_id, char, PACKET_BACKTRACK_MAX);
 
+/*
+ * This is the data structure we keep on the receiving side,
+ * to check that no packet-id (i.e. sequence number + optional timestamp)
+ * was received more than once.
+ */
 struct packet_id_rec
 {
+  time_t time;
   packet_id_type id;
   struct pkt_id id_list;
 };
 
+/*
+ * Keep a record of our current packet-id state
+ * on the sending side.
+ */
 struct packet_id_send
 {
   packet_id_type id;
+  time_t time;
+};
+
+/*
+ * Communicate packet-id over the wire.
+ * A short packet-id is just a 32 bit
+ * sequence number.  A long packet-id
+ * includes a timestamp as well.
+ *
+ * Long packet-ids are used as IVs for
+ * CFB/OFB ciphers.
+ *
+ * This data structure is always sent
+ * over the net in network byte order.
+ */
+struct packet_id_net
+{
+  packet_id_type id;
+  time_t time;
 };
 
 struct packet_id
@@ -73,21 +108,84 @@ struct packet_id
   struct packet_id_rec rec;
 };
 
-void packet_id_add (struct packet_id_rec *p, packet_id_type id);
-bool packet_id_test (const struct packet_id_rec *p, packet_id_type id);
+/* should we accept an incoming packet id ? */
+bool packet_id_test (const struct packet_id_rec *p, const struct packet_id_net *pin);
 
-static inline packet_id_type
-packet_id_get (struct packet_id_send *p)
+/* change our current state to reflect an accepted packet id */
+void packet_id_add (struct packet_id_rec *p, const struct packet_id_net *pin);
+
+const char* packet_id_net_print(const struct packet_id_net *pin);
+
+#ifdef PID_TEST
+void packet_id_interactive_test();
+#endif
+
+/*
+ * Inline functions.
+ */
+
+static inline int
+packet_id_size (bool long_form)
 {
-  packet_id_type ret = ++p->id;
-  ASSERT (p->id);		/* packet ID wraparound is fatal */
-  return ret;
-}
+  return sizeof (packet_id_type) + (long_form ? sizeof (time_t) : 0);
+} 
 
 static inline bool
 packet_id_close_to_wrapping (const struct packet_id_send *p)
 {
-  return p->id >= 0xF0000000;
+  return p->id >= 0xFF000000;
+}
+
+/*
+ * Allocate an outgoing packet id.
+ * Sequence number ranges from 1 to 2^32-1.
+ * In long_form, a time_t is added as well.
+ */
+static inline void
+packet_id_alloc_outgoing (struct packet_id_send *p, struct packet_id_net *pin, bool long_form)
+{
+  if (!p->time)
+    p->time = time (NULL);
+  pin->id = ++p->id;
+  if (!pin->id)
+    {
+      ASSERT (long_form);
+      p->time = time (NULL);
+      pin->id = p->id = 1;
+    }
+  pin->time = p->time;
+}
+
+/*
+ * Read/write a packet ID to/from the buffer.  Short form is sequence number
+ * only.  Long form is sequence number and timestamp.
+ */
+static inline bool
+packet_id_read (struct packet_id_net *pin, struct buffer *buf, bool long_form)
+{
+  unsigned const char *p = buf_read_alloc (buf, packet_id_size (long_form));
+
+  pin->id = 0;
+  pin->time = 0;
+  if (!p)
+    return false;
+  pin->id = ntohpid (*(packet_id_type*)p);
+  if (long_form)
+    pin->time = ntohtime (*(time_t*)(p + sizeof (packet_id_type)));
+  return true;
+}
+
+static inline bool
+packet_id_write (const struct packet_id_net *pin, struct buffer *buf, bool long_form, bool prepend)
+{
+  unsigned char *p = buf_write_alloc_prepend (buf, packet_id_size (long_form), prepend);
+
+  if (!p)
+    return false;
+  *(packet_id_type*)p = htonpid (pin->id);
+  if (long_form)
+    *(time_t*)(p + sizeof (packet_id_type)) = htontime (pin->time);
+  return true;
 }
 
 #endif /* PACKET_ID_H */

@@ -31,16 +31,17 @@
 
 struct buffer
 {
-  int capacity;			/* size of buffer allocated by malloc */
-  int offset;			/* data starts at data + offset, offset > 0 to allow for efficient prepending */
-  int len;			/* length of data that starts at data + offset */
+  int capacity;	   /* size of buffer allocated by malloc */
+  int offset;	   /* data starts at data + offset, offset > 0 to allow for efficient prepending */
+  int len;	   /* length of data that starts at data + offset */
   unsigned char *data;
 };
 
-#define BPTR(buf) ((buf)->data + (buf)->offset)
-#define BEND(buf) (BPTR(buf) + (buf)->len)
-#define BLEN(buf) ((buf)->len)
-#define BDEF(buf) ((buf)->data != NULL)
+#define BPTR(buf)  ((buf)->data + (buf)->offset)
+#define BEND(buf)  (BPTR(buf) + (buf)->len)
+#define BLAST(buf) ((buf)->len ? BPTR(buf) + (buf)->len - 1 : NULL)
+#define BLEN(buf)  ((buf)->len)
+#define BDEF(buf)  ((buf)->data != NULL)
 
 struct buffer alloc_buf (size_t size);
 struct buffer alloc_buf_gc (size_t size);	/* allocate buffer with garbage collection */
@@ -58,11 +59,19 @@ buf_init (struct buffer *buf, int offset)
 }
 
 static inline void
-buf_set (struct buffer *buf, unsigned char *data, int size)
+buf_set_write (struct buffer *buf, unsigned char *data, int size)
 {
   buf->len = 0;
   buf->offset = 0;
   buf->capacity = size;
+  buf->data = data;
+}
+
+static inline void
+buf_set_read (struct buffer *buf, unsigned char *data, int size)
+{
+  buf->len = buf->capacity = size;
+  buf->offset = 0;
   buf->data = data;
 }
 
@@ -177,6 +186,12 @@ buf_write_alloc (struct buffer *buf, int size)
   ret = BPTR (buf) + buf->len;
   buf->len += size;
   return ret;
+}
+
+static inline unsigned char *
+buf_write_alloc_prepend (struct buffer *buf, int size, bool prepend)
+{
+  return prepend ? buf_prepend (buf, size) : buf_write_alloc (buf, size);
 }
 
 static inline unsigned char *

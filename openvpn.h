@@ -25,7 +25,7 @@
 
 #include "basic.h"
 
-#define TITLE "OpenVPN 1.0.3 Built On " __DATE__
+#define TITLE "OpenVPN " VERSION " Built On " __DATE__
 
 /* Command line options */
 struct options
@@ -39,10 +39,15 @@ struct options
   char *ipchange;
   bool bind_local;
   char *dev;
+  int shaper;
   int tun_mtu;          /* MTU of tun device */
   int udp_mtu;          /* MTU of device over which tunnel packets pass via UDP */
   bool tun_mtu_defined; /* true if user overriding parm with command line option */
   bool udp_mtu_defined; /* true if user overriding parm with command line option */
+  bool tun_af_inet;
+#ifdef _POSIX_MEMLOCK
+  bool mlock;
+#endif
 
   /* Misc parms */
   char *username;
@@ -66,11 +71,9 @@ struct options
   char *ciphername;
   bool authname_defined;
   char *authname;
-  bool timestamp_defined;
-  int timestamp;		/* max timestamp delta for data channel */
-  bool packet_id;
   int keysize;
-  bool random_ivec;
+  bool packet_id;
+  bool iv;
 
 #ifdef USE_SSL
   /* TLS (control channel) parms */
@@ -90,7 +93,6 @@ struct options
   int renegotiate_bytes;
   int renegotiate_packets;
   int renegotiate_seconds;
-  int renegotiate_errors;
 
   /* Data channel key handshake must finalize
      within n seconds of handshake initiation. */
@@ -99,12 +101,8 @@ struct options
   /* Old key allowed to live n seconds after new key goes active */
   int transition_window;
 
-  /* Rate limiter for TLS control channel */
-  int tls_freq;
-
   /* Special authentication MAC for TLS control channel */
   char *tls_auth_file;		/* shared secret */
-  int tls_auth_mtd;		/* max timestamp delta */
 #endif /* USE_SSL */
 #endif /* USE_CRYPTO */
 };

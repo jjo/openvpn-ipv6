@@ -1,0 +1,69 @@
+OpenVPN
+Copyright 2002 by James Yonan <jim@yonan.net>
+
+2002.04.07 -- Version 1.1-pre2
+
+* Strengthened replay protection and IV handling,
+  extending it fully to both static key and
+  TLS dynamic key exchange modes.
+* Added --mlock option to disable paging and ensure that key
+  material and tunnel data is never paged to disk.
+* Added optional traffic shaping feature to cap the maximum
+  data rate of the tunnel.
+* Converted to automake (The Platypus Brothers 2002-04-01).
+* Ported to OpenBSD by Janne Johansson.
+* Added --tun-af-inet option to work around an incompatibility
+  between Linux and BSD tun drivers.
+* Sequence number-based replay protection using the
+  IPSec sliding window model is now the default,
+  disable with --no-replay.
+* Explicit IV is now the default, disable with --no-iv.
+* Disabled all cipher modes except CBC, CFB, and OFB.
+* In CBC mode, use explicit IV and carry forward residuals,
+  using IPSec model.
+* In CFB/OFB mode, IV is timestamp, sequence number.
+* Eliminated --packet-id, --timestamp, and max-delta parameter to
+  the --tls-auth option as they are now supplanted by improved
+  replay code which is enabled by default.
+* Eliminated --rand-iv as it is now obsolete with improved
+  IV code.
+* Eliminated --reneg-err option as it increases vulnerability
+  to DoS attacks.
+* Added weak key check for DES ciphers.
+* --tls-freq option is no longer specified on the command line,
+  instead it now inherits its parameter from the
+  --tls-timeout option.
+* Fixed bug that would try to free memory on exit that was
+  never malloced if --comp-lzo was not specified.
+* Errata fixed in the man page examples: "test-ca" should be
+  "tmp-ca".
+* Updated manual page.
+* Preliminary work in porting to OpenSSL 0.9.7.
+* Changed license to allowing linking with OpenSSL.
+
+2002.03.29 -- Version 1.0.3
+
+* Fixed a problem in configure with library ordering on the
+  command line.
+
+2002.03.28 -- Version 1.0.2
+
+* Improved the efficiency of the inner event loop.
+* Fixed a minor bug with timeout handling.
+* Improved the build system to build on RH 6.2 through 7.2.
+* Added an openvpn.spec file for RPM builders (Bishop Clark).
+
+2002.03.23 -- Version 1.0
+
+* Added TLS-based authentication and key exchange.
+* Added gremlin mode to stress test.
+* Wrote man page.
+
+2001.12.26 -- Version 0.91
+
+* Added any choice of cipher or HMAC digest.
+
+2001.5.13 -- Version 0.90
+
+* Initial release.
+* IP tunnel over UDP, with blowfish cipher and SHA1 HMAC signature.

@@ -25,8 +25,8 @@
 
 #include "config.h"
 
-#include <unistd.h>
-#include <fcntl.h>
+#include "syshead.h"
+
 #include "error.h"
 
 #include "memdbg.h"

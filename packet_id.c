@@ -27,28 +27,48 @@
  * These routines are designed to catch replay attacks,
  * where a man-in-the-middle captures packets and then
  * attempts to replay them back later.
+ *
+ * We use the "sliding-window" algorithm, similar
+ * to IPSec.
  */
 
 #include "config.h"
 
 #ifdef USE_CRYPTO
 
-#include "packet_id.h"
+#include "syshead.h"
 
+#include "packet_id.h"
 #include "memdbg.h"
 
 void
-packet_id_add (struct packet_id_rec *p, packet_id_type id)
+packet_id_add (struct packet_id_rec *p, const struct packet_id_net *pin)
 {
-  int i;
   packet_id_type diff;
 
-  while (p->id < id)
+  /*
+   * If time value increases, start a new
+   * sequence number sequence.
+   */
+  if (!CIRC_LIST_SIZE (p->id_list)
+      || pin->time > p->time
+      || (pin->id >= PACKET_BACKTRACK_MAX
+	  && pin->id - PACKET_BACKTRACK_MAX > p->id))
+    {
+      p->time = pin->time;
+      p->id = 0;
+      if (pin->id > PACKET_BACKTRACK_MAX)
+	p->id = pin->id - PACKET_BACKTRACK_MAX;
+      CLEAR (p->id_list);
+    }
+
+  while (p->id < pin->id)
     {
       CIRC_LIST_PUSH (p->id_list, false);
       ++p->id;
     }
-  diff = p->id - id;
+
+  diff = p->id - pin->id;
   if (diff < CIRC_LIST_SIZE (p->id_list))
     CIRC_LIST_ITEM (p->id_list, diff) = true;
 }
@@ -58,20 +78,86 @@ packet_id_add (struct packet_id_rec *p, packet_id_type id)
  * it is a replay.
  */
 bool
-packet_id_test (const struct packet_id_rec *p, packet_id_type id)
+packet_id_test (const struct packet_id_rec *p, const struct packet_id_net *pin)
 {
   packet_id_type diff;
 
-  /* replay test */
-
-  if (id > p->id)
-    return true;
-
-  diff = p->id - id;
-  if (diff >= CIRC_LIST_SIZE (p->id_list))
+  if (!pin->id)
     return false;
 
-  return !CIRC_LIST_ITEM (p->id_list, diff);
+  if (pin->time == p->time)
+    {
+      /* is packet-id greater than any one we've seen yet? */
+      if (pin->id > p->id)
+	return true;
+
+      /* check packet-id sliding window for original/replay status */
+      diff = p->id - pin->id;
+      if (diff >= CIRC_LIST_SIZE (p->id_list))
+	return false;
+
+      return !CIRC_LIST_ITEM (p->id_list, diff);
+    }
+  else if (pin->time < p->time) /* if time goes back, reject */
+    return false;
+  else                          /* time moved forward */
+    return true;
 }
+
+const char*
+packet_id_net_print(const struct packet_id_net *pin)
+{
+  struct buffer out = alloc_buf_gc (256);
+  
+  buf_printf (&out, "[ #%u", pin->id);
+  if (pin->time)
+    {
+      buf_printf(&out, " / %s", ctime(&pin->time));
+      if (*BLAST(&out) =='\n')
+	--out.len;
+    }
+
+  buf_printf(&out, " ]");
+  return out.data;
+}
+
+#ifdef PID_TEST
+
+#include <stdio.h>
+
+void packet_id_interactive_test()
+{
+  struct packet_id_rec p;
+  struct packet_id_send s;
+  struct packet_id_net pin;
+  bool long_form;
+  bool count = 0;
+  bool test;
+
+  CLEAR (p);
+  CLEAR (s);
+  while (true) {
+    char buf[80];
+    if (!fgets(buf, sizeof(buf), stdin))
+      break;
+    if (sscanf (buf, "%u,%u", &pin.time, &pin.id) == 2)
+      {
+	test = packet_id_test (&p, &pin);
+	printf ("packet_id_test (%u, %u) returned %d\n", pin.time, pin.id, test);
+	if (test)
+	  packet_id_add (&p, &pin);
+      }
+    else
+      {
+	long_form = (count < 20);
+	packet_id_alloc_outgoing(&s, &pin, long_form);
+	printf ("(0x%08x(%u), 0x%08x(%u), %d)\n", pin.time, pin.time, pin.id, pin.id, long_form);
+	if (s.id == 10)
+	  s.id = 0xFFFFFFF8;
+	++count;
+      }
+  }
+}
+#endif
 
 #endif /* USE_CRYPTO */

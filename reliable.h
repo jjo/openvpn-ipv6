@@ -33,7 +33,6 @@
 #ifndef RELIABLE_H
 #define RELIABLE_H
 
-#include <sys/time.h>
 #include "basic.h"
 #include "buffer.h"
 #include "packet_id.h"
@@ -68,6 +67,9 @@ bool
 reliable_ack_write (struct reliable_ack *ack,
 		    struct buffer *buf,
 		    const struct session_id *sid, int max, bool prepend);
+
+/* print a reliable ACK record coming off the wire */
+const char *reliable_ack_print(struct buffer* buf);
 
 /* add to extra_frame the maximum number of bytes we will need for reliable_ack_write */
 void reliable_ack_adjust_frame_parameters (struct frame* frame, int max);

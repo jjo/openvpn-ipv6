@@ -25,10 +25,8 @@
 
 #include "config.h"
 
-#include <stdio.h>
-#include <errno.h>
-#include <syslog.h>
-#include <unistd.h>
+#include "syshead.h"
+
 #include "error.h"
 
 #ifdef USE_CRYPTO

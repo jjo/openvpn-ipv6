@@ -37,6 +37,4 @@
 /* clear an object */
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
-#define NULL ((void *)0)
-
 #endif

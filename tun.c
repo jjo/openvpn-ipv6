@@ -25,19 +25,13 @@
 
 #include "config.h"
 
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <linux/if.h>
-#include <fcntl.h>
-
-#ifndef OLD_TUN_TAP
-#include <linux/if_tun.h>
-#endif /* OLD_TUN_TAP */
+#include "syshead.h"
 
 #include "tun.h"
 #include "fdmisc.h"
 #include "error.h"
 #include "buffer.h"
+#include "common.h"
 
 #include "memdbg.h"
 

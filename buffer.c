@@ -25,9 +25,8 @@
 
 #include "config.h"
 
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
+#include "syshead.h"
+
 #include "buffer.h"
 #include "error.h"
 

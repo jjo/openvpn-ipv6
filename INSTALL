@@ -9,8 +9,7 @@ the Free Software Foundation; either version 2 of the License, or
 Installation Instructions for OpenVPN
 
 REQUIRES:
-  (1) Linux Kernel 2.2 or higher (It will probably port easily to
-      other unices but I haven't tested it).
+  (1) Linux Kernel 2.2+ or OpenBSD 3.0+.
   (2) Universal TUN/TAP driver 1.1 as a kernel module or compiled
       into the kernel -- available from http://vtun.sourceforge.net/tun/
 
@@ -24,16 +23,9 @@ OPTIONAL (for debugging only):
   (1) Dmalloc library
       -- available from http://dmalloc.com/
 
-BUILD commands (from .tar.gz file):
+BUILD commands:
 
-	./configure
-	make
-	make install
-
-BUILD commands (from CVS):
-
-	autoconf
-	autoheader
+	./autogen.sh
 	./configure
 	make
 	make install

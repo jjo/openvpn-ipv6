@@ -25,7 +25,6 @@
 
 #ifdef USE_LZO
 
-#include <sys/time.h>
 #include "lzo1x.h"
 #include "buffer.h"
 #include "common.h"

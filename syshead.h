@@ -23,41 +23,47 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-/*
- * Each session is identified by a random 8-byte session identifier.
- *
- * For efficiency, the session id is only transmitted over the control
- * channel (which only sees traffic occasionally when keys are being
- * negotiated).  The data channel sees a smaller version of the session-id --
- * it is called the key_id and is currently 2 bits long.
- */
+#ifndef SYSHEAD_H
+#define SYSHEAD_H
 
-#include "config.h"
+#include <sys/types.h>
+#include <sys/time.h>
+#include <sys/wait.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <unistd.h>
+#include <signal.h>
+#include <stdio.h>
+#include <ctype.h>
+#include <netdb.h>		/* gethostbyname */
+#include <pwd.h>
+#include <errno.h>
+#include <syslog.h>
+#include <time.h>
 
-#if defined(USE_CRYPTO) && defined(USE_SSL)
+#include <netinet/in.h>		/* struct sockaddr_in */
 
-#include "syshead.h"
+#include <arpa/inet.h>
 
-#include <openssl/rand.h>
+#ifdef __linux__
+ #include <linux/if.h>
+#endif /* __linux */
 
-#include "error.h"
-#include "common.h"
-#include "session_id.h"
+#ifndef OLD_TUN_TAP
+ #ifdef __OpenBSD__
+  #include <net/if_tun.h>
+ #endif /* __OpenBSD__ */
+ #ifdef __linux__
+  #include <linux/if_tun.h>
+ #endif /* __linux */
+#endif /* OLD_TUN_TAP */
 
-#include "memdbg.h"
+#ifdef _POSIX_MEMLOCK
+ #include <sys/mman.h>
+#endif
 
-const struct session_id _session_id_zero;
-
-void
-session_id_random (struct session_id *sid)
-{
-  ASSERT (RAND_bytes (sid->id, SID_SIZE));
-}
-
-const char *
-session_id_print (const struct session_id *sid)
-{
-  return format_hex (sid->id, SID_SIZE, 0);
-}
-
-#endif /* USE_CRYPTO && USE_SSL*/
+#endif

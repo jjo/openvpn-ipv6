@@ -23,7 +23,13 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include "basic.h"
+
 void set_user (const char *username);
 void set_nice (int niceval);
 void run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu);
 void do_chroot (const char *path);
+
+#ifdef _POSIX_MEMLOCK
+void do_mlockall(bool print_msg); /* Disable paging */
+#endif

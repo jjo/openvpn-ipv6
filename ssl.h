@@ -28,6 +28,7 @@
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include <openssl/rand.h>
+
 #include "basic.h"
 #include "crypto.h"
 #include "packet_id.h"
@@ -39,15 +40,15 @@
  * Openvpn Protocol.
  *
  * UDP Packet:
- *   packet opcode (high 6 bits, see P_ constants below)
- *   key_id (low 2 bits, see key_id in struct tls_session below for comment)
+ *   packet opcode (high 5 bits, see P_ constants below)
+ *   key_id (low 3 bits, see key_id in struct tls_session below for comment)
  *   payload (n bytes)
  *
  * P_CONTROL* and P_ACK Payload:
  *   session_id (random 64 bit value to identify session)
  *   hmac for authentication (usually 16 or 20 bytes)
- *   sequence number for replay protection (4 bytes)
- *   time_t for replay protection (4 bytes, if enabled)
+ *   packet-id for replay protection (4 or 8 bytes, includes
+ *     sequence number and optional time_t timestamp)
  *   acknowledge packet_id array length (1 byte)
  *   acknowledge packet-id array (if length > 0)
  *   acknowledge remote session_id (if length > 0)
@@ -63,12 +64,11 @@
  *
  * P_DATA Payload:
  *   hmac of ciphertext IV + ciphertext (if enabled by --auth)
- *   ciphertext IV (size is cipher-dependent, if enabled by --rand-iv)
+ *   ciphertext IV (size is cipher-dependent, if not disabled by --no-iv)
  *   P_DATA ciphertext
  *
  * P_DATA plaintext
- *   packet_id (4 bytes, if enabled by --packet-id)
- *   time_t (4, bytes if enabled by --timestamp)
+ *   packet_id (4 or 8 bytes, if not disabled by --no-replay)
  *   user plaintext (n bytes)
  *
  * Notes:
@@ -126,7 +126,7 @@
  * can "hitch a ride" on an outgoing
  * non-P_ACK_V1 control packet.
  */
-#define CONTROL_SEND_ACK_MAX 1
+#define CONTROL_SEND_ACK_MAX 4
 
 /*
  * Represents a single instantiation of a TLS negotiation and
@@ -171,7 +171,6 @@ struct key_state
 
   int n_bytes;			 /* how many bytes sent/recvd since last key exchange */
   int n_packets;		 /* how many packets sent/recvd since last key exchange */
-  int n_auth_errors;             /* number of HMAC failures we've had on the data channel */
 };
 
 /*
@@ -200,8 +199,9 @@ struct tls_options
   int renegotiate_bytes;
   int renegotiate_packets;
   int renegotiate_seconds;
-  int renegotiate_errors;
-  int tls_freq;
+
+  /* use 32 bit or 64 bit packet-id? */
+  bool packet_id_long_form;
 
   /* packet authentication for TLS handshake */
   struct crypto_options tls_auth;
@@ -232,7 +232,7 @@ struct tls_options
 struct tls_session
 {
   /* const options and config info */
-  struct tls_options *opt;
+  const struct tls_options *opt;
 
   /* authenticate control packets */
   struct crypto_options tls_auth;
@@ -338,7 +338,6 @@ void tls_adjust_frame_parameters(struct frame *frame);
 #define PD_TLS_AUTH_HMAC_SIZE_MASK 0xFF
 #define PD_SHOW_DATA               (1<<8)
 #define PD_TLS                     (1<<9)
-#define PD_TLS_AUTH_TIMESTAMP      (1<<10)
 
 const char *protocol_dump (struct buffer *buffer, unsigned int flags);
 

@@ -23,5 +23,40 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include "buffer.h"
+#include "error.h"
+#include "common.h"
+
 int open_tun (const char *dev, char *actual, int size);
 void tuncfg (const char *dev, int persist_mode);
+
+/*
+ * Inline functions
+ */
+static inline void
+tun_adjust_frame_parameters (struct frame* frame, int size)
+{
+  frame->extra_tun += size;
+}
+
+static inline void
+tun_add_head (struct buffer* buf, u_int32_t value)
+{
+  u_int32_t *p = (u_int32_t*) buf_prepend (buf, sizeof (u_int32_t));
+  *p = htonl(value);
+}
+
+static inline void
+tun_rm_head (struct buffer* buf, u_int32_t value)
+{
+  u_int32_t found = ntohl (*(u_int32_t*) BPTR (buf));
+  if (found == value)
+    ASSERT (buf_advance (buf, sizeof (u_int32_t)));
+  else
+    {
+      msg (D_LINK_ERRORS,
+	   "Failed to match TUN packet leading u_int32_t (expected=0x%08x, found=0x%08x)",
+	   value, found);
+      buf->len = 0;
+    }
+}

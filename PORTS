@@ -2,7 +2,8 @@ OpenVPN
 Copyright 2002 by James Yonan <jim@yonan.net>
 
 Currently Supported Platforms:
-	Linux 2.2+
+	Linux 2.2+ (Tested on RedHat 6.2 through 7.2)
+	OpenBSD 3.0 -- maintained by Janne Johansson <icepic@users.sourceforge.net>
 
 I think a windows port of OpenVPN would be awesome.
 

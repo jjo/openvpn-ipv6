@@ -35,10 +35,8 @@
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
 
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include "syshead.h"
+
 #include "ssl.h"
 #include "error.h"
 #include "common.h"
@@ -67,13 +65,14 @@ tls_init_control_channel_frame_parameters(const struct frame *data_channel_frame
 					  struct frame *frame)
 {
   /*
-   * frame->extra_frame is already initialized with tls_auth buffer requirements.
+   * frame->extra_frame is already initialized with tls_auth buffer requirements,
+   * if --tls-auth is enabled.
    */
 
   /* set extra_frame */
   tls_adjust_frame_parameters(frame);
   reliable_ack_adjust_frame_parameters(frame, CONTROL_SEND_ACK_MAX);
-  frame->extra_frame += sizeof (struct session_id);
+  frame->extra_frame += SID_SIZE;
   frame->extra_frame += sizeof (packet_id_type);
 
   /* finalize parameters based on data_channel_frame */
@@ -87,6 +86,8 @@ init_ssl_lib ()
   SSL_library_init ();
   SSL_load_error_strings ();
   OpenSSL_add_all_algorithms ();
+
+  init_crypto_lib();
 
   /*
    * If you build the OpenSSL library and OpenVPN with
@@ -198,7 +199,7 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
       char command[512];
       struct buffer out;
       int ret;
-      buf_set (&out, command, sizeof (command));
+      buf_set_write (&out, command, sizeof (command));
       buf_printf (&out, "%s %d %s", verify_command, ctx->error_depth, txt);
       msg (D_TLS_DEBUG, "executing verify command: %s", command);
       ret = system (command);
@@ -225,7 +226,7 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
 }
 
 static void
-info_callback (SSL * s, int where, int ret)
+info_callback (INFO_CALLBACK_SSL_CONST SSL * s, int where, int ret)
 {
   if (where & SSL_CB_LOOP)
     {
@@ -676,6 +677,7 @@ key_state_free (struct key_state *ks, bool clear)
     SSL_free (ks->ssl);
   }
 
+  free_key_ctx_bi (&ks->key);
   free_buf (&ks->plaintext_read_buf);
   free_buf (&ks->plaintext_write_buf);
   free_buf (&ks->ack_write_buf);
@@ -686,7 +688,7 @@ key_state_free (struct key_state *ks, bool clear)
     CLEAR (*ks);
 }
 
-static inline void tls_session_set_self_referential_pointers(struct tls_session* session) {
+static inline void tls_session_set_self_referential_pointers (struct tls_session* session) {
   session->tls_auth.packet_id = &session->tls_auth_pid;
 }
 
@@ -781,8 +783,7 @@ struct tls_multi *
 tls_multi_init (struct tls_options *tls_options,
 		struct udp_socket *udp_socket)
 {
-  struct tls_multi *ret =
-    (struct tls_multi *) malloc (sizeof (struct tls_multi));
+  struct tls_multi *ret = (struct tls_multi *) malloc (sizeof (struct tls_multi));
   int i;
 
   ASSERT (ret);
@@ -818,8 +819,11 @@ tls_multi_free (struct tls_multi *multi, bool clear)
 {
   int i;
   ASSERT (multi);
+
   for (i = 0; i < TM_SIZE; ++i)
     tls_session_free (&multi->session[i], false);
+
+  free_key_ctx_bi (&multi->opt.tls_auth_key);
 
   if (clear)
     CLEAR (*multi);
@@ -846,16 +850,14 @@ swap_hmac (struct buffer *buf, const struct crypto_options *co, bool incoming)
   ASSERT (co);
 
   ctx = (incoming ? &co->key_ctx_bi->decrypt : &co->key_ctx_bi->encrypt);
-  ASSERT (ctx->hmac_defined);
+  ASSERT (ctx->hmac);
 
   {
-    /* hmac + packet_id (4 bytes) + timestamp (4 bytes) */
-    const int hmac_size =
-      HMAC_size (&ctx->hmac) + sizeof(packet_id_type) +
-      (co->max_timestamp_delta ? sizeof(time_t) : 0);
+    /* hmac + packet_id (8 bytes) */
+    const int hmac_size = HMAC_size (ctx->hmac) + packet_id_size (true);
 
     /* opcode + session_id */
-    const int osid_size = 1 + sizeof (struct session_id);
+    const int osid_size = 1 + SID_SIZE;
 
     int e1, e2;
     unsigned char *b = BPTR (buf);
@@ -903,8 +905,8 @@ swap_hmac (struct buffer *buf, const struct crypto_options *co, bool incoming)
 static bool transmit_rate_limiter(struct tls_session* session, time_t* wakeup, const time_t current)
 {
   const struct key_state *lame = &session->key[KS_LAME_DUCK];
-  const int freq = session->opt->tls_freq;
-  const int min_lame_time_remaining = freq * 5; /* seconds */
+  const int freq = session->opt->packet_timeout;
+  const int min_lame_time_remaining = freq * 100; /* seconds */
 
   if (freq && lame->state == S_ACTIVE && lame->must_die > current + min_lame_time_remaining)
     {
@@ -941,9 +943,10 @@ write_control_auth (struct tls_session *session,
   ASSERT (session_id_write_prepend (&session->session_id, buf));
   ASSERT (header = buf_prepend (buf, 1));
   *header = ks->key_id | (opcode << P_OPCODE_SHIFT);
-  if (session->tls_auth.key_ctx_bi->encrypt.hmac_defined)
+  if (session->tls_auth.key_ctx_bi->encrypt.hmac)
     {
-      encrypt (buf, null, &session->tls_auth, NULL, current); /* no encryption, only write hmac */
+      /* no encryption, only write hmac */
+      openvpn_encrypt (buf, null, &session->tls_auth, NULL, current);
       ASSERT (swap_hmac (buf, &session->tls_auth, false));
     }
   *to_udp_addr = ks->remote_addr;
@@ -955,7 +958,7 @@ read_control_auth (struct buffer *buf,
 		   struct sockaddr_in *from,
 		   const time_t current)
 {
-  if (co->key_ctx_bi->decrypt.hmac_defined)
+  if (co->key_ctx_bi->decrypt.hmac)
     {
       struct buffer null = clear_buf ();
 
@@ -970,7 +973,7 @@ read_control_auth (struct buffer *buf,
 
       /* authenticate only (no decrypt) and remove the hmac record
          from the head of the buffer */
-      decrypt (buf, null, co, NULL, current);
+      openvpn_decrypt (buf, null, co, NULL, current);
       if (!buf->len)
 	{
 	  msg (D_TLS_ERRORS,
@@ -983,7 +986,7 @@ read_control_auth (struct buffer *buf,
 
   /* advance buffer pointer past opcode & session_id since our caller
      already read it */
-  buf_advance (buf, sizeof(struct session_id) + 1);
+  buf_advance (buf, SID_SIZE + 1);
 
   return true;
 }
@@ -1049,15 +1052,12 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 	   && ks->n_bytes >= session->opt->renegotiate_bytes)
        || (session->opt->renegotiate_packets
 	   && ks->n_packets >= session->opt->renegotiate_packets)
-       || (session->opt->renegotiate_errors
-	   && ks->n_auth_errors >= session->opt->renegotiate_errors)
        || (packet_id_close_to_wrapping (&ks->packet_id.send))))
     {
-      msg (D_TLS_DEBUG_LOW, "tls_process: soft reset sec=%d bytes=%d/%d pkts=%d/%d errs=%d/%d",
+      msg (D_TLS_DEBUG_LOW, "tls_process: soft reset sec=%d bytes=%d/%d pkts=%d/%d",
 	   (int) ks->established + session->opt->renegotiate_seconds - current,
 	   ks->n_bytes, session->opt->renegotiate_bytes,
-	   ks->n_packets, session->opt->renegotiate_packets,
-	   ks->n_auth_errors, session->opt->renegotiate_errors);
+	   ks->n_packets, session->opt->renegotiate_packets);
       key_state_soft_reset (session, current);
     }
 
@@ -1168,8 +1168,7 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 	      status = key_state_read_plaintext (ks, buf, MTU_SIZE (&multi->opt.frame));
 	      if (status == -1)
 		{
-		  msg (D_TLS_ERRORS,
-		       "TLS Error: TLS object -> incoming plaintext read error");
+		  msg (D_TLS_ERRORS, "TLS Error: TLS object -> incoming plaintext read error");
 		  goto error;
 		}
 	      if (status == 1)
@@ -1187,6 +1186,11 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 	      struct key key;
 	      ASSERT (buf_init (buf, EXTRA_FRAME (&multi->opt.frame)));
 	      generate_key_random (&key, &session->opt->key_type);
+	      if (!check_key (&key, &session->opt->key_type))
+		{
+		  msg (D_TLS_ERRORS, "TLS Error: Bad encrypting key generated");
+		  goto error;
+		}
 	      write_key (&key, &session->opt->key_type, buf);
 	      init_key_ctx (&ks->key.encrypt, &key, &session->opt->key_type,
 			    "Data Channel Encrypt");
@@ -1213,6 +1217,12 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 		{
 		  msg (D_TLS_ERRORS,
 		       "TLS Error: Error reading data channel key from plaintext buffer");
+		  goto error;
+		}
+
+	      if (!check_key (&key, &session->opt->key_type))
+		{
+		  msg (D_TLS_ERRORS, "TLS Error: Bad decrypting key received from peer");
 		  goto error;
 		}
 
@@ -1492,7 +1502,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 		{
 		  opt->key_ctx_bi = &ks->key;
 		  opt->packet_id = multi->opt.packet_id ? &ks->packet_id : NULL;
-		  opt->n_auth_errors = &ks->n_auth_errors;
+		  opt->packet_id_long_form = multi->opt.packet_id_long_form;
 		  ASSERT (buf_advance (buf, 1));
 		  ++ks->n_packets;
 		  ks->n_bytes += buf->len;
@@ -1505,14 +1515,6 @@ tls_pre_decrypt (struct tls_multi *multi,
 	  msg (D_TLS_ERRORS,
 	       "TLS Error: Unknown data channel key ID or IP address received from %s: %d",
 	       print_sockaddr (from), key_id);
-
-	  /* increment data channel auth error count */
-	  {
-	    struct tls_session *session = &multi->session[TM_ACTIVE];
-	    struct key_state *ks = &session->key[KS_PRIMARY];
-	    if (ks->state == S_ACTIVE)
-	      ++ks->n_auth_errors;
-	  }
 	}
       else			  /* control channel packet */
 	{
@@ -1651,8 +1653,9 @@ tls_pre_decrypt (struct tls_multi *multi,
 	      if (i != TM_ACTIVE && i != TM_UNTRUSTED)
 		{
 		  msg (D_TLS_ERRORS,
-		       "TLS Error: Unroutable control packet received from %s",
-		       print_sockaddr (from));
+		       "TLS Error: Unroutable control packet received from %s (i=%d)",
+		       print_sockaddr (from),
+		       i);
 		  goto done;
 		}
 
@@ -1792,7 +1795,7 @@ tls_pre_decrypt (struct tls_multi *multi,
   buf->len = 0;
   opt->key_ctx_bi = NULL;
   opt->packet_id = NULL;
-  opt->n_auth_errors = NULL;
+  opt->packet_id_long_form = false;
   return ret;
 }
 
@@ -1811,6 +1814,7 @@ tls_pre_encrypt (struct tls_multi *multi,
 	    {
 	      opt->key_ctx_bi = &ks->key;
 	      opt->packet_id = multi->opt.packet_id ? &ks->packet_id : NULL;
+	      opt->packet_id_long_form = multi->opt.packet_id_long_form;
 	      multi->save_ks = ks;
 	      msg (D_TLS_DEBUG, "tls_pre_encrypt: key_id=%d", ks->key_id);
 	      return;
@@ -1823,6 +1827,7 @@ tls_pre_encrypt (struct tls_multi *multi,
   buf->len = 0;
   opt->key_ctx_bi = NULL;
   opt->packet_id = NULL;
+  opt->packet_id_long_form = false;
 }
 
 /* Prepend the appropriate opcode to encrypted buffer prior to UDP send */
@@ -1854,7 +1859,6 @@ protocol_dump (struct buffer *buffer, unsigned int flags)
   struct buffer buf = *buffer;
 
   unsigned char c;
-  packet_id_type l;
   int op;
   int key_id;
   int i;
@@ -1894,58 +1898,28 @@ protocol_dump (struct buffer *buffer, unsigned int flags)
   }
 
   /*
-   * Hmac
+   * tls-auth hmac + packet_id
    */
   if (tls_auth_hmac_size)
     {
-      packet_id_type tls_auth_packet_id;
+      struct packet_id_net pin;
       unsigned char tls_auth_hmac[MAX_HMAC_KEY_LENGTH];
 
       ASSERT (tls_auth_hmac_size <= MAX_HMAC_KEY_LENGTH);
 
       if (!buf_read (&buf, tls_auth_hmac, tls_auth_hmac_size))
 	goto done;
-      buf_printf (&out, " tls_hmac=%s",
-		  format_hex (tls_auth_hmac, tls_auth_hmac_size, 0));
-      if (!buf_read (&buf, &l, sizeof (l)))
+      buf_printf (&out, " tls_hmac=%s", format_hex (tls_auth_hmac, tls_auth_hmac_size, 0));
+
+      if (!packet_id_read (&pin, &buf, true))
 	goto done;
-      tls_auth_packet_id = ntohpid (l);
-      buf_printf (&out, " tls_pid=%u", tls_auth_packet_id);
-      if (flags & PD_TLS_AUTH_TIMESTAMP)
-	{
-	  time_t tls_auth_timestamp;
-	  if (!buf_read (&buf, &l, sizeof (l)))
-	    goto done;
-	  tls_auth_timestamp = ntohtime (l);
-	  buf_printf (&out, " tls_ts=%u", tls_auth_timestamp);
-	}
+      buf_printf(&out, " pid=%s", packet_id_net_print (&pin));
     }
 
   /*
    * ACK list
    */
-  {
-    unsigned char n_ack;
-    struct session_id sid_ack;
-
-    if (!buf_read (&buf, &n_ack, sizeof (n_ack)))
-      goto done;
-    buf_printf (&out, " [");
-    for (i = 0; i < n_ack; ++i)
-      {
-	if (!buf_read (&buf, &l, sizeof (l)))
-	  goto done;
-	l = ntohpid (l);
-	buf_printf (&out, " %u", l);
-      }
-    if (n_ack)
-      {
-	if (!session_id_read (&sid_ack, &buf))
-	  goto done;
-	buf_printf (&out, " sid=%s", session_id_print (&sid_ack));
-      }
-    buf_printf (&out, " ]");
-  }
+  buf_printf (&out, " %s", reliable_ack_print(&buf));
 
   if (op == P_ACK_V1)
     goto done;
@@ -1953,10 +1927,13 @@ protocol_dump (struct buffer *buffer, unsigned int flags)
   /*
    * Packet ID
    */
-  if (!buf_read (&buf, &l, sizeof (l)))
-    goto done;
-  l = ntohpid (l);
-  buf_printf (&out, " pid=%u", l);
+  {
+    packet_id_type l;
+    if (!buf_read (&buf, &l, sizeof (l)))
+      goto done;
+    l = ntohpid (l);
+    buf_printf (&out, " pid=%u", l);
+  }
 
 print_data:
   if (flags & PD_SHOW_DATA)

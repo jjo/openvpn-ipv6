@@ -25,10 +25,8 @@
 
 #include "config.h"
 
-#include <pwd.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include "syshead.h"
+
 #include "error.h"
 
 #include "memdbg.h"
@@ -94,3 +92,15 @@ run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu)
 	msg (M_ERR, "script failed");
     }
 }
+
+#ifdef _POSIX_MEMLOCK
+/* Disable paging */
+void
+do_mlockall(bool print_msg)
+{
+  if (mlockall (MCL_CURRENT | MCL_FUTURE))
+    msg (M_ERR, "mlockall failed");
+  if (print_msg)
+    msg (M_INFO, "mlockall() succeeded");
+}
+#endif
