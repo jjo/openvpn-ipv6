@@ -693,15 +693,26 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 	}
 
       /*
-       * Should we exit due to ping (or other authenticated packet)
+       * Should we exit or restart due to ping (or other authenticated packet)
        * not received in n seconds?
        */
       if (options->ping_rec_timeout)
 	{
 	  if (event_timeout_trigger (&ping_rec_interval, current)) 
 	    {
-	      msg (M_INFO, "Inactivity timeout (--ping-exit), exiting");
-	      signal_received = 0;
+	      switch (options->ping_rec_timeout_action)
+		{
+		case PING_EXIT:
+		  msg (M_INFO, "Inactivity timeout (--ping-exit), exiting");
+		  signal_received = 0;
+		  break;
+		case PING_RESTART:
+		  msg (M_INFO, "Inactivity timeout (--ping-restart), restarting");
+		  signal_received = SIGHUP;
+		  break;
+		default:
+		  ASSERT (0);
+		}
 	      break;
 	    }
 	  event_timeout_wakeup (&ping_rec_interval, current, &timeval);

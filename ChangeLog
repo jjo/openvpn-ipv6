@@ -1,6 +1,11 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
+2002.05.24 -- Version 1.2.0.1
+
+* Added --ping-restart option to restart
+  connection on ping timeout (Matthias Andree).
+
 2002.05.22 -- Version 1.2.0
 
 * Added configuration file support via

@@ -70,6 +70,7 @@ static const char usage_message[] =
   "--shaper n      : Restrict output to peer to n bytes per second.\n"
   "--inactive n    : Exit after n seconds of inactivity on tun/tap device.\n"
   "--ping-exit n   : Exit if n seconds pass without reception of remote ping.\n"
+  "--ping-restart n: Restart if n seconds pass without reception of remote ping.\n"
   "--ping n        : Ping remote once every n seconds over UDP port.\n"
   "--tun-mtu n     : Take the tun/tap device MTU to be n and derive the\n"
   "                  UDP MTU from it (default=%d).\n"
@@ -276,6 +277,7 @@ show_settings (const struct options *o)
   SHOW_INT (inactivity_timeout);
   SHOW_INT (ping_send_timeout);
   SHOW_INT (ping_rec_timeout);
+  SHOW_INT (ping_rec_timeout_action);
 
   SHOW_STR (username);
   SHOW_STR (chroot_dir);
@@ -426,6 +428,13 @@ notnull (char *arg, char *description)
       msg (M_WARN, "You must define %s", description);
       usage_small ();
     }
+}
+
+static void
+ping_rec_err ()
+{
+  msg (M_WARN, "only one of --ping-exit or --ping-restart options may be specified");
+  usage_small ();
 }
 
 static int
@@ -747,7 +756,18 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
   else if (streq (p1, "ping-exit") && p2)
     {
       ++i;
+      if (options->ping_rec_timeout_action)
+	ping_rec_err();
       options->ping_rec_timeout = positive (atoi (p2));
+      options->ping_rec_timeout_action = PING_EXIT;
+    }
+  else if (streq (p1, "ping-restart") && p2)
+    {
+      ++i;
+      if (options->ping_rec_timeout_action)
+	ping_rec_err();
+      options->ping_rec_timeout = positive (atoi (p2));
+      options->ping_rec_timeout_action = PING_RESTART;
     }
 #ifdef USE_LZO
   else if (streq (p1, "comp-lzo"))

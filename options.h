@@ -64,6 +64,11 @@ struct options
   int ping_send_timeout;        /* Send a UDP ping to remote every n seconds */
   int ping_rec_timeout;         /* Expect a UDP ping from remote at least once every n seconds */
 
+  #define PING_UNDEF   0
+  #define PING_EXIT    1
+  #define PING_RESTART 2
+  int ping_rec_timeout_action;  /* What action to take on ping_rec_timeout (exit or restart)? */
+
   /* Misc parms */
   char *username;
   char *chroot_dir;
