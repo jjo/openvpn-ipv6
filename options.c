@@ -311,7 +311,7 @@ static const char usage_message[] =
   "--show-adapters : Show all TAP-Win32 adapters.\n"
   "--ip-win32 method : When using --ifconfig on Windows, set TAP-Win32 adapter\n"
   "                    IP address using method = manual, netsh, ipapi, or\n"
-  "                    dynamic (default = ipapi).\n"
+  "                    dynamic (default = dynamic).\n"
   "                    Dynamic method allows two optional parameters:\n"
   "                    offset: DHCP server address offset (> -256 and < 256).\n"
   "                            If 0, use network address, if >0, take nth\n"
@@ -374,7 +374,11 @@ init_options (struct options *o)
   o->comp_lzo_adaptive = true;
 #endif
 #ifdef WIN32
+#if 1
+  o->tuntap_options.ip_win32_type = IPW32_SET_DHCP_MASQ;
+#else
   o->tuntap_options.ip_win32_type = IPW32_SET_IPAPI;
+#endif
 #endif
 #ifdef USE_CRYPTO
   o->ciphername = "BF-CBC";

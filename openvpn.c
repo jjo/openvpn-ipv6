@@ -342,7 +342,7 @@ do_open_tun (const struct options *options,
       run_script (options->up_script,
 		  tuntap->actual,
 		  TUN_MTU_SIZE (frame),
-		  EXPANDED_SIZE (frame), /* JYFIXME -- 2.0 merge */
+		  EXPANDED_SIZE (frame),
 		  print_in_addr_t (tuntap->local, true),
 		  print_in_addr_t (tuntap->remote_netmask, true),
 		  "init",
@@ -380,7 +380,7 @@ do_open_tun (const struct options *options,
 	run_script (options->up_script,
 		    tuntap->actual,
 		    TUN_MTU_SIZE (frame),
-		    EXPANDED_SIZE (frame), /* JYFIXME -- 2.0 merge */
+		    EXPANDED_SIZE (frame),
 		    print_in_addr_t (tuntap->local, true),
 		    print_in_addr_t (tuntap->remote_netmask, true),
 		    "restart",
@@ -1107,7 +1107,7 @@ openvpn (const struct options *options,
   if (tls_multi)
     {
       tls_multi_init_finalize (tls_multi, &frame);
-      ASSERT (EXPANDED_SIZE (&tls_multi->opt.frame) <= EXPANDED_SIZE (&frame)); /* JYFIXME -- 2.0 merge */
+      ASSERT (EXPANDED_SIZE (&tls_multi->opt.frame) <= EXPANDED_SIZE (&frame));
       frame_print (&tls_multi->opt.frame, D_MTU_INFO, "Control Channel MTU parms");
     }
 #endif
@@ -1217,7 +1217,7 @@ openvpn (const struct options *options,
 	    addr_host (&link_socket.lsa->local),
 	    addr_host (&link_socket.lsa->remote),
 	    &frame,
-	    &options->tuntap_options); /* JYFIXME -- manual merge to 2.0 beta */
+	    &options->tuntap_options);
 
   /* open tun/tap device, ifconfig, run up script, etc. */
   
@@ -1605,7 +1605,7 @@ openvpn (const struct options *options,
 		  if (entry->op >= 0)
 		    {
 		      occ_op = entry->op;
-		      occ_mtu_load_size = EXPANDED_SIZE (&frame) + entry->delta; /* JYFIXME -- 2.0 merge */
+		      occ_mtu_load_size = EXPANDED_SIZE (&frame) + entry->delta;
 		    }
 		  else
 		    {
@@ -1687,7 +1687,7 @@ openvpn (const struct options *options,
 
 		if (!buf_write_u8 (&buf, OCC_MTU_LOAD))
 		  break;
-		need_to_add = min_int ( /* JYFIXME -- merge with 2.0 beta */
+		need_to_add = min_int (
 				       occ_mtu_load_size
 				       - sizeof (occ_magic)
 				       - sizeof (uint8_t)
@@ -2032,6 +2032,7 @@ openvpn (const struct options *options,
 			  signal_received = SIGUSR1;
 			  msg (D_STREAM_ERRORS, "Fatal decryption error, restarting");
 			  signal_text = "decryption-error";
+			  mutex_unlock (L_TLS);
 			  break;
 			}
 		    }
@@ -2358,7 +2359,7 @@ openvpn (const struct options *options,
 	  /* TCP/UDP port ready to accept write */
 	  else if (SOCKET_ISSET (link_socket, writes))
 	    {
-	      if (to_link.len > 0 && to_link.len <= EXPANDED_SIZE (&frame)) /* JYFIXME -- 2.0 merge */
+	      if (to_link.len > 0 && to_link.len <= EXPANDED_SIZE (&frame))
 		{
 		  /*
 		   * Setup for call to send/sendto which will send
@@ -2433,7 +2434,7 @@ openvpn (const struct options *options,
 		  msg (D_LINK_ERRORS, "TCP/UDP packet too large on write to %s (tried=%d,max=%d)",
 		       print_sockaddr (&to_link_addr),
 		       to_link.len,
-		       EXPANDED_SIZE (&frame)); /* JYFIXME -- 2.0 merge */
+		       EXPANDED_SIZE (&frame));
 		}
 
 	      /*
@@ -2546,7 +2547,7 @@ openvpn (const struct options *options,
 	  run_script (options->down_script,
 		      tuntap_actual,
 		      TUN_MTU_SIZE (&frame),
-		      EXPANDED_SIZE (&frame), /* JYFIXME -- 2.0 merge */
+		      EXPANDED_SIZE (&frame),
 		      print_in_addr_t (tuntap->local, true),
 		      print_in_addr_t (tuntap->remote_netmask, true),
 		      "init",
@@ -2560,7 +2561,7 @@ openvpn (const struct options *options,
 	    run_script (options->down_script,
 			tuntap->actual,
 			TUN_MTU_SIZE (&frame),
-			EXPANDED_SIZE (&frame), /* JYFIXME -- 2.0 merge */
+			EXPANDED_SIZE (&frame),
 			print_in_addr_t (tuntap->local, true),
 			print_in_addr_t (tuntap->remote_netmask, true),
 			"restart",
@@ -2848,7 +2849,6 @@ main (int argc, char *argv[])
 	msg (M_USAGE, "Options error: local and remote/netmask --ifconfig addresses must be different");
 
 #ifdef WIN32
-      /* JYFIXME -- manual merge to 2.0 beta */
       if (dev == DEV_TYPE_TUN && !(options.ifconfig_local && options.ifconfig_remote_netmask))
 	msg (M_USAGE, "Options error: On Windows, --ifconfig is required when --dev tun is used");
 
@@ -2864,7 +2864,7 @@ main (int argc, char *argv[])
 	  && !options.route_delay_defined)
 	{
 	  options.route_delay_defined = true;
-	  options.route_delay = 5;
+	  options.route_delay = 10; /* JYFIXME -- merge with 2.0 beta */
 	}
 
       if (options.ifconfig_noexec)
