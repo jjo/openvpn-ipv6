@@ -1621,7 +1621,7 @@ openvpn (const struct options *options,
        * Should we send an OCC message?
        */
       if (occ_op >= 0 && !to_link.len
-#ifdef FRAGMENT_ENABLE /* JYFIX -- merge to 2.0 */
+#ifdef FRAGMENT_ENABLE
 	  && (!fragment || !fragment_outgoing_defined (fragment))
 #endif
 	  )
@@ -2864,7 +2864,7 @@ main (int argc, char *argv[])
 	  && !options.route_delay_defined)
 	{
 	  options.route_delay_defined = true;
-	  options.route_delay = 10; /* JYFIXME -- merge with 2.0 beta */
+	  options.route_delay = 10;
 	}
 
       if (options.ifconfig_noexec)

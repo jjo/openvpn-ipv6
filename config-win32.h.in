@@ -46,7 +46,7 @@ typedef unsigned int in_addr_t;
 typedef unsigned int ssize_t;
 
 /* Should we print debug info from driver? */
-#define TAP_WIN32_DEBUG // JYFIXME
+/*#define TAP_WIN32_DEBUG*/
 
 /* Minimum TAP-Win32 version number expected by userspace */
 #define TAP_WIN32_MIN_MAJOR 5
