@@ -64,8 +64,17 @@ OPTIONAL (for developers only):
 
 *************************************************************************
 
-BUILD COMMANDS FROM TARBALL OR CVS:
+BUILD COMMANDS FROM TARBALL:
 
+	./configure
+	make
+	make install
+
+*************************************************************************
+
+BUILD COMMANDS FROM CVS:
+
+	autoreconf -i -v
 	./configure
 	make
 	make install
