@@ -1284,7 +1284,7 @@ tls_process (struct tls_multi *multi,
        || (packet_id_close_to_wrapping (&ks->packet_id.send))))
     {
       msg (D_TLS_DEBUG_LOW, "TLS: soft reset sec=%d bytes=%d/%d pkts=%d/%d",
-	   (int) ks->established + session->opt->renegotiate_seconds - current,
+	   (int)(ks->established + session->opt->renegotiate_seconds - current),
 	   ks->n_bytes, session->opt->renegotiate_bytes,
 	   ks->n_packets, session->opt->renegotiate_packets);
       key_state_soft_reset (session, current);
@@ -1732,7 +1732,7 @@ tls_multi_process (struct tls_multi *multi,
  * Errors are fatal if they are of these types.
  */
 static inline bool
-local_sock_fatal ()
+local_sock_fatal (void)
 {
   return errno == ENOTCONN || errno == ECONNREFUSED;
 }
@@ -2487,7 +2487,7 @@ protocol_dump (struct buffer *buffer, unsigned int flags)
     if (!buf_read (&buf, &l, sizeof (l)))
       goto done;
     l = ntohpid (l);
-    buf_printf (&out, " pid=" packet_id_format, l);
+    buf_printf (&out, " pid=" packet_id_format, (packet_id_print_type)l);
   }
 
 print_data:

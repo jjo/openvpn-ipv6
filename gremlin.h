@@ -25,5 +25,5 @@
 
 #include "buffer.h"
 
-bool ask_gremlin();
+bool ask_gremlin(void);
 void corrupt_gremlin(struct buffer* buf);

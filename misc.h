@@ -51,8 +51,8 @@ void warn_if_group_others_accessible(const char* filename);
 int openvpn_system (const char *command);
 
 /* interpret the status code returned by system() */
-bool system_ok(int stat);
-const char *system_error_message (int stat);
+bool system_ok(int);
+const char *system_error_message (int);
 
 /* run system() with error check, return true if success,
    false if error, exit if error and fatal==true */
@@ -62,11 +62,11 @@ bool system_check (const char* command, const char* error_message, bool fatal);
 const char* time_string (time_t t);
 
 /* init random() function, only used as source for weak random numbers, when !USE_CRYPTO */
-void init_random_seed();
+void init_random_seed(void);
 
 /* an analogue to the random() function, but use OpenSSL functions if available */
 #ifdef USE_CRYPTO
-long int get_random();
+long int get_random(void);
 #else
 #define get_random random
 #endif

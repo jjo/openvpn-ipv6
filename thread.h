@@ -58,7 +58,7 @@ extern bool x_lock_cs_init;
 #define MUTEX_UNLOCK(lock)         pthread_mutex_unlock (&lock)
 
 static inline int
-thread_number()
+thread_number(void)
 {
   return (!x_main_thread_id || pthread_self () == x_main_thread_id) ? MAIN_THREAD : WORK_THREAD;
 }
@@ -100,11 +100,11 @@ mutex_cycle (int type)
     }
 }
 
-void thread_init();
-void thread_cleanup();
+void thread_init(void);
+void thread_cleanup(void);
 
 void work_thread_create (void *(*start_routine) (void *), void* arg);
-void work_thread_join ();
+void work_thread_join (void);
 
 #else /* USE_PTHREAD */
 

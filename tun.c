@@ -417,7 +417,7 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node,
 	  int		fd;
  
 	  if ((fd = socket(PF_INET, SOCK_DGRAM, 0)) < 0)
-	    msg (M_WARN, "Cannot open control_fd", dev);
+	    msg (M_WARN, "Cannot open control_fd");
 	  else
 	    {
 	      strncpynt (r.ifr_name, tt->actual, IFNAMSIZ);

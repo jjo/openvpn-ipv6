@@ -41,8 +41,12 @@ typedef int interval_t;
  */
 #define counter_format        "%10lu"
 #define ptr_format            "0x%08zx"
-#define time_format           "%u"
+#define time_format           "%lu"
 #define fragment_type_format  "0x%08x"
+
+/* these are used to cast the arguments
+ * and MUST match the formats above */
+typedef unsigned long time_type;
 
 /*
  * Functions used for circular buffer index arithmetic.

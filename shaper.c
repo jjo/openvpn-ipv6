@@ -113,7 +113,7 @@ shaper_soonest_event (struct timeval *tv, int delay)
 	}
     }
   msg (D_SHAPER_DEBUG, "SHAPER shaper_soonest_event sec=%d usec=%d",
-       tv->tv_sec, tv->tv_usec);
+       (int)tv->tv_sec, (int)tv->tv_usec);
 }
 
 /*
@@ -138,7 +138,7 @@ shaper_wrote_bytes (struct shaper* s, int nbytes)
       s->wakeup.tv_usec -= 1000000;
     }
   msg (D_SHAPER_DEBUG, "SHAPER shaper_wrote_bytes bytes=%d delay=%d sec=%d usec=%d",
-       nbytes, delay, s->wakeup.tv_sec, s->wakeup.tv_usec);
+       nbytes, delay, (int)s->wakeup.tv_sec, (int)s->wakeup.tv_usec);
 }
 
 /*

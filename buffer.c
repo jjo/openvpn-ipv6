@@ -111,7 +111,7 @@ buf_sub (struct buffer *buf, int size, bool prepend)
  * printf append to a buffer with overflow check
  */
 void
-buf_printf (struct buffer *buf, char *format, ...)
+buf_printf (struct buffer *buf, const char *format, ...)
 {
   va_list arglist;
 
@@ -223,7 +223,7 @@ debug_gc_check_corrupt (const char *file, int line)
 
 char *
 format_hex_ex (const uint8_t *data, int size, int maxoutput,
-	       int space_break, char* separator)
+	       int space_break, const char* separator)
 {
   struct buffer out = alloc_buf_gc (maxoutput ? maxoutput :
 				    ((size * 2) + (size / space_break) + 2));

@@ -175,7 +175,7 @@ struct options
 
 void notnull (const char *arg, const char *description);
 
-void usage_small ();
+void usage_small (void);
 
 void init_options (struct options *o);
 void show_settings (const struct options *o);

@@ -251,7 +251,7 @@ become_daemon (const char *cd)
 }
 
 void
-become_inetd_server ()
+become_inetd_server (void)
 {
 #if defined(HAVE_OPENLOG) && defined(HAVE_SYSLOG)
   if (!msgfp)

@@ -103,7 +103,7 @@ static time_t next;
  * Return false if we should drop a packet.
  */
 bool
-ask_gremlin()
+ask_gremlin(void)
 {
   struct timeval tv;
 

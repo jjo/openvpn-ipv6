@@ -491,7 +491,7 @@ comma_to_space (const char *src)
 }
 
 static void
-usage ()
+usage (void)
 {
   struct options o;
   FILE *fp = msg_fp();
@@ -518,14 +518,14 @@ usage ()
 }
 
 void
-usage_small ()
+usage_small (void)
 {
   msg (M_WARN, "Use --help for more information");
   exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
 
-void
-usage_version ()
+static void
+usage_version (void)
 {
   msg (M_INFO, "%s", TITLE);
   msg (M_INFO, "Copyright (C) 2002-2003 James Yonan <jim@yonan.net>");
@@ -552,7 +552,7 @@ string_defined_equal (const char *s1, const char *s2)
 }
 
 static void
-ping_rec_err ()
+ping_rec_err (void)
 {
   msg (M_WARN, "Options error: only one of --ping-exit or --ping-restart options may be specified");
   usage_small ();

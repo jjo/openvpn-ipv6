@@ -88,30 +88,34 @@ extern int msg_line_num;
 
 #define MSG_TEST(flags) ((((unsigned int)flags) & M_DEBUG_LEVEL) < x_debug_level || ((flags) & M_FATAL))
 
-#if defined(HAVE_CPP_VARARG_MACRO_ISO)
+#if defined(HAVE_CPP_VARARG_MACRO_ISO) && !defined(__LCLINT__)
 #define HAVE_VARARG_MACROS
 #define msg(flags, ...) do { if (MSG_TEST(flags)) x_msg((flags), __VA_ARGS__); } while (false)
-#elif defined(HAVE_CPP_VARARG_MACRO_CPP)
+#elif defined(HAVE_CPP_VARARG_MACRO_CPP) && !defined(__LCLINT__)
 #define HAVE_VARARG_MACROS
 #define msg(flags, args...) do { if (MSG_TEST(flags)) x_msg((flags), args); } while (false)
 #else
 #define msg x_msg
 #endif
 
-void x_msg (unsigned int flags, const char *format, ...); /* should be called via msg above */
+void x_msg (unsigned int flags, const char *format, ...)
+#ifdef __GNUC__
+    __attribute__ ((format (printf, 2, 3)))
+#endif
+    ; /* should be called via msg above */
 
 /*
  * Function prototypes
  */
 
-void error_reset ();
+void error_reset (void);
 void set_debug_level (int level);
 void set_mute_cutoff (int cutoff);
 
 /*
  * File to print messages to before syslog is opened.
  */
-FILE *msg_fp();
+FILE *msg_fp(void);
 
 /* Fatal logic errors */
 #define ASSERT(x) do { if (!(x)) assert_failed(__FILE__, __LINE__); } while (false)
@@ -127,7 +131,7 @@ check_debug_level (unsigned int level)
 }
 
 void become_daemon (const char *cd);
-void become_inetd_server ();
+void become_inetd_server (void);
 
 #include "errlevel.h"
 

@@ -467,7 +467,7 @@ openvpn (const struct options *options,
 	{
 #ifdef USE_PTHREAD
 	  if (first_time)
-	    work_thread_create(test_crypto_thread, (struct options*) options);
+	    work_thread_create(test_crypto_thread, (void*) options);
 #endif
 	  frame_finalize_options (&frame, options);
 

@@ -93,7 +93,15 @@ typedef uint16_t net_time_t;
 /*
  * Printf formats for special types
  */
+#if SIZEOF_UNSIGNED_LONG == 4
+#define packet_id_format "%lu"
+typedef unsigned long packet_id_print_type;
+#elif SIZEOF_UNSIGNED_INT == 4
 #define packet_id_format "%u"
+typedef unsigned int packet_id_print_type;
+#else
+#error "cannot figure proper format to print uint32_t"
+#endif
 
 /*
  * Maximum allowed backtrack in

@@ -109,7 +109,7 @@ addr_match (const struct sockaddr_in *a1, const struct sockaddr_in *a2)
 extern unsigned int x_cs_info_level;
 extern unsigned int x_cs_verbose_level;
 
-void reset_check_status ();
+void reset_check_status (void);
 void set_check_status (unsigned int info_level, unsigned int verbose_level);
 void x_check_status (int status, const char *description, struct udp_socket *sock);
 

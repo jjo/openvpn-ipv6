@@ -331,8 +331,8 @@ struct tls_multi
   struct tls_session session[TM_SIZE];
 };
 
-void init_ssl_lib ();
-void free_ssl_lib ();
+void init_ssl_lib (void);
+void free_ssl_lib (void);
 
 /* Build master SSL_CTX object that serves for the whole of openvpn instantiation */
 SSL_CTX *init_ssl (bool server,
@@ -366,7 +366,7 @@ void tls_pre_encrypt (struct tls_multi *multi,
 
 void tls_post_encrypt (struct tls_multi *multi, struct buffer *buf);
 
-void show_available_tls_ciphers ();
+void show_available_tls_ciphers (void);
 void get_highest_preference_tls_cipher (char *buf, int size);
 
 int pem_password_callback (char *buf, int size, int rwflag, void *u);

@@ -86,7 +86,8 @@ packet_id_test (const struct packet_id_rec *p, const struct packet_id_net *pin)
 
   msg (D_PID_DEBUG,
        "PID TEST " time_format ":" packet_id_format " " time_format ":" packet_id_format "",
-       p->time, p->id, pin->time, pin->id);
+       (time_type)p->time, (packet_id_print_type)p->id, (time_type)pin->time,
+       (packet_id_print_type)pin->id);
 
   if (!pin->id)
     return false;
@@ -114,10 +115,10 @@ const char*
 packet_id_net_print (const struct packet_id_net *pin, bool print_timestamp)
 {
   struct buffer out = alloc_buf_gc (256);
-  
-  buf_printf (&out, "[ #" packet_id_format, pin->id);
+
+  buf_printf (&out, "[ #" packet_id_format, (packet_id_print_type)pin->id);
   if (print_timestamp && pin->time)
-      buf_printf (&out, " / time = (" packet_id_format ") %s", pin->time, time_string (pin->time));
+      buf_printf (&out, " / time = (" packet_id_format ") %s", (packet_id_print_type)pin->time, time_string (pin->time));
 
   buf_printf (&out, " ]");
   return BSTR (&out);
@@ -244,14 +245,14 @@ const char*
 packet_id_persist_print (const struct packet_id_persist *p)
 {
   struct buffer out = alloc_buf_gc (256);
-  
+
   buf_printf (&out, "[");
 
   if (packet_id_persist_enabled (p))
     {
-      buf_printf (&out, " #" packet_id_format, p->id);
+      buf_printf (&out, " #" packet_id_format, (packet_id_print_type)p->id);
       if (p->time)
-	buf_printf (&out, " / time = (" packet_id_format ") %s", p->time, time_string (p->time));
+	buf_printf (&out, " / time = (" packet_id_format ") %s", (packet_id_print_type)p->time, time_string (p->time));
     }
 
   buf_printf (&out, " ]");

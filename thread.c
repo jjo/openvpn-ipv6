@@ -45,7 +45,7 @@ static long *ssl_lock_count;
 static void
 ssl_pthreads_locking_callback (int mode, int type, char *file, int line)
 {
-  msg (D_OPENSSL_LOCK, "SSL LOCK thread=%4d mode=%s lock=%s %s:%d",
+  msg (D_OPENSSL_LOCK, "SSL LOCK thread=%4lu mode=%s lock=%s %s:%d",
 	   CRYPTO_thread_id (),
 	   (mode & CRYPTO_LOCK) ? "l" : "u",
 	   (type & CRYPTO_READ) ? "r" : "w", file, line);
@@ -83,8 +83,8 @@ ssl_thread_setup (void)
       pthread_mutex_init (&(ssl_lock_cs[i]), NULL);
     }
 
-  CRYPTO_set_id_callback ((unsigned long (*)()) ssl_pthreads_thread_id);
-  CRYPTO_set_locking_callback ((void (*)()) ssl_pthreads_locking_callback);
+  CRYPTO_set_id_callback ((unsigned long (*)(void)) ssl_pthreads_thread_id);
+  CRYPTO_set_locking_callback ((void (*)(int, int, const char*, int)) ssl_pthreads_locking_callback);
 }
 
 static void
@@ -113,7 +113,7 @@ work_thread_create (void *(*start_routine) (void *), void* arg)
   ASSERT (x_main_thread_id);
   ASSERT (!x_work_thread_id);
   ASSERT (!pthread_create (&x_work_thread_id, NULL, start_routine, arg));
-  msg (D_THREAD_DEBUG, "CREATE THREAD ID=%d", x_work_thread_id);
+  msg (D_THREAD_DEBUG, "CREATE THREAD ID=%lu", (unsigned long)x_work_thread_id);
 }
 
 void

@@ -88,7 +88,7 @@ tun_adjust_frame_parameters (struct frame* frame, int size)
 #define IFCONFIG_DEFAULT         1
 
 static inline int
-ifconfig_order()
+ifconfig_order(void)
 {
 #if defined(TARGET_LINUX)
   return IFCONFIG_AFTER_TUN_OPEN;

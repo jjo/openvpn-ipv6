@@ -134,7 +134,7 @@
 #endif
 
 #ifdef HAVE_ARPA_INET_H
-#ifndef TARGET_OPENBSD
+#if !defined(TARGET_OPENBSD) && !defined(__LCLINT__)
 #include <arpa/inet.h>
 #endif
 #endif
@@ -145,7 +145,7 @@
 
 #ifdef TARGET_LINUX
 
-#ifdef HAVE_NETINET_IF_ETHER_H
+#if defined(HAVE_NETINET_IF_ETHER_H) && !defined(__LCLINT__)
 #include <netinet/if_ether.h>
 #endif
 
