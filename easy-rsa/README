@@ -33,6 +33,23 @@ INSTALL
    between computers.  Normally each computer
    will have its own certificate/key pair.
 
+BUILD YOUR OWN ROOT CERTIFICATE AUTHORITY (CA) CERTIFICATE/KEY
+
+1. ./build-ca
+2. ca.crt and ca.key will be built in your KEY_DIR
+   directory
+
+BUILD AN INTERMEDIATE CERTIFICATE AUTHORITY CERTIFICATE/KEY
+
+1. ./build-inter inter
+2. inter.crt and inter.key will be built in your KEY_DIR
+   directory and signed with your root certificate.
+
+BUILD DIFFIE-HELLMAN PARAMETERS (necessary for
+the server end of a SSL/TLS connection).
+
+1. ./build-dh
+
 BUILD A CERTIFICATE SIGNING REQUEST (If
 you want to sign your certificate with a root
 certificate controlled by another individual
@@ -75,27 +92,22 @@ or organization, or residing on a different machine).
    and ca.crt can now be used to secure one end of
    an SSL/TLS connection.
 
-BUILD YOUR OWN ROOT CERTIFICATE/KEY
-
-1. ./build-ca
-2. ca.crt and ca.key will be built in your KEY_DIR
-   directory
-
-SIGN SOMEONE ELSE's CERTIFICATE SIGNING REQUEST
+SIGN A CERTIFICATE SIGNING REQUEST
 
 1. ./sign-req deception
 2. deception.crt will be built in your KEY_DIR
-   directory.
+   directory using deception.csr and your root CA
+   file as input.
 
-BUILD AND SIGN A CERTIFICATE SIGNING REQUEST LOCALLY
-BASED ON A LOCALLY INSTALLED ROOT CERTIFICATE
+BUILD AND SIGN A CERTIFICATE SIGNING REQUEST
+USING A LOCALLY INSTALLED ROOT CERTIFICATE/KEY -- this
+script generates and signs a certificate in one step,
+but it requires that the generated certificate and private
+key files be copied to the destination host over a
+secure channel.
 
 1. ./build-key deception (no password protection)
 2. OR ./build-key-pass deception (with password protection)
 3. deception.crt and deception.key will be built in your
-   KEY_DIR directory.
-
-BUILD DIFFIE-HELLMAN PARAMETERS (necessary for
-the server end of a SSL/TLS connection).
-
-1. ./build-dh
+   KEY_DIR directory, and deception.crt will be signed
+   by your root CA.

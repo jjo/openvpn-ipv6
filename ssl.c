@@ -105,19 +105,6 @@ bio_debug_oc (const char *mode, BIO *bio)
   fflush (biofp);
 }
 
-void
-openvpn_dump_binary(void *data, int size)
-{
-  FILE *fp;
-  char fn[256];
-
-  snprintf(fn, sizeof(fn), "bio/data-%d.der", getpid());
-  fp = fopen (fn, "w");
-  ASSERT (fp);
-  ASSERT (fwrite (data, size, 1, fp) == 1);
-  ASSERT (fclose(fp) == 0);
-}
-
 #endif
 
 /*
@@ -346,7 +333,8 @@ init_ssl (bool server,
 	  const char *ca_file,
 	  const char *dh_file,
 	  const char *cert_file,
-	  const char *priv_key_file, const char *cipher_list)
+	  const char *priv_key_file,
+	  const char *cipher_list)
 {
   SSL_CTX *ctx;
   DH *dh;
@@ -401,9 +389,18 @@ init_ssl (bool server,
   if (!SSL_CTX_check_private_key (ctx))
     msg (M_SSLERR, "Private key does not match the certificate");
 
-  /* Load Certificate Authority File */
+  /* Load CA file for verifying peer supplied certificate */
   if (!SSL_CTX_load_verify_locations (ctx, ca_file, NULL))
-    msg (M_SSLERR, "Cannot load CA certificate file %s", ca_file);
+    msg (M_SSLERR, "Cannot load CA certificate file %s (SSL_CTX_load_verify_locations)", ca_file);
+
+  /* Load names of CAs from file and use it as a client CA list */
+  {
+    STACK_OF(X509_NAME) *cert_names;
+    cert_names = SSL_load_client_CA_file (ca_file);
+    if (!cert_names)
+      msg (M_SSLERR, "Cannot load CA certificate file %s (SSL_load_client_CA_file)", ca_file);
+    SSL_CTX_set_client_CA_list (ctx, cert_names);
+  }
 
   /* Require peer certificate verification */
   SSL_CTX_set_verify (ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
