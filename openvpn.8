@@ -34,6 +34,8 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-ping\fR\ \fIn\fR\ ]
 [\ \fB\-\-ping\-exit\fR\ \fIn\fR\ ]
 [\ \fB\-\-ping\-restart\fR\ \fIn\fR\ ]
+[\ \fB\-\-persist\-tun\fR\ ]
+[\ \fB\-\-persist\-ip\fR\ ]
 [\ \fB\-\-mlock\fR\ ]
 [\ \fB\-\-up\fR\ \fIcmd\fR\ ]
 [\ \fB\-\-down\fR\ \fIcmd\fR\ ]
@@ -136,11 +138,11 @@ it passes this test suite
 option below).
 
 OpenVPN is designed to work with the
-.B TUN/TAP driver
+.B tun/tap driver
 which supports both IP and Ethernet
-tunneling.  OpenVPN supports both dynamic and persistent TUN/TAP tunnels.
+tunneling.  OpenVPN supports both dynamic and persistent tun/tap tunnels.
 OpenVPN can construct multiple tunnels to or from the same peer and
-will peacefully co-exist with other applications which construct TUN/TAP tunnels.
+will peacefully co-exist with other applications which construct tun/tap tunnels.
 
 OpenVPN supports building multiple tunnels between the same two peers, where
 each tunnel has a different maximum bandwidth (see the
@@ -392,7 +394,7 @@ IP address changes due to DHCP
 , we should configure
 our IP address change script (see man page for
 .BR dhcpcd (8)
-) to deliver a SIGHUP signal to OpenVPN.  OpenVPN will then
+) to deliver a SIGHUP or SIGUSR1 signal to OpenVPN.  OpenVPN will then
 reestablish a connection with its most recently authenticated
 peer on its new IP address.
 .TP
@@ -414,7 +416,7 @@ peers which will be initiating connections by using the
 option.
 .TP
 .B --dev tunX | tapX
-TUN/TAP virtual network device (
+tun/tap virtual network device (
 .B X
 can be omitted for dynamic device in
 Linux 2.4.7+).  See examples section below
@@ -427,7 +429,7 @@ should be
 .B tun
 or
 .B tap.
-Use this option only if the TUN/TAP device used with
+Use this option only if the tun/tap device used with
 .B --dev
 does not begin with
 .B tun
@@ -574,7 +576,7 @@ to be between 100 bytes/sec and 100 Mbytes/sec.
 .B --inactive n
 Causes OpenVPN to exit after
 .B n
-seconds of inactivity on the TUN/TAP device.  The time length
+seconds of inactivity on the tun/tap device.  The time length
 of inactivity is measured since the last incoming tunnel packet.
 .TP
 .B --ping n
@@ -626,22 +628,57 @@ hour if no actual tunnel data is exchanged.
 Similar to
 .B --ping-exit,
 but trigger a
-.B SIGHUP
+.B SIGUSR1
 restart after
 .B n
 seconds pass without reception of a ping
 or other packet from remote.
-.B SIGHUP
-will cause OpenVPN to close all TUN/TAP and
-network connections,
-restart, re-read the configuration file (if any),
-and reopen TUN/TAP and network connections.
 
-Note:
+See the signals section below for more information
+on
+.B SIGUSR1.
+
+Note that the behavior of
+.B SIGUSR1
+can be modified by the
+.B --persist-tun
+and
+.B --persist-ip
+options.
+
+Also note that
 .B --ping-exit
 and
 .B --ping-restart
 are mutually exclusive and cannot be used together.
+.TP
+.B --persist-tun
+Don't close and reopen tun/tap device or run up/down scripts
+across
+.B SIGUSR1
+or
+.B --ping-restart
+restarts.
+
+.B SIGUSR1
+is a restart signal similar to
+.B SIGHUP,
+but which offers finer-grained control over what
+gets reset.
+.TP
+.B --persist-ip
+Preserve most recently authenticated remote IP address
+across
+.B SIGUSR1
+or
+.B --ping-restart
+restarts.
+
+.B SIGUSR1
+is a restart signal similar to
+.B SIGHUP,
+but which offers finer-grained control over what
+gets reset.
 .TP
 .B --mlock
 Disable paging by calling the POSIX mlockall function.
@@ -669,7 +706,7 @@ is that it will reduce the amount of physical
 memory available to other applications.
 .TP
 .B --up cmd
-Shell command to run after successful TUN/TAP device open
+Shell command to run after successful tun/tap device open
 (pre
 .B --user
 UID change).
@@ -706,7 +743,7 @@ script so that they can be used to configure routes such as:
 .B route add -net 10.0.0.0 netmask 255.255.255.0 gw $5
 .TP
 .B --down cmd
-Shell command to run after TUN/TAP device close
+Shell command to run after tun/tap device close
 (post
 .B --user
 UID change and/or
@@ -735,6 +772,8 @@ to an OpenVPN session.  This means, for example, that the
 script is limited to executing unprivileged commands and that the OpenVPN
 daemon might not be able to respond successfully to a
 .B SIGHUP
+or
+.B SIGUSR1
 signal, because in order to restart it would need to read protected
 key files such as private keys.
 .TP
@@ -1365,14 +1404,14 @@ peer over a pre-existing secure channel such as
 .B --secret file
 Write key to
 .B file.
-.SS TUN/TAP persistent tunnel config mode:
+.SS tun/tap persistent tunnel config mode:
 Available with linux 2.4.7+.  These options comprise a standalone mode
 of OpenVPN which can be used to create and delete persistent tunnels.
 .TP
 .B --mktun
-Create a persistent tunnel.  Normally TUN/TAP tunnels exist only for
+Create a persistent tunnel.  Normally tun/tap tunnels exist only for
 the period of time that an application has them open.  This option
-takes advantage of the TUN/TAP driver's ability to build persistent
+takes advantage of the tun/tap driver's ability to build persistent
 tunnels that live through multiple instantiations of OpenVPN and die
 only when they are deleted or the machine is rebooted.
 
@@ -1388,7 +1427,7 @@ and
 commands.  These commands can be placed in the the same shell script
 which starts or terminates an OpenVPN session.
 
-Another advantage is that open connections through the TUN/TAP-based tunnel
+Another advantage is that open connections through the tun/tap-based tunnel
 will not be reset if the OpenVPN peer restarts.  This can be useful to
 provide uninterrupted connectivity through the tunnel in the event of a DHCP
 reset of the peer's public IP address (see the
@@ -1406,19 +1445,33 @@ above).
 Remove a persistent tunnel.
 .TP
 .B --dev tunX|tapX
-TUN/TAP device
+tun/tap device
 .SH SIGNALS
 .TP
 .B SIGHUP
-Cause OpenVPN to close all TUN/TAP and
+Cause OpenVPN to close all tun/tap and
 network connections,
 restart, re-read the configuration file (if any),
-and reopen TUN/TAP and network connections.
+and reopen tun/tap and network connections.
 .TP
 .B SIGUSR1
-Causes OpenVPN to restart (without re-reading its configuration file)
-and attempt to reopen a network connection with
-its most recently authenticated peer.  This signal is designed to be
+Like 
+.B SIGHUP,
+except don't re-read configuration file, and possibly don't close and reopen tun
+device or preserve most recently authenticated remote IP address based on
+.B --persist-tun
+and
+.B --persist-ip
+options (see above).
+
+This signal may also be internally generated by a timeout condition, governed
+by the
+.B --ping-restart
+option.
+
+This signal, when combined with
+.B --persist-ip,
+may be
 sent when the underlying parameters of the host's network interface change
 such as when the host is a DHCP client and is assigned a new IP address.
 See
@@ -1434,7 +1487,7 @@ is used, or stdout otherwise).
 .B SIGINT, SIGTERM
 Causes OpenVPN to exit gracefully.
 .SH TUN/TAP DRIVER SETUP
-If you are running Linux 2.4.7 or higher, you probably have the TUN/TAP driver
+If you are running Linux 2.4.7 or higher, you probably have the tun/tap driver
 already installed.  If so, there are still a few things you need to do:
 
 Make device:
@@ -1444,7 +1497,7 @@ Load driver:
 .B modprobe tun
 
 If you have Linux 2.2 or earlier, you should obtain version 1.1 of the
-TUN/TAP driver from
+tun/tap driver from
 .I http://vtun.sourceforge.net/tun/
 and follow the installation instructions.
 .SH EXAMPLES
@@ -1452,7 +1505,7 @@ Prior to running these examples, you should have OpenVPN installed on two
 machines with network connectivity between them.  If you have not
 yet installed OpenVPN, consult the INSTALL file included in the OpenVPN
 distribution.
-.SS TUN/TAP Setup:
+.SS tun/tap Setup:
 If you are using Linux 2.4 or higher, make the tun device node and load
 the tun module:
 .IP
@@ -1462,7 +1515,7 @@ the tun module:
 .B modprobe tun
 .LP
 If you have Linux 2.2 or earlier, you should obtain version 1.1 of the
-TUN/TAP driver from
+tun/tap driver from
 .I http://vtun.sourceforge.net/tun/
 and follow the installation instructions.
 .SS Firewall Setup:
@@ -1785,7 +1838,7 @@ OpenSSL Project (
 For more information on the TLS protocol, see
 .I http://www.ietf.org/internet-drafts/draft-ietf-tls-rfc2246-bis-01.txt
 
-For more information on the TUN/TAP driver see
+For more information on the tun/tap driver see
 .I http://vtun.sourceforge.net/tun/
 
 For more information on the LZO real-time compression library see

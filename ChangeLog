@@ -1,10 +1,17 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.05.24 -- Version 1.2.0.1
+2002.05.27 -- Version 1.2.0.2
 
 * Added --ping-restart option to restart
-  connection on ping timeout (Matthias Andree).
+  connection on ping timeout using SIGUSR1
+  logic (Matthias Andree).
+* Added --persist-tun and --persist-ip options
+  for finer-grained control over SIGUSR1
+  and --ping-restart restarts.  To
+  replicate previous SIGUSR1 functionality,
+  use --persist-ip.
+* Added RPM notes to INSTALL.
 
 2002.05.22 -- Version 1.2.0
 

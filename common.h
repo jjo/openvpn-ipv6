@@ -65,7 +65,7 @@
 #define DEFAULT_TUN_MTU 1450
 
 struct frame {
-  int mtu;       /* MTU of TUN/TAP device */
+  int mtu;       /* MTU of tun/tap device */
 
   /*
    * extra_frame: How many extra bytes might each subsystem (crypto, TLS, or, compression)
@@ -99,7 +99,7 @@ struct frame {
 
 /*
  * These values are used as maximum size constraints
- * on read() or write() from TUN/TAP device or UDP port.
+ * on read() or write() from tun/tap device or UDP port.
  */
 #define MAX_RW_SIZE_TUN(f)   ((f)->mtu + (f)->extra_tun)
 #define MAX_RW_SIZE_UDP(f)   ((f)->mtu + (f)->extra_frame)

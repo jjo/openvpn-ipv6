@@ -50,7 +50,7 @@ OPTIONAL (for developers only):
 
 *************************************************************************
 
-BUILD COMMANDS:
+BUILD COMMANDS FROM TARBALL OR CVS:
 
 	./configure
 	make
@@ -87,17 +87,51 @@ OPTIONS for ./configure:
 
 *************************************************************************
 
+BUILDING ON LINUX 2.4 FROM RPM
+
+The OpenVPN tarball contains an openvpn.spec file that allows an
+RPM package to be built directly from the tarball.  To use this
+option, download the latest OpenVPN tarball and use the following
+command to build a binary RPM:
+
+	rpm -tb [tarball]
+
+This command will build a binary RPM file and place it in the system
+RPM directory.  You can then install the RPM with the standard RPM
+install command:
+
+	rpm -ivh [binary-rpm]
+
+When you install the binary RPM, it will install
+sample-scripts/openvpn.init, which can be used to
+automatically start or stop one or more OpenVPN tunnels on system
+startup or shutdown, based on OpenVPN .conf files in /etc/openvpn.
+See the comments in openvpn.init for more information.
+
+Note that the current openvpn.spec file, which instructs the rpm tool
+how to build a package, will build OpenVPN with all options enabled,
+including OpenSSL, LZO, and pthread linkage.  Therefore all of
+these packages will need to be present prior to the RPM build, unless
+you edit the openvpn.spec file.
+
+*************************************************************************
+
 TUN/TAP Driver Configuration:
 
 * Linux 2.4 or higher (with integrated TUN/TAP driver):
 
-  add to /etc/modules.conf: alias char-major-10-200 tun
-  make device:              mknod /dev/net/tun c 10 200
-  load driver:              modprobe tun
-  enable routing:           echo 1 > /proc/sys/net/ipv4/ip_forward
+  (1)  make device node:         mknod /dev/net/tun c 10 200
+  (2a) add to /etc/modules.conf: alias char-major-10-200 tun
+  (2b) load driver:              modprobe tun
+  (3)  enable routing:           echo 1 > /proc/sys/net/ipv4/ip_forward
+
+  Note that either of steps (2a) or (2b) is sufficient.  While (2a)
+  only needs to be done once per install, (2b) needs to be done once
+  per reboot.  If you install from RPM (see above) and use the
+  openvpn.init script, these steps are taken care of for you.
 
 * Linux 2.2 or Solaris:
-
+ 
   You should obtain
   version 1.1 of the TUN/TAP driver from
   http://vtun.sourceforge.net/tun/

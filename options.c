@@ -72,6 +72,8 @@ static const char usage_message[] =
   "--ping-exit n   : Exit if n seconds pass without reception of remote ping.\n"
   "--ping-restart n: Restart if n seconds pass without reception of remote ping.\n"
   "--ping n        : Ping remote once every n seconds over UDP port.\n"
+  "--persist-tun   : Keep tun/tap device open across SIGUSR1 or --ping-restart.\n"
+  "--persist-ip    : Keep remote IP address across SIGUSR1 or --ping-restart.\n"
   "--tun-mtu n     : Take the tun/tap device MTU to be n and derive the\n"
   "                  UDP MTU from it (default=%d).\n"
   "--udp-mtu n     : Take the UDP device MTU to be n and derive the tun MTU\n"
@@ -187,7 +189,7 @@ static const char usage_message[] =
 #endif				/* USE_CRYPTO */
 #ifdef TUNSETPERSIST
   "\n"
-  "TUN/TAP config mode (available with linux 2.4+):\n"
+  "tun/tap config mode (available with linux 2.4+):\n"
   "--mktun         : Create a persistent tunnel.\n"
   "--rmtun         : Remove a persistent tunnel.\n"
   "--dev tunX|tapX : tun/tap device\n"
@@ -278,6 +280,9 @@ show_settings (const struct options *o)
   SHOW_INT (ping_send_timeout);
   SHOW_INT (ping_rec_timeout);
   SHOW_INT (ping_rec_timeout_action);
+
+  SHOW_BOOL (persist_tun);
+  SHOW_BOOL (persist_ip);
 
   SHOW_STR (username);
   SHOW_STR (chroot_dir);
@@ -768,6 +773,14 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
 	ping_rec_err();
       options->ping_rec_timeout = positive (atoi (p2));
       options->ping_rec_timeout_action = PING_RESTART;
+    }
+  else if (streq (p1, "persist-tun"))
+    {
+      options->persist_tun = true;
+    }
+  else if (streq (p1, "persist-ip"))
+    {
+      options->persist_ip = true;
     }
 #ifdef USE_LZO
   else if (streq (p1, "comp-lzo"))

@@ -54,6 +54,12 @@ void do_ifconfig (const char *dev, const char* dev_type,
  * Inline functions
  */
 
+static inline bool
+tuntap_defined (const struct tuntap* tt)
+{
+  return tt->fd >= 0;
+}
+
 static inline void
 tun_adjust_frame_parameters (struct frame* frame, int size)
 {

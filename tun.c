@@ -158,9 +158,9 @@ open_tun_generic (const char *dev, struct tuntap *tt)
     {
       snprintf (tunname, sizeof (tunname), "/dev/%s", dev);
       if ((tt->fd = open (tunname, O_RDWR)) < 0)
-	msg (M_ERR, "Cannot open TUN/TAP dev %s", tunname);
+	msg (M_ERR, "Cannot open tun/tap dev %s", tunname);
       set_nonblock (tt->fd);
-      msg (M_INFO, "TUN/TAP device %s opened", tunname);
+      msg (M_INFO, "tun/tap device %s opened", tunname);
       strncpynt (tt->actual, dev, sizeof (tt->actual));
     }
 }
@@ -192,7 +192,7 @@ open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
   else
     {
       if ((tt->fd = open (device, O_RDWR)) < 0)
-	msg (M_ERR, "Cannot open TUN/TAP dev %s", device);
+	msg (M_ERR, "Cannot open tun/tap dev %s", device);
 
       CLEAR (ifr);
       ifr.ifr_flags = IFF_NO_PI;
@@ -207,7 +207,7 @@ open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
 	}
       else
 	{
-	  msg (M_FATAL, "I don't recognize device %s as a TUN or TAP device",
+	  msg (M_FATAL, "I don't recognize device %s as a tun or tap device",
 	       dev);
 	}
       if (strlen (dev) > 3)		/* unit number specified? */
@@ -217,7 +217,7 @@ open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
 	msg (M_ERR, "Cannot ioctl TUNSETIFF %s", dev);
 
       set_nonblock (tt->fd);
-      msg (M_INFO, "TUN/TAP device %s opened", ifr.ifr_name);
+      msg (M_INFO, "tun/tap device %s opened", ifr.ifr_name);
       strncpynt (tt->actual, ifr.ifr_name, sizeof (tt->actual));
     }
 }
@@ -306,7 +306,7 @@ open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
     }
   else
     {
-      msg (M_FATAL, "I don't recognize device %s as a TUN or TAP device",
+      msg (M_FATAL, "I don't recognize device %s as a tun or tap device",
 	   dev);
     }
   

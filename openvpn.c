@@ -47,7 +47,7 @@
 
 /* Handle signals */
 
-static volatile bool signal_received = 0;
+static volatile int signal_received = 0;
 
 static void
 signal_handler (int signum)
@@ -124,7 +124,10 @@ static void *test_crypto_thread (void *arg);
  * be called multiple times due to SIGHUP.
  */
 static int
-openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool first_time)
+openvpn (const struct options *options,
+	 struct sockaddr_in *remote_addr,
+	 struct tuntap *tuntap,
+	 bool first_time)
 {
   /*
    * Initialize garbage collection level.
@@ -135,9 +138,6 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
    * automatically be freed.
    */
   const int gc_level = gc_new_level ();
-
-  /* TUN/TAP device descriptor */
-  struct tuntap tuntap;
 
   /* used by select() */
   int fm;
@@ -270,7 +270,6 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 
   msg (M_INFO, "%s", TITLE);
 
-  clear_tuntap (&tuntap);
   CLEAR (udp_socket);
   CLEAR (frame);
 
@@ -543,29 +542,35 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
     }
 #endif
 
-  /* do ifconfig */
-  if (ifconfig_order() == IFCONFIG_BEFORE_TUN_OPEN)
-    do_ifconfig (options->dev, options->dev_type,
-		 options->ifconfig_local, options->ifconfig_remote,
-		 MAX_RW_SIZE_TUN (&frame));
+  if (!tuntap_defined (tuntap))
+    {
+      /* do ifconfig */
+      if (ifconfig_order() == IFCONFIG_BEFORE_TUN_OPEN)
+	do_ifconfig (options->dev, options->dev_type,
+		     options->ifconfig_local, options->ifconfig_remote,
+		     MAX_RW_SIZE_TUN (&frame));
 
-  /* open the tun device */
-  open_tun (options->dev, options->dev_type, &tuntap);
+      /* open the tun device */
+      open_tun (options->dev, options->dev_type, tuntap);
 
-  /* do ifconfig */  
-  if (ifconfig_order() == IFCONFIG_AFTER_TUN_OPEN)
-    do_ifconfig (tuntap.actual, options->dev_type,
-		 options->ifconfig_local, options->ifconfig_remote,
-		 MAX_RW_SIZE_TUN (&frame));
+      /* do ifconfig */  
+      if (ifconfig_order() == IFCONFIG_AFTER_TUN_OPEN)
+	do_ifconfig (tuntap->actual, options->dev_type,
+		     options->ifconfig_local, options->ifconfig_remote,
+		     MAX_RW_SIZE_TUN (&frame));
+
+      /* run the up script */
+      run_script (options->up_script, tuntap->actual, MAX_RW_SIZE_TUN (&frame),
+		  max_rw_size_udp, options->ifconfig_local, options->ifconfig_remote);
+    }
+  else
+    {
+      msg (M_INFO, "Preserving previous tun/tap instance: %s", tuntap->actual);
+    }
 
   /* initialize traffic shaper */
   if (options->shaper)
     shaper_init (&shaper, options->shaper);
-
-  /* run the up script */
-  run_script (options->up_script, tuntap.actual, MAX_RW_SIZE_TUN (&frame), max_rw_size_udp,
-	       options->ifconfig_local, options->ifconfig_remote);
-
 
   /* drop privileges if requested */
   if (first_time)
@@ -603,8 +608,8 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 
   /* calculate max file handle + 1 for select */
   fm = udp_socket.sd;
-  if (tuntap.fd > fm)
-    fm = tuntap.fd;
+  if (tuntap->fd > fm)
+    fm = tuntap->fd;
 
   current = time (NULL);
 
@@ -708,7 +713,7 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 		  break;
 		case PING_RESTART:
 		  msg (M_INFO, "Inactivity timeout (--ping-restart), restarting");
-		  signal_received = SIGHUP;
+		  signal_received = SIGUSR1;
 		  break;
 		default:
 		  ASSERT (0);
@@ -805,8 +810,8 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 	}
       else
 	{
-	  if (tuntap.fd >= 0)
-	    FD_SET (tuntap.fd, &reads);
+	  if (tuntap->fd >= 0)
+	    FD_SET (tuntap->fd, &reads);
 #if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
 	  if (tls_multi)
 	    FD_SET (tls_thread_socket, &reads);
@@ -815,8 +820,8 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 
       if (to_tun.len > 0)
 	{
-	  if (tuntap.fd >= 0)
-	    FD_SET (tuntap.fd, &writes);
+	  if (tuntap->fd >= 0)
+	    FD_SET (tuntap->fd, &writes);
 	}
       else
 	{
@@ -849,8 +854,8 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 	  if (signal_received == SIGUSR2)
 	    {
 	      msg (M_INFO, "Current OpenVPN Statistics:");
-	      msg (M_INFO, " TUN/TAP read bytes:   " counter_format, tun_read_bytes);
-	      msg (M_INFO, " TUN/TAP write bytes:  " counter_format, tun_write_bytes);
+	      msg (M_INFO, " tun/tap read bytes:   " counter_format, tun_read_bytes);
+	      msg (M_INFO, " tun/tap write bytes:  " counter_format, tun_write_bytes);
 	      msg (M_INFO, " UDP read bytes:       " counter_format, udp_read_bytes);
 	      msg (M_INFO, " UDP write bytes:      " counter_format, udp_write_bytes);
 #ifdef USE_LZO
@@ -862,6 +867,24 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 	    }
 
 	  /* for all other signals (INT, TERM, HUP, USR1) we break */
+	  switch (signal_received)
+	    {
+	    case SIGINT:
+	      msg (M_INFO, "SIGINT received, exiting");
+	      break;
+	    case SIGTERM:
+	      msg (M_INFO, "SIGTERM received, exiting");
+	      break;
+	    case SIGHUP:
+	      msg (M_INFO, "SIGHUP received, restarting");
+	      break;
+	    case SIGUSR1:
+	      msg (M_INFO, "SIGUSR1 received, restarting");
+	      break;
+	    default:
+	      msg (M_INFO, "Unknown signal %d received", signal_received);
+	      break;
+	    }
 	  break;
 	}
       current = time (NULL);
@@ -1024,16 +1047,16 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 #endif
 
 	  /* Incoming data on TUN device */
-	  else if (tuntap.fd >= 0 && FD_ISSET (tuntap.fd, &reads))
+	  else if (tuntap->fd >= 0 && FD_ISSET (tuntap->fd, &reads))
 	    {
 	      /*
-	       * Setup for read() call on TUN/TAP device.
+	       * Setup for read() call on tun/tap device.
 	       */
 	      ASSERT (!to_udp.len);
 	      buf = read_tun_buf;
 	      ASSERT (buf_init (&buf, EXTRA_FRAME (&frame)));
 	      ASSERT (buf_safe (&buf, MAX_RW_SIZE_TUN (&frame)));
-	      buf.len = read_tun (&tuntap, BPTR (&buf), MAX_RW_SIZE_TUN (&frame));
+	      buf.len = read_tun (tuntap, BPTR (&buf), MAX_RW_SIZE_TUN (&frame));
 	      if (buf.len > 0)
 		tun_read_bytes += buf.len;
 
@@ -1097,10 +1120,10 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 	    }
 
 	  /* TUN device ready to accept write */
-	  else if (tuntap.fd >= 0 && FD_ISSET (tuntap.fd, &writes))
+	  else if (tuntap->fd >= 0 && FD_ISSET (tuntap->fd, &writes))
 	    {
 	      /*
-	       * Set up for write() call to TUN/TAP
+	       * Set up for write() call to tun/tap
 	       * device.
 	       */
 	      ASSERT (to_tun.len > 0);
@@ -1111,9 +1134,9 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 	      if (to_tun.len <= MAX_RW_SIZE_TUN(&frame))
 		{
 		  /*
-		   * Write to TUN/TAP device.
+		   * Write to tun/tap device.
 		   */
-		  const int size = write_tun (&tuntap, BPTR (&to_tun), BLEN (&to_tun));
+		  const int size = write_tun (tuntap, BPTR (&to_tun), BLEN (&to_tun));
 		  if (size > 0)
 		    tun_write_bytes += size;
 		  check_status (size, "write to tun");
@@ -1124,8 +1147,8 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 		      /* Did we write a different size packet than we intended? */
 		      if (size != BLEN (&to_tun))
 			msg (D_LINK_ERRORS,
-			     "TUN/TAP packet was fragmented on write to %s (tried=%d,actual=%d)",
-			     tuntap.actual,
+			     "tun/tap packet was fragmented on write to %s (tried=%d,actual=%d)",
+			     tuntap->actual,
 			     BLEN (&to_tun),
 			     size);
 		    }
@@ -1231,9 +1254,6 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 	}
     }
 
-  if (signal_received)
-    msg (M_INFO, "Signal %d received, exiting", signal_received);
-
   /*
    *  Do Cleanup
    */
@@ -1246,8 +1266,6 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
     tls_thread_close (tls_thread_socket);
 #endif
 
-  udp_socket_close (&udp_socket);
-  close_tun (&tuntap);
   free_buf (&read_udp_buf);
   free_buf (&read_tun_buf);
 
@@ -1279,11 +1297,29 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 #endif
 #endif /* USE_CRYPTO */
 
-  /* Run the down script -- note that it will run at reduced
-     privilege if, for example, "--user nobody" was used. */
-  run_script (options->down_script, tuntap.actual, MAX_RW_SIZE_TUN (&frame), max_rw_size_udp,
-	      options->ifconfig_local, options->ifconfig_remote);
+  /*
+   * Close UDP connection
+   */
+  udp_socket_close (&udp_socket);
+  if ( !(signal_received == SIGUSR1 && options->persist_ip) )
+    CLEAR (*remote_addr);
 
+  /*
+   * Close tun/tap device
+   */
+  if ( !(signal_received == SIGUSR1 && options->persist_tun) )
+    {
+      char* tuntap_actual = (char *) gc_malloc (sizeof (tuntap->actual));
+      strcpy (tuntap_actual, tuntap->actual);
+
+      msg (M_INFO, "Closing tun/tap device");
+      close_tun (tuntap);
+
+      /* Run the down script -- note that it will run at reduced
+	 privilege if, for example, "--user nobody" was used. */
+      run_script (options->down_script, tuntap_actual, MAX_RW_SIZE_TUN (&frame),
+		  max_rw_size_udp, options->ifconfig_local, options->ifconfig_remote);
+    }
  done:
   /* pop our garbage collection level */
   gc_free_level (gc_level);
@@ -1364,7 +1400,7 @@ main (int argc, char *argv[])
 #endif /* USE_CRYPTO */
 
     /*
-     * Persistent TUN/TAP device management mode?
+     * Persistent tun/tap device management mode?
      */
 #ifdef TUNSETPERSIST
     if (options.persist_config)
@@ -1475,14 +1511,12 @@ main (int argc, char *argv[])
       /* Do Work */
       {
 	struct sockaddr_in remote_addr;
+	struct tuntap tuntap;
 	CLEAR (remote_addr);
+	clear_tuntap (&tuntap);
 	do {
-	  sig = openvpn (&options, &remote_addr, first_time);
+	  sig = openvpn (&options, &remote_addr, &tuntap, first_time);
 	  first_time = false;
-	  if (sig == SIGUSR1)
-	      msg (M_WARN, "SIGUSR1 received, restarting network connection");
-	  if (sig == SIGHUP)
-	    msg (M_WARN, "SIGHUP received, re-reading command line arguments and/or config file");
 	} while (sig == SIGUSR1);
       }
     }
@@ -1509,11 +1543,13 @@ static void*
 test_crypto_thread (void *arg)
 {
   struct sockaddr_in remote_addr;
+  struct tuntap tuntap;
   const struct options *opt = (struct options*) arg;
 
   set_nice (opt->nice_work);
   CLEAR (remote_addr);
-  openvpn (opt, &remote_addr, false);
+  clear_tuntap (&tuntap);
+  openvpn (opt, &remote_addr, &tuntap, false);
   return NULL;
 }
 #endif
