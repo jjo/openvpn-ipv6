@@ -27,6 +27,7 @@
 
 #include "syshead.h"
 
+#include "misc.h"
 #include "tun.h"
 #include "error.h"
 

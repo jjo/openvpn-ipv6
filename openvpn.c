@@ -388,7 +388,6 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
        * TLS-based dynamic key exchange
        */
       struct tls_options to;
-      struct key tls_auth_key;
       bool packet_id_long_form;
 
       ASSERT (!options->test_crypto);
@@ -780,7 +779,6 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 	      const int delay = shaper_delay (&shaper); /* traffic shaping delay in microseconds */
 	      if (delay)
 		{
-		  bool changed;
 		  shaper_soonest_event (&timeval, delay);
 		  tv = &timeval;
 		}

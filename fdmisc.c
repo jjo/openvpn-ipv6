@@ -27,6 +27,7 @@
 
 #include "syshead.h"
 
+#include "fdmisc.h"
 #include "error.h"
 
 #include "memdbg.h"

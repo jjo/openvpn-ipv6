@@ -1,0 +1,133 @@
+#!/bin/sh
+#
+# openvpn       This shell script takes care of starting and stopping
+#               openvpn.
+#
+# chkconfig: 345 80 30
+#
+# description: OpenVPN is a robust and highly flexible tunneling application that
+#              uses all of the encryption, authentication, and certification features
+#              of the OpenSSL library to securely tunnel IP networks over a single
+#              UDP port.
+#
+
+# Contributed to the OpenVPN project by
+# Douglas Keller <doug@voidstar.dyndns.org>
+# 2002.05.15
+
+# To install:
+#   copy this file to /etc/rc.d/init.d/openvpn
+#   shell> chkconfig --add openvpn
+#   shell> mkdir /etc/openvpn
+#   make .conf or .sh files in /etc/openvpn (see below)
+
+# To uninstall:
+#   run: chkconfig --del openvpn
+
+# Author's Notes:
+#
+# I have created an /etc/init.d init script and enhanced openvpn.spec to
+# automatically register the init script.  Once the RPM is installed you
+# can start and stop OpenVPN with "service openvpn start" and "service
+# openvpn stop".
+#
+# The init script does the following:
+#
+# - Starts an openvpn process for each .conf file it finds in
+#   /etc/openvpn.
+#
+# - If /etc/openvpn/xxx.sh exists for a xxx.conf file then it executes
+#   it before starting openvpn (useful for doing openvpn --mktun...).
+#
+# - In addition to start/stop you can do:
+#
+#   service openvpn reload - SIGHUP
+#   service openvpn reopen - SIGUSR1
+#   service openvpn status - SIGUSR2
+#
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Check that networking is up.
+[ ${NETWORKING} = "no" ] && exit 0
+
+[ -f /usr/sbin/openvpn ] || exit 0
+
+# See how we were called.
+case "$1" in
+  start)
+	echo -n $"Starting openvpn: "
+
+	/sbin/modprobe tun
+	echo 1 > /proc/sys/net/ipv4/ip_forward
+
+	if [ ! -d  /var/run/openvpn ]; then
+	  mkdir /var/run/openvpn
+	fi
+
+	cd /etc/openvpn
+
+	# Start every .conf in /etc/openvpn and run .sh if exists
+	errors=0
+	for c in `/bin/ls *.conf 2>/dev/null`; do
+	  bn=${c%%.conf}
+	  if [ -e "$bn.sh" ]; then
+	    . $bn.sh
+	  fi
+	  rm -f /var/run/openvpn/$bn.pid
+	  /usr/sbin/openvpn --daemon --writepid /var/run/openvpn/$bn.pid --config $c \
+	                    --cd /etc/openvpn
+	  # can't detect error...
+          #if [ $? != 0 ]; then
+	  #  errors=1
+          #fi
+	done
+
+	if [ $errors == 1 ]; then
+	  failure; echo
+	else
+	  success; echo
+	fi
+	
+	touch /var/lock/subsys/openvpn
+	;;
+  stop)
+	echo -n $"Shutting down openvpn: "
+	for pidf in `/bin/ls /var/run/openvpn/*.pid 2>/dev/null`; do
+	  kill `cat $pidf`
+	  rm -f $pidf
+	done
+	success; echo
+	rm -f /var/lock/subsys/openvpn
+	;;
+  restart)
+	$0 stop
+	sleep 1
+	$0 start
+	;;
+  reload)
+	for pidf in `/bin/ls /var/run/openvpn/*.pid 2>/dev/null`; do
+	  kill -HUP `cat $pidf`
+	done
+	;;
+  reopen)
+	for pidf in `/bin/ls /var/run/openvpn/*.pid 2>/dev/null`; do
+	  kill -USR1 `cat $pidf`
+	done
+	;;
+  status)
+	for pidf in `/bin/ls /var/run/openvpn/*.pid 2>/dev/null`; do
+	  kill -USR2 `cat $pidf`
+	done
+	echo "Status written to /var/log/messages"
+	;;
+  *)
+	echo "Usage: openvpn {start|stop|restart|reload|reopen|status}"
+	exit 1
+esac
+
+exit 0

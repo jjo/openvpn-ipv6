@@ -39,9 +39,12 @@
 static const char usage_message[] =
   "%s\n"
   "\n"
-  "Tunnel Options:\n"
+  "General Options:\n"
   "--help          : Show options.\n"
+  "--version       : Show copyright and version information.\n"
   "--config file   : Read configuration options from file.\n"
+  "\n"
+  "Tunnel Options:\n"
   "--local host    : Local host name or ip address.\n"
   "--remote host   : Remote host name or ip address.\n"
   "--float         : Allow remote to change its IP address, such as through\n"
@@ -409,6 +412,13 @@ usage_small ()
 }
 
 void
+usage_version ()
+{
+  printf ("%s\nCopyright (C) 2002 James Yonan <jim@yonan.net>\n", TITLE);
+  exit (1);
+}
+
+void
 notnull (char *arg, char *description)
 {
   if (!arg)
@@ -560,6 +570,10 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
   if (streq (p1, "help"))
     {
       usage ();
+    }
+  if (streq (p1, "version"))
+    {
+      usage_version ();
     }
   else if (streq (p1, "config") && p2)
     {
@@ -924,7 +938,7 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
   return i;
 }
 
-int
+void
 parse_argv (struct options* options, int argc, char *argv[])
 {
   int i;

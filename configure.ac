@@ -74,7 +74,7 @@ AC_DEFUN([TYPE_SOCKLEN_T],
 #include <sys/socket.h>])
 ])
 
-AC_INIT([OpenVPN], [1.1.1.16], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.1.1.17], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 
 AC_ARG_ENABLE(lzo,
@@ -99,6 +99,12 @@ AC_ARG_ENABLE(pthread,
    [  --enable-pthread        Compile pthread support for improved SSL/TLS latency],
    [PTHREAD="$enableval"],
    [PTHREAD="no"]
+)
+
+AC_ARG_ENABLE(strict,
+   [  --enable-strict         Enable strict compiler warnings],
+   [STRICT="$enableval"],
+   [STRICT="no"]
 )
 
 AC_ARG_WITH(ssl-headers,
@@ -274,6 +280,7 @@ if test "$PTHREAD" = "yes"; then
 		CFLAGS="$CFLAGS -pthreads"
 		;;
 	  *openbsd*)
+		AC_MSG_RESULT([WARNING: running OpenVPN with pthread support on OpenBSD is still unstable])
 		CFLAGS="$CFLAGS -pthread"
 		;;
 	  *)
@@ -383,6 +390,11 @@ if test "$CRYPTO" = "yes"; then
       AC_DEFINE(USE_SSL, 1, [Use OpenSSL SSL library])
       OPENVPN_ADD_LIBS(-lssl)
    fi
+fi
+
+dnl enable strict compiler warnings
+if test "$STRICT" = "yes"; then
+   CFLAGS="$CFLAGS -Wall -W -Wpointer-arith -Wsign-compare -Winline"
 fi
 
 AC_OUTPUT(Makefile)

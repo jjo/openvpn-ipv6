@@ -17,7 +17,7 @@ For the latest development version of OpenVPN, go to:
 SUPPORTED PLATFORMS:
   (1) Linux 2.2 or higher
   (2) Solaris
-  (3) OpenBSD
+  (3) OpenBSD (Comes with OpenSSL and tun devices by default)
   (4) Mac OS X Darwin (Experimental)
   (5) FreeBSD (experimental)
 
@@ -31,6 +31,10 @@ OPTIONAL (but recommended):
       required, available from http://www.openssl.org/
   (2) LZO real-time compression library, required for link compression,
       available from http://www.oberhumer.com/opensource/lzo/
+      OpenBSD users can use ports or packages to install lzo, but remember
+      to add "--with-lzo-headers" and "--with-lzo-lib" directives to
+      "configure", pointing to /usr/local/include and /usr/local/lib
+      respectively since gcc will not find them otherwise.
   (3) Pthread library.
 
 OPTIONAL (for developers only):
@@ -80,6 +84,10 @@ TUN/TAP Driver Configuration:
   http://vtun.sourceforge.net/tun/
   and follow the installation instructions.
 
+ OpenBSD:
+
+  OpenBSD ships with tun0 and tun1 installed by default.
+
  Mac OS X:
 
   Obtain Christoph Pfisterer's
@@ -99,3 +107,10 @@ BUGS:
   kernels unless you are prepared to do some debugging and testing.
 
 * Pthread support is not yet stable on OpenBSD.
+
+* If run through a firewall using OpenBSDs packet filter PF and the
+  filter rules include a "scrub" directive, you may get problems talking
+  to Linux hosts over the tunnel, since the scrubbing will kill packets
+  sent from Linux hosts if they are fragmented. This is usually seen as
+  tunnels where small packets and pings get through but large packets
+  and "regular traffic" don't.

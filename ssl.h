@@ -28,6 +28,7 @@
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include <openssl/rand.h>
+#include <openssl/err.h>
 
 #include "basic.h"
 #include "crypto.h"

@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.05.15 -- Version 1.1.1.16
+2002.05.17 -- Version 1.1.1.17
 
 * Added configuration file support via
   the --config option.
@@ -27,6 +27,9 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
 * Ported to Solaris.
 * Finished OpenBSD port except for
   pthread support.
+* Added initialization script:
+  sample-scripts/openvpn.init
+  (Douglas Keller)
 * Ported to Mac OS X (Christoph Pfisterer).
 * Improved resilience to DoS attacks when
   TLS mode is used without --remote or

@@ -137,4 +137,4 @@ void init_options (struct options *o);
 void show_settings (const struct options *o);
 char *options_string (const struct options *o);
 
-int parse_argv (struct options* options, int argc, char *argv[]);
+void parse_argv (struct options* options, int argc, char *argv[]);

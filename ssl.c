@@ -42,6 +42,8 @@
 #include "common.h"
 #include "socket.h"
 #include "thread.h"
+#include "misc.h"
+#include "fdmisc.h"
 
 #include "memdbg.h"
 
@@ -555,7 +557,6 @@ bio_write (BIO * bio, struct buffer *buf, const char *desc)
 {
   int i;
   int ret = 0;
-  const int orig_size = buf->len;
   ASSERT (buf->len >= 0);
   if (buf->len)
     {
@@ -606,7 +607,6 @@ bio_read (BIO * bio, struct buffer *buf, int maxlen, const char *desc)
 {
   int i;
   int ret = 0;
-  const int orig_size = buf->len;
   ASSERT (buf->len >= 0);
   if (buf->len)
     {
@@ -880,7 +880,6 @@ tls_multi_init (struct tls_options *tls_options,
 		struct udp_socket *udp_socket)
 {
   struct tls_multi *ret;
-  int i;
 
   ret = (struct tls_multi *) malloc (sizeof (struct tls_multi));
   ASSERT (ret);
@@ -1267,7 +1266,6 @@ tls_process (struct tls_multi *multi,
 	    {
 	      if (transmit_rate_limiter(session, wakeup, current))
 		{
-		  uint8_t *header;
 		  int opcode;
 		  struct buffer b;
 
@@ -1932,8 +1930,8 @@ tls_pre_decrypt (struct tls_multi *multi,
 	  if (HARD_RESET(op))
 	    {
 	      /* verify client -> server or server -> client connection */
-	      if (op == P_CONTROL_HARD_RESET_CLIENT_V1 && !multi->opt.server ||
-		  op == P_CONTROL_HARD_RESET_SERVER_V1 && multi->opt.server)
+	      if ((op == P_CONTROL_HARD_RESET_CLIENT_V1 && !multi->opt.server) ||
+		  (op == P_CONTROL_HARD_RESET_SERVER_V1 && multi->opt.server))
 		{
 		  msg (D_TLS_ERRORS,
 		       "TLS Error: client->client or server->server connection attempted from %s",
@@ -2021,7 +2019,6 @@ tls_pre_decrypt (struct tls_multi *multi,
 	       * probably a new session.
 	       */
 	      struct tls_session *session = &multi->session[TM_UNTRUSTED];
-	      struct key_state *ks = &session->key[KS_PRIMARY];
 
 	      if (!read_control_auth (buf, &session->tls_auth, from, current))
 		goto done;
@@ -2259,7 +2256,6 @@ protocol_dump (struct buffer *buffer, unsigned int flags)
   uint8_t c;
   int op;
   int key_id;
-  int i;
 
   int tls_auth_hmac_size = (flags & PD_TLS_AUTH_HMAC_SIZE_MASK);
 

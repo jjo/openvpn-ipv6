@@ -52,7 +52,7 @@ struct interval
   bool select_timeout;
 };
 
-static inline
+static inline bool
 interval_test (struct interval* top, time_t current)
 {
   if (top->last_trigger + I_HORIZON < current &&
@@ -65,18 +65,18 @@ interval_test (struct interval* top, time_t current)
   return true;
 }
 
-static inline
+static inline void
 interval_trigger (struct interval* top, time_t at) {
   msg (D_TLS_DEBUG, "INTERVAL TRIGGER");
   top->last_trigger = at;
 }
 
-static inline
+static inline void
 interval_select_timeout (struct interval* top) {
   top->select_timeout = true;
 }
 
-static inline
+static inline void
 interval_set_timeout (struct interval* top, time_t current, time_t* timeout) {
   const int to = *timeout;
   if (to && to < I_HORIZON)

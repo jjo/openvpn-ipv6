@@ -76,7 +76,7 @@ lzo_adaptive_compress_test(struct lzo_adaptive_compress *ac, const time_t time)
   return !ac->compress_state;
 }
 
-inline static bool
+inline static void
 lzo_adaptive_compress_data(struct lzo_adaptive_compress *ac, int n_total, int n_comp)
 {
   if (ac->enabled)

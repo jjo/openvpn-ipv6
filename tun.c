@@ -37,6 +37,7 @@
 #include "error.h"
 #include "buffer.h"
 #include "common.h"
+#include "misc.h"
 
 #include "memdbg.h"
 
@@ -180,7 +181,6 @@ void
 open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
 {
   struct ifreq ifr;
-  int fd;
   static const char device[] = "/dev/net/tun";
 
   clear_tuntap (tt);

@@ -31,6 +31,7 @@
 #include "fdmisc.h"
 #include "error.h"
 #include "thread.h"
+#include "misc.h"
 
 #include "memdbg.h"
 

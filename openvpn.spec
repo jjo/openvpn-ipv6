@@ -1,6 +1,6 @@
 Summary:	A Secure UDP Tunneling Daemon
 Name:		openvpn
-Version:	1.1.1.16
+Version:	1.1.1.17
 Release:	1
 URL:		http://sourceforge.net/projects/openvpn/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
@@ -10,7 +10,7 @@ Group:		Networking/Tunnels
 Vendor:		James Yonan <jim@yonan.net>
 Packager:	bishop clark (LC957) <bishop@platypus.bc.ca>
 BuildRoot:	%{_tmppath}/%{name}-%(id -un)
-Requires:	tun
+#Requires:	tun
 
 %description
 OpenVPN is a robust and highly flexible tunneling application that
@@ -33,6 +33,9 @@ UDP port.
 %__install -c -m 755 %{name}.8 %{buildroot}%{_mandir}/man8
 %__install -c -d -m 755 %{buildroot}%{_sbindir}
 %__install -c -m 755 %{name} %{buildroot}%{_sbindir}
+%__install -c -d -m 755 %{buildroot}/etc/rc.d/init.d
+%__install -c -m 755 sample-scripts/%{name}.init %{buildroot}/etc/rc.d/init.d/%{name}
+%__install -c -d -m 755 %{buildroot}/etc/%{name}
 
 %__mkdir_p %{buildroot}%{_datadir}/%{name}
 %__cp -pr easy-rsa sample-{config-file,key,script}s %{buildroot}%{_datadir}/%{name}
@@ -40,14 +43,27 @@ UDP port.
 %clean
 [ %{buildroot} != "/" ] && rm -rf %{buildroot}
 
+%post
+/bin/mknod /dev/net/tun c 10 200 >/dev/null 2>&1
+/sbin/chkconfig --add %{name}
+
+%preun
+service %{name} stop
+/sbin/chkconfig --del %{name}
+
 %files
 %defattr(-,root,root)
 %doc AUTHORS COPYING COPYRIGHT.GPL INSTALL NEWS PORTS README 
 %{_mandir}/man8/%{name}.8*
 %{_sbindir}/%{name}
 %{_datadir}/%{name}
+/etc
 
 %changelog
+* Wed May 15 2002 Doug Keller <dsk@voidstar.dyndns.org> 1.1.1.16-2
+- Added init scripts
+- Added conf file support
+
 * Mon May 13 2002 bishop clark (LC957) <bishop@platypus.bc.ca> 1.1.1.14-1
 - Added new directories for config examples and such
 

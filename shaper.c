@@ -118,7 +118,6 @@ shaper_soonest_event (struct timeval *tv, int delay)
 void
 shaper_wrote_bytes (struct shaper* s, int nbytes)
 {
-  struct timeval tv;
   const int delay = (1000000 / s->bytes_per_second) * nbytes; /* delay in microseconds */
   
   if (gettimeofday (&s->wakeup, NULL))

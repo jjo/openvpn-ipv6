@@ -69,7 +69,7 @@ packet_id_add (struct packet_id_rec *p, const struct packet_id_net *pin)
     }
 
   diff = p->id - pin->id;
-  if (diff < CIRC_LIST_SIZE (p->id_list))
+  if (diff < (packet_id_type) CIRC_LIST_SIZE (p->id_list))
     CIRC_LIST_ITEM (p->id_list, diff) = true;
 }
 
@@ -97,7 +97,7 @@ packet_id_test (const struct packet_id_rec *p, const struct packet_id_net *pin)
 
       /* check packet-id sliding window for original/replay status */
       diff = p->id - pin->id;
-      if (diff >= CIRC_LIST_SIZE (p->id_list))
+      if (diff >= (packet_id_type) CIRC_LIST_SIZE (p->id_list))
 	return false;
 
       return !CIRC_LIST_ITEM (p->id_list, diff);
