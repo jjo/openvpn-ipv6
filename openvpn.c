@@ -553,14 +553,14 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr, bool fi
 #endif
 
   /* open the tun device */
-  open_tun (options->dev, &tuntap);
+  open_tun (options->dev, options->dev_type, &tuntap);
 
   /* initialize traffic shaper */
   if (options->shaper)
     shaper_init (&shaper, options->shaper);
 
   /* do ifconfig */
-  do_ifconfig (tuntap.actual,
+  do_ifconfig (tuntap.actual, options->dev_type,
 	       options->ifconfig_local, options->ifconfig_remote,
 	       MAX_RW_SIZE_TUN (&frame));
 
@@ -1371,7 +1371,7 @@ main (int argc, char *argv[])
 #endif
 	    )
 	  msg (M_FATAL, "Options --mktun or --rmtun should only be used together with --dev");
-	tuncfg (options.dev, options.persist_mode);
+	tuncfg (options.dev, options.dev_type, options.persist_mode);
 	goto exit;
       }
 #endif

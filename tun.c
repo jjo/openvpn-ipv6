@@ -40,9 +40,20 @@
 
 #include "memdbg.h"
 
+static bool
+is_dev_type (const char* dev, const char* dev_type, const char* match_type)
+{
+  ASSERT (dev);
+  ASSERT (match_type);
+  if (dev_type)
+    return !strcmp (dev_type, match_type);
+  else
+    return !strncmp (dev, match_type, strlen (match_type));
+}
+
 /* do ifconfig */
 void
-do_ifconfig (const char *dev,
+do_ifconfig (const char *dev, const char* dev_type,
 	     const char *ifconfig_local, const char* ifconfig_remote,
 	     int tun_mtu)
 {
@@ -50,7 +61,7 @@ do_ifconfig (const char *dev,
     {
       char command_line[256];
 
-      if (!IS_TUN (dev))
+      if (!is_dev_type (dev, dev_type, "tun"))
 	msg (M_FATAL, "%s is not a tun device.  The --ifconfig option works only for tun devices.  You should use an --up script to ifconfig a tap device.", dev);
 
 #if defined(TARGET_LINUX)
@@ -132,7 +143,7 @@ close_tun_generic (struct tuntap *tt)
 #ifdef HAVE_LINUX_IF_TUN_H	/* New driver support */
 
 void
-open_tun (const char *dev, struct tuntap *tt)
+open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
 {
   struct ifreq ifr;
   int fd;
@@ -152,11 +163,11 @@ open_tun (const char *dev, struct tuntap *tt)
       CLEAR (ifr);
       ifr.ifr_flags = IFF_NO_PI;
 
-      if (IS_TUN (dev))
+      if (is_dev_type (dev, dev_type, "tun"))
 	{
 	  ifr.ifr_flags |= IFF_TUN;
 	}
-      else if (IS_TAP (dev))
+      else if (is_dev_type (dev, dev_type, "tap"))
 	{
 	  ifr.ifr_flags |= IFF_TAP;
 	}
@@ -180,11 +191,11 @@ open_tun (const char *dev, struct tuntap *tt)
 #ifdef TUNSETPERSIST
 
 void
-tuncfg (const char *dev, int persist_mode)
+tuncfg (const char *dev, const char *dev_type, int persist_mode)
 {
   struct tuntap tt;
 
-  open_tun (dev, &tt);
+  open_tun (dev, dev_type, &tt);
   if (ioctl (tt.fd, TUNSETPERSIST, persist_mode) < 0)
     msg (M_ERR, "Cannot ioctl TUNSETPERSIST(%d) %s", persist_mode, dev);
   close_tun (&tt);
@@ -196,7 +207,7 @@ tuncfg (const char *dev, int persist_mode)
 #else
 
 void
-open_tun (const char *dev, struct tuntap *tt)
+open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
 {
   open_tun_generic (dev, tt);
 }
@@ -226,14 +237,14 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #ifdef TARGET_SOLARIS
 
 void
-open_tun (const char *dev, struct tuntap *tt)
+open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
 {
   int if_fd, muxid, ppa = -1;
   struct ifreq ifr;
   const char *ptr;
   const char *ip_node;
   const char *dev_node;
-  const char *dev_type;
+  const char *dev_tuntap_type;
   int link_type;
   bool is_tun;
 
@@ -245,19 +256,19 @@ open_tun (const char *dev, struct tuntap *tt)
       return;
     }
 
-  if (IS_TUN (dev))
+  if (is_dev_type (dev, dev_type, "tun"))
     {
       ip_node = "/dev/udp";
       dev_node = "/dev/tun";
-      dev_type = "tun";
+      dev_tuntap_type = "tun";
       link_type = I_PLINK;
       is_tun = true;
     }
-  else if (IS_TAP (dev))
+  else if (is_dev_type (dev, dev_type, "tap"))
     {
       ip_node = "/dev/ip";
       dev_node = "/dev/tap";
-      dev_type = "tap";
+      dev_tuntap_type = "tap";
       link_type = I_PLINK; /* was: I_LINK */
       is_tun = false;
     }
@@ -297,11 +308,11 @@ open_tun (const char *dev, struct tuntap *tt)
     msg (M_ERR, "Can't set PPA %d", ppa);
 
   if ((muxid = ioctl (tt->ip_fd, link_type, if_fd)) < 0)
-    msg (M_ERR, "Can't link %s device to IP", dev_type);
+    msg (M_ERR, "Can't link %s device to IP", dev_tuntap_type);
 
   close (if_fd);
 
-  snprintf (tt->actual, sizeof (tt->actual), "%s%d", dev_type, ppa);
+  snprintf (tt->actual, sizeof (tt->actual), "%s%d", dev_tuntap_type, ppa);
 
   CLEAR (ifr);
   strncpynt (ifr.ifr_name, tt->actual, sizeof (ifr.ifr_name));
@@ -369,7 +380,7 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #ifdef TARGET_OPENBSD
 
 void
-open_tun (const char *dev, struct tuntap *tt)
+open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
 {
   open_tun_generic (dev, tt);
 }
@@ -378,6 +389,15 @@ void
 close_tun (struct tuntap* tt)
 {
   close_tun_generic (tt);
+}
+
+static inline int
+openbsd_modify_read_write_return (int len)
+{
+ if (len > 0)
+    return len > sizeof (u_int32_t) ? len - sizeof (u_int32_t) : 0;
+  else
+    return len;
 }
 
 int
@@ -391,25 +411,21 @@ write_tun (struct tuntap* tt, uint8_t *buf, int len)
   iv[1].iov_base = buf;
   iv[1].iov_len = len;
 
-  return writev (tt->fd, iv, 2);
+  return openbsd_modify_read_write_return (writev (tt->fd, iv, 2));
 }
 
 int
 read_tun (struct tuntap* tt, uint8_t *buf, int len)
 {
-  struct iovec iv[2];
   u_int32_t type;
-  register int rlen;
+  struct iovec iv[2];
 
   iv[0].iov_base = &type;
   iv[0].iov_len = sizeof (type);
   iv[1].iov_base = buf;
   iv[1].iov_len = len;
 
-  if ((rlen = readv (tt->fd, iv, 2)) > 0)
-    return rlen - sizeof (type);
-  else
-    return rlen;
+  return openbsd_modify_read_write_return (readv (tt->fd, iv, 2));
 }
 
 #endif /* TARGET_OPENBSD */
@@ -417,7 +433,7 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #ifdef TARGET_FREEBSD
 
 void
-open_tun (const char *dev, struct tuntap *tt)
+open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
 {
   open_tun_generic (dev, tt);
 
@@ -451,10 +467,38 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 
 #endif /* TARGET_FREEBSD */
 
+#ifdef TARGET_DARWIN
+
+void
+open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
+{
+  open_tun_generic (dev, tt);
+}
+
+void
+close_tun (struct tuntap* tt)
+{
+  close_tun_generic (tt);
+}
+
+int
+write_tun (struct tuntap* tt, uint8_t *buf, int len)
+{
+  return write (tt->fd, buf, len);
+}
+
+int
+read_tun (struct tuntap* tt, uint8_t *buf, int len)
+{
+  return read (tt->fd, buf, len);
+}
+
+#endif /* TARGET_DARWIN */
+
 #ifdef TARGET_GENERIC
 
 void
-open_tun (const char *dev, struct tuntap *tt)
+open_tun (const char *dev, const char* dev_type, struct tuntap *tt)
 {
   open_tun_generic (dev, tt);
 }

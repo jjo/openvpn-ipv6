@@ -53,21 +53,24 @@ static const char usage_message[] =
   "--lport port    : UDP port # for local (default=%d).\n"
   "--rport port    : UDP port # for remote (default=%d).\n"
   "--nobind        : Do not bind to local address and port.\n"
-  "--dev tunX|tapX : TUN/TAP device (X can be omitted for dynamic device in\n"
+  "--dev tunX|tapX : tun/tap device (X can be omitted for dynamic device in\n"
   "                  Linux 2.4+).\n"
-  "--ifconfig l r  : Configure TUN device to use IP address l as a local\n"
+  "--dev-type dt   : Which device type are we using? (dt = tun or tap) Use\n"
+  "                  this option only if the tun/tap device used with --dev\n"
+  "                  does not begin with \"tun\" or \"tap\".\n"
+  "--ifconfig l r  : Configure tun device to use IP address l as a local\n"
   "                  endpoint and r as a remote endpoint.  l & r should be\n"
   "                  swapped on the other peer.  l & r must be private\n"
   "                  addresses outside of the subnets used by either peer.\n"
   "                  Implies --udp-mtu %d if neither --udp-mtu or --tun-mtu\n"
   "                  explicitly specified.\n"
   "--shaper n      : Restrict output to peer to n bytes per second.\n"
-  "--inactive n    : Exit after n seconds of inactivity on TUN/TAP device.\n"
+  "--inactive n    : Exit after n seconds of inactivity on tun/tap device.\n"
   "--ping-exit n   : Exit if n seconds pass without reception of remote ping.\n"
   "--ping n        : Ping remote once every n seconds over UDP port.\n"
-  "--tun-mtu n     : Take the TUN/TAP device MTU to be n and derive the\n"
+  "--tun-mtu n     : Take the tun/tap device MTU to be n and derive the\n"
   "                  UDP MTU from it (default=%d).\n"
-  "--udp-mtu n     : Take the UDP device MTU to be n and derive the TUN MTU\n"
+  "--udp-mtu n     : Take the UDP device MTU to be n and derive the tun MTU\n"
   "                  from it (disabled by default).\n"
 #ifdef _POSIX_MEMLOCK
   "--mlock         : Disable Paging -- ensures key material and tunnel\n"
@@ -186,6 +189,7 @@ static const char usage_message[] =
   "--mktun         : Create a persistent tunnel.\n"
   "--rmtun         : Remove a persistent tunnel.\n"
   "--dev tunX|tapX : tun/tap device\n"
+  "--dev-type dt   : Device type.  See tunnel options above for details.\n"
 #endif
  ;
 
@@ -259,6 +263,7 @@ show_settings (const struct options *o)
   SHOW_STR (ipchange);
   SHOW_BOOL (bind_local);
   SHOW_STR (dev);
+  SHOW_STR (dev_type);
   SHOW_STR (ifconfig_local);
   SHOW_STR (ifconfig_remote);
   SHOW_INT (shaper);
@@ -569,6 +574,11 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       ++i;
       options->dev = p2;
+    }
+  else if (streq (p1, "dev-type") && p2)
+    {
+      ++i;
+      options->dev_type = p2;
     }
   else if (streq (p1, "ifconfig") && p2 && p3)
     {

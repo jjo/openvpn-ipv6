@@ -5,7 +5,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "20 April 2002"
+.TH openvpn 8 "13 May 2002"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -25,6 +25,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-rport\fR\ \fIport\fR\ ]
 [\ \fB\-\-nobind\fR\ ]
 [\ \fB\-\-dev\fR\ \fItunX\ |\ tapX\fR\ ]
+[\ \fB\-\-dev\-type\fR\ \fIdevice\-type\fR\ ]
 [\ \fB\-\-ifconfig\fR\ \fIl\ r\fR\ ]
 [\ \fB\-\-udp\-mtu\fR\ \fIn\fR\ ]
 [\ \fB\-\-tun\-mtu\fR\ \fIn\fR\ ]
@@ -412,11 +413,25 @@ peers which will be initiating connections by using the
 option.
 .TP
 .B --dev tunX | tapX
-tun/tap virtual network device (
+TUN/TAP virtual network device (
 .B X
 can be omitted for dynamic device in
 Linux 2.4.7+).  See examples section below
 for an example on setting up a TUN device.
+.TP
+.B --dev-type device-type
+Which device type are we using?
+.B device-type
+should be
+.B tun
+or
+.B tap.
+Use this option only if the TUN/TAP device used with
+.B --dev
+does not begin with
+.B tun
+or
+.B tap.
 .TP
 .B --ifconfig l r
 Configure the TUN device to use IP address
@@ -1369,7 +1384,7 @@ above).
 Remove a persistent tunnel.
 .TP
 .B --dev tunX|tapX
-tun/tap device
+TUN/TAP device
 .SH SIGNALS
 .TP
 .B SIGHUP

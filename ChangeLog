@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.05.09 -- Version 1.1.1.13
+2002.05.13 -- Version 1.1.1.14
 
 * Added configuration file support via
   the --config option.
@@ -12,10 +12,23 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   to improve tunnel packet forwarding
   latency.  pthread support can be enabled
   with the --enable-pthread configure option.
+* Added --dev-type option so that tun/tap
+  device names don't need to begin with
+  "tun" or "tap".
+* Added --writepid option to write main
+  process ID to a file.
 * Numerous portability fixes to ease
-  porting to other OSes.
-* Backported to OpenSSL 0.9.5
+  porting to other OSes including changing
+  all network types to uint8_t and uint32_t.
+* Backported to OpenSSL 0.9.5.
 * Ported to Solaris.
+* Ported to Mac OS X (Christoph Pfisterer).
+* Improved resilience to DoS attacks when
+  TLS mode is used without --remote or
+  --tls-auth, or when --float is used
+  with --remote.  Note however that the best
+  defense against DoS attacks in TLS mode
+  is to use --tls-auth.
 * Eliminated automake/autoconf dependency
   for non-developers.
 * Ported configure.in to configure.ac
@@ -26,11 +39,13 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
 * SIGUSR1 now does what SIGHUP did in
   version 1.1.1 and earlier -- close and reopen
   the UDP socket for use when DHCP changes
-  host's IP address.
+  host's IP address and preserve most recently
+  authenticated peer address without rereading
+  config file.
 * SIGUSR2 added -- outputs current statistics,
   including compression statistics.
-* Added --writepid option to write main
-  process ID to a file.
+* All changes maintain protocol compatibility
+  with 1.1.1 and 1.1.0.
 
 2002.04.22 -- Version 1.1.1
 	

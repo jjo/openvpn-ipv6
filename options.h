@@ -51,6 +51,7 @@ struct options
   char *ipchange;
   bool bind_local;
   char *dev;
+  char *dev_type;
   char *ifconfig_local;
   char *ifconfig_remote;
   int shaper;
@@ -58,7 +59,6 @@ struct options
   int udp_mtu;          /* MTU of device over which tunnel packets pass via UDP */
   bool tun_mtu_defined; /* true if user overriding parm with command line option */
   bool udp_mtu_defined; /* true if user overriding parm with command line option */
-  bool tun_af_inet;
 #ifdef _POSIX_MEMLOCK
   bool mlock;
 #endif

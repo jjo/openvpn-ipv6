@@ -36,20 +36,17 @@ struct tuntap
   char actual[64]; /* actual name of tun/tap dev, usually including unit number */
 };
 
-#define IS_TUN(dev) (!strncmp (dev, "tun", 3)) 
-#define IS_TAP(dev) (!strncmp (dev, "tap", 3)) 
-
 void clear_tuntap (struct tuntap *tuntap);
 
-void open_tun (const char *dev, struct tuntap *tt);
+void open_tun (const char *dev, const char* dev_type, struct tuntap *tt);
 void close_tun (struct tuntap *tt);
 
 int write_tun (struct tuntap* tt, uint8_t *buf, int len);
 int read_tun (struct tuntap* tt, uint8_t *buf, int len);
 
-void tuncfg (const char *dev, int persist_mode);
+void tuncfg (const char *dev, const char *dev_type, int persist_mode);
 
-void do_ifconfig (const char *dev,
+void do_ifconfig (const char *dev, const char* dev_type,
 		  const char *ifconfig_local, const char* ifconfig_remote,
 		  int tun_mtu);
 

@@ -1,0 +1,8 @@
+Sample RSA keys.
+
+See the examples section of the man page
+for usage examples.
+
+NOTE: These keys are for testing purposes only.
+      Don't use these keys for any real work as they
+      are totally insecure!

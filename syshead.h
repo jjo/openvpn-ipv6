@@ -116,7 +116,9 @@
 #endif
 
 #ifdef HAVE_ARPA_INET_H
+#ifndef TARGET_OPENBSD
 #include <arpa/inet.h>
+#endif
 #endif
 
 #ifdef HAVE_NET_IF_H
@@ -170,6 +172,10 @@
 #include <sys/uio.h>
 #endif
 
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+
 #ifdef HAVE_NET_IF_TUN_H
 #include <net/if_tun.h>
 #endif
@@ -182,7 +188,7 @@
 #include <net/if_tun.h>
 #endif
 
-#endif /* TARGET_OPENBSD */
+#endif /* TARGET_FREEBSD */
 
 #ifdef _POSIX_MEMLOCK
 #include <sys/mman.h>
