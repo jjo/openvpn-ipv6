@@ -91,7 +91,11 @@ fi
 %{_sbindir}/%{name}
 %{_datadir}/%{name}
 %dir /etc/%{name}
+%if "%{VENDOR}" == "SuSE"
+/etc/init.d/%{name}
+%else
 /etc/rc.d/init.d/%{name}
+%endif
 
 %changelog
 

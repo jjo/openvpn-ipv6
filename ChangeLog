@@ -3,6 +3,11 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.12.07 -- Version 2.0-rc1
+
+* openvpn.spec workaround for SuSE confusion regarding
+  /etc/init.d vs. /etc/rc.d/init.d (Stefan Engel).
+
 2004.12.05 -- Version 2.0-beta20
 
 * The ability to read --askpass and --auth-user-pass
