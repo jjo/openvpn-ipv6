@@ -43,7 +43,7 @@ man_MANS = openvpn.8
 EXTRA_DIST = $(man_MANS) \
 	     COPYRIGHT.GPL PORTS openvpn.spec \
 	     easy-rsa sample-config-files sample-keys \
-	     sample-scripts
+	     sample-scripts openvpn.spec.in
 
 dist-hook:
 	cd $(distdir) && for i in $(EXTRA_DIST) ; do find $$i -name CVS -type d -prune -exec rm -r '{}' ';' ; done

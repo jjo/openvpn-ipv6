@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.3.2.14], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.3.2.15], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -363,4 +363,4 @@ if test "$STRICT" = "yes"; then
    CFLAGS="$CFLAGS -Wall -W -Wpointer-arith -Wsign-compare -Winline"
 fi
 
-AC_OUTPUT(Makefile)
+AC_OUTPUT(Makefile openvpn.spec)
