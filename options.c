@@ -113,6 +113,7 @@ static const char usage_message[] =
   "                : 6 -- show keys\n"
   "                : 7 -- show verbose key negotiations\n"
   "                : 8 -- show all debug info\n"
+  "--mute          : Log at most n consecutive messages in the same category.\n"
   "--gremlin       : Simulate dropped & corrupted packets + network outages\n"
   "                  to test robustness of protocol (for debugging only).\n"
 #ifdef USE_LZO
@@ -299,6 +300,7 @@ show_settings (const struct options *o)
   SHOW_BOOL (daemon);
   SHOW_INT (nice);
   SHOW_INT (verbosity);
+  SHOW_INT (mute);
   SHOW_BOOL (gremlin);
 
 #ifdef USE_LZO
@@ -689,6 +691,11 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       ++i;
       options->verbosity = positive (atoi (p2));
+    }
+  else if (streq (p1, "mute") && p2)
+    {
+      ++i;
+      options->mute = positive (atoi (p2));
     }
   else if (streq (p1, "udp-mtu") && p2)
     {

@@ -145,43 +145,60 @@ typedef unsigned long counter_type;
 /*
  * Debugging levels for various kinds
  * of output.
- *
- * Debug level as specified by --verb n must be at least one greater
- * than a value below in order for that category to be output.
  */
 
-#define D_LINK_ERRORS        0	/* show non-fatal link errors from main event loop */
-#define D_CRYPT_ERRORS       0	/* show non-fatal errors from encrypt/decrypt */
-#define D_TLS_ERRORS         0	/* show non-fatal TLS control channel errors */
+/*
+ * Mute levels are designed to avoid large numbers of
+ * mostly similar messages clogging the log file.
+ *
+ * A mute level of 0 is always printed.
+ */
+#define MUTE_LEVEL_SHIFT 16
+#define MUTE_LEVEL_MASK 0xFF
 
-#define D_SHOW_PARMS         1	/* show all parameters on program initiation */
+#define ENCODE_MUTE_LEVEL(mute_level) (((mute_level) & MUTE_LEVEL_MASK) << MUTE_LEVEL_SHIFT)
+#define DECODE_MUTE_LEVEL(flags) (((flags) >> MUTE_LEVEL_SHIFT) & MUTE_LEVEL_MASK)
 
-#define D_HANDSHAKE          2	/* show data & control channel handshakes */
-#define D_GREMLIN            2  /* show simulated outage info from gremlin module */
+/*
+ * log_level:  verbosity level n (--verb n) must be >= log_level to print.
+ * mute_level: don't print more than n (--mute n) consecutive messages at
+ *             a given mute level.
+ */
+#define LOGLEV(log_level, mute_level) (((log_level)-1) | ENCODE_MUTE_LEVEL(mute_level))
 
-#define D_TLS_DEBUG_LOW      3	/* low frequency info from tls_session routines */
+#define D_LINK_ERRORS        LOGLEV(1, 1)   /* show non-fatal link errors from main event loop */
+#define D_CRYPT_ERRORS       LOGLEV(1, 2)   /* show non-fatal errors from encrypt/decrypt */
+#define D_TLS_ERRORS         LOGLEV(1, 3)   /* show non-fatal TLS control channel errors */
+#define D_RESOLVE_ERRORS     LOGLEV(1, 4)   /* show nonfatal hostname resolve errors */
 
-#define D_COMP_LOW           4	/* show adaptive compression state changes */
+#define D_SHOW_PARMS         LOGLEV(2, 5)   /* show all parameters on program initiation */
 
-#define D_SHOW_KEYS          5	/* show data channel encryption keys */
+#define D_HANDSHAKE          LOGLEV(3, 6)   /* show data & control channel handshakes */
+#define D_GREMLIN            LOGLEV(3, 7)   /* show simulated outage info from gremlin module */
 
-#define D_HANDSHAKE_VERBOSE  6	/* show detailed description of each handshake */
+#define D_TLS_DEBUG_LOW      LOGLEV(4, 6)   /* low frequency info from tls_session routines */
 
-#define D_TLS_DEBUG          7	/* show detailed info from tls_session routines */
-#define D_CRYPTO_DEBUG       7  /* show detailed info from crypto.c routines */
-#define D_COMP               7	/* show compression info */
-#define D_READ_WRITE         7	/* verbose account of all tun/UDP reads/writes */
-#define D_REL_DEBUG          7	/* show detailed info from reliable routines */
-#define D_PACKET_CONTENT     7	/* show before/after encryption packet content */
-#define D_GREMLIN_VERBOSE    7  /* show verbose info from gremlin module */
-#define D_TLS_NO_SEND_KEY    7  /* show when no data channel send-key is available */
-#define D_THREAD_DEBUG       7  /* show debug information from the pthread code */
-#define D_REL_LOW            7	/* show low frequency info from reliable routines */
-#define D_PID_DEBUG          7  /* show packet-id debugging info */
+#define D_COMP_LOW           LOGLEV(5, 8)   /* show adaptive compression state changes */
 
-#define D_SHAPER             8  /* show traffic shaper info */
+#define D_SHOW_KEYS          LOGLEV(6, 9)   /* show data channel encryption keys */
 
-#define D_OPENSSL_LOCK       9  /* show OpenSSL locks */
+#define D_HANDSHAKE_VERBOSE  LOGLEV(7, 10)  /* show detailed description of each handshake */
+
+#define D_TLS_DEBUG          LOGLEV(8, 20)  /* show detailed info from tls_session routines */
+#define D_CRYPTO_DEBUG       LOGLEV(8, 21)  /* show detailed info from crypto.c routines */
+#define D_COMP               LOGLEV(8, 22)  /* show compression info */
+#define D_READ_WRITE         LOGLEV(8, 23)  /* verbose account of all tun/UDP reads/writes */
+#define D_REL_DEBUG          LOGLEV(8, 24)  /* show detailed info from reliable routines */
+#define D_PACKET_CONTENT     LOGLEV(8, 25)  /* show before/after encryption packet content */
+#define D_GREMLIN_VERBOSE    LOGLEV(8, 26)  /* show verbose info from gremlin module */
+#define D_TLS_NO_SEND_KEY    LOGLEV(8, 27)  /* show when no data channel send-key is available */
+#define D_THREAD_DEBUG       LOGLEV(8, 28)  /* show debug information from the pthread code */
+#define D_REL_LOW            LOGLEV(8, 29)  /* show low frequency info from reliable routines */
+#define D_PID_DEBUG          LOGLEV(8, 30)  /* show packet-id debugging info */
+
+#define D_SHAPER             LOGLEV(9, 31)  /* show traffic shaper info */
+
+#define D_OPENSSL_LOCK       LOGLEV(10, 32) /* show OpenSSL locks */
 
 /*
  * OpenVPN static mutex locks, by mutex type

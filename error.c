@@ -43,10 +43,21 @@ int _debug_level;
 int _cs_info_level;
 int _cs_verbose_level;
 
+/* Mute state */
+static int mute_cutoff;
+static int mute_count;
+static int mute_category;
+
 void
 set_debug_level (int level)
 {
   _debug_level = level;
+}
+
+void
+set_mute_cutoff (int cutoff)
+{
+  mute_cutoff = cutoff;
 }
 
 void
@@ -56,6 +67,9 @@ error_reset ()
   _debug_level = 1;
   _cs_info_level = 0;
   _cs_verbose_level = 0;
+  mute_cutoff = 0;
+  mute_count = 0;
+  mute_category = 0;
 }
 
 void
@@ -82,9 +96,38 @@ _msg (unsigned int flags, const char *format, ...)
   char *tmp;
   int e;
 
-  mutex_lock (L_MSG);
-
   e = errno;
+
+  if (!(flags & M_NOLOCK))
+    mutex_lock (L_MSG);
+
+  /*
+   * Apply muting filter.
+   */
+  if (mute_cutoff > 0 && !(flags & M_NOMUTE))
+    {
+      const int mute_level = DECODE_MUTE_LEVEL(flags);
+      if (mute_level > 0 && mute_level == mute_category)
+	{
+	  if (++mute_count > mute_cutoff)
+	    {
+	      if (!(flags & M_NOLOCK))
+		mutex_unlock (L_MSG);
+	      return;
+	    }
+	}
+      else
+	{
+	  const int suppressed = mute_count - mute_cutoff;
+	  if (suppressed > 0)
+	    msg (M_INFO | M_NOLOCK | M_NOMUTE,
+		 "%d variation(s) on previous %d message(s) suppressed by --mute",
+		 suppressed,
+		 mute_cutoff);
+	  mute_count = 1;
+	  mute_category = mute_level;
+	}
+    }
 
   m1 = msg1;
   m2 = msg2;
@@ -148,13 +191,14 @@ _msg (unsigned int flags, const char *format, ...)
       fflush(stdout);
     }
 
-  mutex_unlock (L_MSG);
-
   if (flags & M_FATAL)
-    {
-      msg (M_INFO, "Exiting");
-      exit (1);
-    }
+    msg (M_INFO | M_NOLOCK, "Exiting");
+
+  if (!(flags & M_NOLOCK))
+    mutex_unlock (L_MSG);
+  
+  if (flags & M_FATAL)
+    exit (1);
 }
 
 void

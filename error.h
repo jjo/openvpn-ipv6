@@ -43,14 +43,16 @@ extern int msg_line_num;
 
 /* msg() flags */
 
-#define M_INFO    0		/* default behavior */
-#define M_DEBUG   (0x0F)	/* debug level mask */
-#define M_FATAL   (1<<4)	/* exit program */
-#define M_WARN	  (1<<5)	/* call syslog with LOG_WARNING, otherwise use LOG_INFO,
+#define M_INFO      0		/* default behavior */
+#define M_DEBUG     (0x0F)	/* debug level mask */
+#define M_FATAL     (1<<4)	/* exit program */
+#define M_WARN	    (1<<5)	/* call syslog with LOG_WARNING, otherwise use LOG_INFO,
 				   or LOG_ERR if E_FATAL is defined, or LOG_DEBUG if debug
 				   level > 0 */
-#define M_ERRNO   (1<<6)	/* show errno description */
-#define M_SSL     (1<<7)	/* show SSL error */
+#define M_ERRNO     (1<<6)	/* show errno description */
+#define M_SSL       (1<<7)	/* show SSL error */
+#define M_NOLOCK    (1<<8)      /* don't lock/unlock mutex */      
+#define M_NOMUTE    (1<<9)      /* don't do mute processing */      
 
 #define M_ERR     (M_FATAL | M_ERRNO)
 #define M_SSLERR  (M_FATAL | M_SSL)
@@ -64,6 +66,7 @@ void _msg (unsigned int flags, const char *format, ...); /* should be called via
 void error_reset ();
 void set_check_status (int info_level, int verbose_level);
 void set_debug_level (int level);
+void set_mute_cutoff (int cutoff);
 
 /* Fatal logic errors */
 #define ASSERT(x) do { if (!(x)) assert_failed(__FILE__, __LINE__); } while (false)

@@ -5,7 +5,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "27 May 2002"
+.TH openvpn 8 "5 June 2002"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -49,6 +49,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-nice\fR\ \fIn\fR\ ]
 [\ \fB\-\-nice\-work\fR\ \fIn\fR\ ]
 [\ \fB\-\-verb\fR\ \fIn\fR\ ]
+[\ \fB\-\-mute\fR\ \fIn\fR\ ]
 [\ \fB\-\-gremlin\fR\ ]
 [\ \fB\-\-comp\-lzo\fR\ ]
 [\ \fB\-\-comp\-noadapt\fR\ ]
@@ -906,6 +907,12 @@ show verbose key negotiations
 .br
 .B 8 --
 show all debug info
+.TP
+.B --mute n
+Log at most
+.B n
+consecutive messages in the same category.  This is useful to
+limit repetitive logging of similar message types.
 .TP
 .B --gremlin
 Simulate dropped & corrupted packets + network outages

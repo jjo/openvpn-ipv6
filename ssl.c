@@ -206,7 +206,7 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
   if (!preverify_ok)
     {
       /* Remote site specified a certificate, but it's not correct */
-      msg (M_WARN, "VERIFY ERROR: depth=%d, error=%s: %s",
+      msg (D_TLS_ERRORS, "VERIFY ERROR: depth=%d, error=%s: %s",
 	   ctx->error_depth, X509_verify_cert_error_string (ctx->error), txt);
       return 0;			/* Reject connection */
     }
@@ -389,7 +389,7 @@ print_details (SSL * c_ssl, const char *prefix)
     }
   /* The SSL API does not allow us to look at temporary RSA/DH keys,
    * otherwise we should print their lengths too */
-  msg (M_INFO, "%s%s", s1, s2);
+  msg (D_HANDSHAKE, "%s%s", s1, s2);
 }
 
 /*

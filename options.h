@@ -88,6 +88,7 @@ struct options
   int nice_work;
 #endif
   int verbosity;
+  int mute;
   bool gremlin;
 
 #ifdef USE_LZO

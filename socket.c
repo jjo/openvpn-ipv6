@@ -72,7 +72,7 @@ getaddr (const char *hostname, int resolve_retry_seconds)
       struct hostent *h;
       while ( !(h = gethostbyname (hostname)) )
 	{
-	  msg ((resolve_retries > 0  ? M_WARN : M_FATAL),
+	  msg ((resolve_retries > 0  ? D_RESOLVE_ERRORS : M_FATAL),
 	       "Cannot resolve host address: %s: %s",
 	       hostname, h_errno_msg (h_errno));
 	  sleep (fail_wait_interval);

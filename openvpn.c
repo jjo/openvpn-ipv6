@@ -61,7 +61,7 @@ signal_handler (int signum)
 static void
 signal_handler_exit (int signum)
 {
-  msg (M_FATAL, "Signal %d received during initialization, exiting", signum);
+  msg (M_FATAL | M_NOLOCK, "Signal %d received during initialization, exiting", signum);
 }
 
 /*
@@ -1525,6 +1525,7 @@ main (int argc, char *argv[])
 
       set_check_status (D_LINK_ERRORS, D_READ_WRITE);
       set_debug_level (options.verbosity);
+      set_mute_cutoff (options.mute);
 
       /* Become a daemon if requested */
       if (first_time)
