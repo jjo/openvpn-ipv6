@@ -110,7 +110,7 @@ open_biofp()
   if (!biofp)
     {
       char fn[256];
-      snprintf(fn, sizeof(fn), "bio/%d-%d.log", pid, biofp_toggle);
+      openvpn_snprintf(fn, sizeof(fn), "bio/%d-%d.log", pid, biofp_toggle);
       biofp = fopen (fn, "w");
       ASSERT (biofp);
       biofp_last_open = time (NULL);
@@ -473,10 +473,11 @@ print_details (SSL * c_ssl, const char *prefix)
 
   s1[0] = s2[0] = 0;
   ciph = SSL_get_current_cipher (c_ssl);
-  snprintf (s1, sizeof (s1), "%s %s, cipher %s %s",
-	    prefix,
-	    SSL_get_version (c_ssl),
-	    SSL_CIPHER_get_version (ciph), SSL_CIPHER_get_name (ciph));
+  openvpn_snprintf (s1, sizeof (s1), "%s %s, cipher %s %s",
+		    prefix,
+		    SSL_get_version (c_ssl),
+		    SSL_CIPHER_get_version (ciph),
+		    SSL_CIPHER_get_name (ciph));
   cert = SSL_get_peer_certificate (c_ssl);
   if (cert != NULL)
     {
@@ -486,14 +487,14 @@ print_details (SSL * c_ssl, const char *prefix)
 	  if (pkey->type == EVP_PKEY_RSA && pkey->pkey.rsa != NULL
 	      && pkey->pkey.rsa->n != NULL)
 	    {
-	      snprintf (s2, sizeof (s2), ", %d bit RSA",
-			BN_num_bits (pkey->pkey.rsa->n));
+	      openvpn_snprintf (s2, sizeof (s2), ", %d bit RSA",
+				BN_num_bits (pkey->pkey.rsa->n));
 	    }
 	  else if (pkey->type == EVP_PKEY_DSA && pkey->pkey.dsa != NULL
 		   && pkey->pkey.dsa->p != NULL)
 	    {
-	      snprintf (s2, sizeof (s2), ", %d bit DSA",
-			BN_num_bits (pkey->pkey.dsa->p));
+	      openvpn_snprintf (s2, sizeof (s2), ", %d bit DSA",
+				BN_num_bits (pkey->pkey.dsa->p));
 	    }
 	  EVP_PKEY_free (pkey);
 	}

@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.4.1.5], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.4.1.6], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -256,14 +256,15 @@ AC_FUNC_FORK
 AC_CHECK_FUNCS(daemon chroot getpwnam setuid nice system getpid dup dup2 dnl
 	       getpass strerror syslog openlog mlockall getgrnam setgid dnl
 	       setgroups stat flock readv writev setsockopt getsockopt dnl
-	       setsid chdir)
+	       setsid chdir gettimeofday)
 AC_REPLACE_FUNCS(inet_aton)
 AC_CACHE_SAVE
 
 dnl Required library functions
 AC_FUNC_MEMCMP
 AC_FUNC_MALLOC
-AC_CHECK_FUNCS(time gettimeofday select socket gethostbyname inet_ntoa memset vsnprintf, [],
+
+AC_CHECK_FUNCS(time select socket gethostbyname inet_ntoa memset vsnprintf ctime, [],
 	[AC_MSG_ERROR([Required library function not found])])
 
 dnl
@@ -400,7 +401,7 @@ fi
 
 dnl enable strict compiler warnings
 if test "$STRICT" = "yes"; then
-   CFLAGS="$CFLAGS -Wall -W -Wpointer-arith -Wsign-compare -Winline"
+   CFLAGS="$CFLAGS -Wall -W -Wpointer-arith -Wsign-compare -Winline -Wno-unused-parameter"
 fi
 
 dnl enable strict options check between peers

@@ -37,7 +37,8 @@
 #define L_SOCK      2
 #define L_INET_NTOA 3
 #define L_CTIME     4
-#define N_MUTEXES   5
+#define L_STRERR    5
+#define N_MUTEXES   6
 
 #ifdef USE_PTHREAD
 

@@ -39,10 +39,10 @@ typedef int interval_t;
 /*
  * Printf formats for special types
  */
-#define counter_format        "%10lu"
-#define ptr_format            "0x%08zx"
-#define time_format           "%lu"
-#define fragment_type_format  "0x%08x"
+#define counter_format          "%10lu"
+#define ptr_format              "0x%08zx"
+#define time_format             "%lu"
+#define fragment_header_format  "0x%08x"
 
 /* these are used to cast the arguments
  * and MUST match the formats above */

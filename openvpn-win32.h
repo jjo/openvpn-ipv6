@@ -23,35 +23,25 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifdef WIN32
-#include "config-win32.h"
-#else
-#include "config.h"
-#endif
+#include <windows.h>
+#include <winsock.h>
 
-#include "syshead.h"
+#define sleep _sleep
 
-#include "fdmisc.h"
-#include "error.h"
+#define SIGHUP 1
+#define SIGUSR1 10
 
-#include "memdbg.h"
+#define random rand
+#define srandom srand
 
-/* Set a file descriptor to non-blocking */
-void
-set_nonblock (int fd)
-{
-#ifndef WIN32
-  if (fcntl (fd, F_SETFL, O_NONBLOCK) < 0)
-    msg (M_ERR, "Set file descriptor to non-blocking failed");
-#endif
-}
+typedef unsigned int in_addr_t;
+typedef int ssize_t;
 
-/* Set a file descriptor to not be passed across execs */
-void
-set_cloexec (int fd)
-{
-#ifndef WIN32
-  if (fcntl (fd, F_SETFD, FD_CLOEXEC) < 0)
-    msg (M_ERR, "Set FD_CLOEXEC flag on file descriptor failed");
-#endif
-}
+void init_win32 (void);
+int inet_aton (const char *name, struct in_addr *addr);
+const char *strerror_win32 (int errnum);
+
+#define openvpn_close_socket(s) closesocket(s)
+#define openvpn_errno()         GetLastError()
+#define openvpn_errno_socket()  WSAGetLastError()
+#define openvpn_strerror(e)     strerror_win32(e)

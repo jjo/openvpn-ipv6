@@ -102,6 +102,11 @@ bool system_check (const char* command, const char* error_message, bool fatal);
 /* format a time_t as ascii, or use current time if 0 */
 const char* time_string (time_t t);
 
+#ifdef HAVE_STRERROR
+/* a thread-safe version of strerror */
+const char* strerror_ts (int errnum);
+#endif
+
 /* Set standard file descriptors to /dev/null */
 void set_std_files_to_null (void);
 

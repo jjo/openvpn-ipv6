@@ -1756,6 +1756,10 @@ main (int argc, char *argv[])
   bool first_time = true;
   int sig;
 
+#ifdef WIN32
+  init_win32 ();
+#endif
+
   init_random_seed();                  /* init random() function, only used as
 					  source for weak random numbers */
   error_reset ();                      /* initialize error.c */

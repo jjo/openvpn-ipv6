@@ -47,19 +47,14 @@ extern int msg_line_num;
 #define M_DEBUG           (1<<7)
 
 #define M_ERRNO           (1<<8)	 /* show errno description */
-#define M_SSL             (1<<9)	 /* show SSL error */
-#define M_NOLOCK          (1<<10)        /* don't lock/unlock mutex */      
-#define M_NOMUTE          (1<<11)        /* don't do mute processing */
-
-/*
- * Allow errno value to be embedded in flags.
- */
-#define M_ERRNO_EMBEDDED  (1<<12)        /* indicates that errno value is embedded in flags */
-#define GET_EMBEDDED_ERRNO(flags) (((flags) >> 24) & 0xFF)      
-#define EMBEDDED_ERRNO_MASK(ev) (((((ev) >= 0 && (ev) < 256) ? (ev) : 0) << 24) | M_ERRNO_EMBEDDED | M_ERRNO)
+#define M_ERRNO_SOCK      (1<<9)	 /* show socket errno description */
+#define M_SSL             (1<<10)	 /* show SSL error */
+#define M_NOLOCK          (1<<11)        /* don't lock/unlock mutex */      
+#define M_NOMUTE          (1<<12)        /* don't do mute processing */
 
 /* flag combinations which are frequently used */
 #define M_ERR     (M_FATAL | M_ERRNO)
+#define M_SOCKERR (M_FATAL | M_ERRNO_SOCK)
 #define M_SSLERR  (M_FATAL | M_SSL)
 
 /*
@@ -91,10 +86,11 @@ extern int msg_line_num;
 #if defined(HAVE_CPP_VARARG_MACRO_ISO) && !defined(__LCLINT__)
 #define HAVE_VARARG_MACROS
 #define msg(flags, ...) do { if (MSG_TEST(flags)) x_msg((flags), __VA_ARGS__); } while (false)
-#elif defined(HAVE_CPP_VARARG_MACRO_CPP) && !defined(__LCLINT__)
+#elif defined(HAVE_CPP_VARARG_MACRO_GCC) && !defined(__LCLINT__)
 #define HAVE_VARARG_MACROS
 #define msg(flags, args...) do { if (MSG_TEST(flags)) x_msg((flags), args); } while (false)
 #else
+#warning this compiler appears to lack vararg macros which will cause a significant degradation in efficiency (you can ignore this warning if you are using LCLINT)
 #define msg x_msg
 #endif
 

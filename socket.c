@@ -65,7 +65,7 @@ set_check_status (unsigned int info_level, unsigned int verbose_level)
 void
 x_check_status (int status, const char *description, struct udp_socket *sock)
 {
-  const int my_errno = errno;
+  const int my_errno = openvpn_errno_socket ();
   const char *extended_msg = NULL;
 
   msg (x_cs_verbose_level, "%s returned %d", description, status);
@@ -87,11 +87,15 @@ x_check_status (int status, const char *description, struct udp_socket *sock)
 #endif
       if (my_errno != EAGAIN)
 	{
-	  const unsigned int lev = x_cs_info_level | EMBEDDED_ERRNO_MASK (my_errno);
 	  if (extended_msg)
-	    msg (lev, "%s [%s]", description, extended_msg);
+	    msg (x_cs_info_level, "%s [%s]: %s",
+		 description,
+		 extended_msg,
+		 strerror_ts (my_errno));
 	  else
-	    msg (lev, "%s", description);
+	    msg (x_cs_info_level, "%s: %s",
+		 description,
+		 strerror_ts (my_errno));
 	}
     }
 }
@@ -187,14 +191,15 @@ udp_socket_init (struct udp_socket *sock,
     {
       /* create socket */
       if ((sock->sd = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-	msg (M_ERR, "Cannot create socket");
+	msg (M_SOCKERR, "Cannot create socket");
 
       /* resolve local address if undefined */
       if (!addr_defined (&usa->local))
 	{
 	  usa->local.sin_family = AF_INET;
 	  usa->local.sin_addr.s_addr =
-	    (local_host ? getaddr (local_host, resolve_retry_seconds) : htonl (INADDR_ANY));
+	    (local_host ? getaddr (local_host, resolve_retry_seconds)
+	     : htonl (INADDR_ANY));
 	  usa->local.sin_port = htons (local_port);
 	}
 
@@ -202,8 +207,12 @@ udp_socket_init (struct udp_socket *sock,
       if (bind_local)
 	{
 	  if (bind (sock->sd, (struct sockaddr *) &usa->local, sizeof (usa->local)))
-	    msg (M_ERR, "Socket bind failed on local address: %s",
-		 print_sockaddr (&usa->local));
+	    {
+	      const int errnum = openvpn_errno_socket ();
+	      msg (M_FATAL, "Socket bind failed on local address %s: %s",
+		   print_sockaddr (&usa->local),
+		   strerror_ts (errnum));
+	    }
 	}
     }
 
@@ -218,15 +227,16 @@ udp_socket_init (struct udp_socket *sock,
 
   /* should we re-use previous active remote address? */
   if (addr_defined (&usa->actual))
-    msg (M_INFO, "Preserving recently used remote address: %s", print_sockaddr (&usa->actual));
+    msg (M_INFO, "Preserving recently used remote address: %s",
+	 print_sockaddr (&usa->actual));
   else
     usa->actual = usa->remote;
 
   /* set socket to non-blocking mode */
   set_nonblock (sock->sd);
 
-  /* set socket file descriptor to not pass across execs, so that scripts don't have
-     access to it */
+  /* set socket file descriptor to not pass across execs, so that
+     scripts don't have access to it */
   set_cloexec (sock->sd);
 
   /* set Path MTU discovery options on the socket */
@@ -344,7 +354,7 @@ udp_socket_close (struct udp_socket *sock)
 {
   if (sock->sd >= 0 && sock->sd != INETD_SOCKET_DESCRIPTOR)
     {
-      close (sock->sd);
+      openvpn_close_socket (sock->sd);
       sock->sd = -1;
     }
 }

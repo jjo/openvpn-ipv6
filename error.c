@@ -32,6 +32,7 @@
 #include "syshead.h"
 
 #include "error.h"
+#include "buffer.h"
 #include "thread.h"
 #include "misc.h"
 #include "openvpn.h"
@@ -100,7 +101,6 @@ msg_fp()
   return fp;
 }
 
-
 #define SWAP { tmp = m1; m1 = m2; m2 = tmp; }
 #define ERR_BUF_SIZE 1024
 
@@ -125,10 +125,10 @@ void x_msg (unsigned int flags, const char *format, ...)
     return;
 #endif
 
-  if (flags & M_ERRNO_EMBEDDED)
-    e = GET_EMBEDDED_ERRNO (flags);
+  if (flags & M_ERRNO_SOCK)
+    e = openvpn_errno_socket ();
   else
-    e = errno;
+    e = openvpn_errno ();
 
   if (!(flags & M_NOLOCK))
     mutex_lock (L_MSG);
@@ -167,14 +167,12 @@ void x_msg (unsigned int flags, const char *format, ...)
   va_start (arglist, format);
   vsnprintf (m1, ERR_BUF_SIZE, format, arglist);
   va_end (arglist);
+  m1[ERR_BUF_SIZE - 1] = 0; /* windows vsnprintf needs this */
 
-  if ((flags & M_ERRNO) && e)
+  if ((flags & (M_ERRNO|M_ERRNO_SOCK)) && e)
     {
-#ifdef HAVE_STRERROR
-      snprintf (m2, ERR_BUF_SIZE, "%s: %s (errno=%d)", m1, strerror (e), e);
-#else
-      snprintf (m2, ERR_BUF_SIZE, "%s (errno=%d)", m1, e);
-#endif
+      openvpn_snprintf (m2, ERR_BUF_SIZE, "%s: %s (errno=%d)",
+			m1, strerror_ts (e), e);
       SWAP;
     }
 
@@ -185,13 +183,14 @@ void x_msg (unsigned int flags, const char *format, ...)
       int err;
       while ((err = ERR_get_error ()))
 	{
-	  snprintf (m2, ERR_BUF_SIZE, "%s: %s", m1, ERR_error_string (err, NULL));
+	  openvpn_snprintf (m2, ERR_BUF_SIZE, "%s: %s",
+			    m1, ERR_error_string (err, NULL));
 	  SWAP;
 	  ++nerrs;
 	}
       if (!nerrs)
 	{
-	  snprintf (m2, ERR_BUF_SIZE, "%s (OpenSSL)", m1);
+	  openvpn_snprintf (m2, ERR_BUF_SIZE, "%s (OpenSSL)", m1);
 	  SWAP;
 	}
     }

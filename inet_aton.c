@@ -22,19 +22,21 @@
  * 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  */
 
-#ifdef HAVE_CONFIG_H
 #ifdef WIN32
 #include "config-win32.h"
+#include "syshead.h"
 #else
 #include "config.h"
 #endif
-#endif
 
-#if !HAVE_INET_ATON
+#ifndef HAVE_INET_ATON
+
+#ifndef WIN32
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#endif
 
 int
 inet_aton (const char *name, struct in_addr *addr)
@@ -43,4 +45,5 @@ inet_aton (const char *name, struct in_addr *addr)
 	addr->s_addr = a;
 	return a != (in_addr_t)-1;
 }
+
 #endif

@@ -165,9 +165,10 @@ run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu,
       if (!ifconfig_remote)
 	ifconfig_remote = "";
 
-      snprintf (command_line, sizeof (command_line), "%s %s %d %d %s %s",
-		command, arg, tun_mtu, udp_mtu,
-		ifconfig_local, ifconfig_remote);
+      openvpn_snprintf (command_line, sizeof (command_line),
+			"%s %s %d %d %s %s",
+			command, arg, tun_mtu, udp_mtu,
+			ifconfig_local, ifconfig_remote);
       msg (M_INFO, "%s", command_line);
       system_check (command_line, "script failed", true);
     }
@@ -333,7 +334,7 @@ warn_if_group_others_accessible(const char* filename)
 	msg (M_WARN, "WARNING: file '%s' is group or others accessible", filename);
     }
 #else
-  msg (M_WARN, "WARNING: cannot stat file '%s' (stat function missing)", filename);
+  msg (M_WARN, "Note: cannot stat file '%s' (stat function missing)", filename);
 #endif
 }
 
@@ -428,4 +429,21 @@ time_string (time_t t)
   buf_chomp (&out, '\n');
 
   return BSTR (&out);
+}
+
+/* thread-safe strerror */
+
+const char*
+strerror_ts (int errnum)
+{
+#ifdef HAVE_STRERROR
+  struct buffer out = alloc_buf_gc (256);
+
+  mutex_lock (L_STRERR);
+  buf_printf (&out, "%s", openvpn_strerror (errnum));
+  mutex_unlock (L_STRERR);
+  return BSTR (&out);
+#else
+  return "[error string unavailable]";
+#endif
 }

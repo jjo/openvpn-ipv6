@@ -78,7 +78,7 @@ dev_component_in_dev_node (const char *dev_node)
 
   if (dev_node)
     {
-      ret = rindex (dev_node, dirsep);
+      ret = strrchr (dev_node, dirsep);
       if (ret && *ret)
 	++ret;
       else
@@ -129,33 +129,33 @@ do_ifconfig (const char *dev, const char *dev_type,
 
 #if defined(TARGET_LINUX)
 
-      snprintf (command_line, sizeof (command_line),
-		IFCONFIG_PATH " %s %s pointopoint %s mtu %d",
-		dev,
-		ifconfig_local,
-		ifconfig_remote,
-		tun_mtu
-		);
+      openvpn_snprintf (command_line, sizeof (command_line),
+			IFCONFIG_PATH " %s %s pointopoint %s mtu %d",
+			dev,
+			ifconfig_local,
+			ifconfig_remote,
+			tun_mtu
+			);
       msg (M_INFO, "%s", command_line);
       system_check (command_line, "Linux ifconfig failed", true);
 
 #elif defined(TARGET_SOLARIS)
 
       /* example: ifconfig tun2 10.2.0.2 10.2.0.1 mtu 1450 netmask 255.255.255.255 up */
-      snprintf (command_line, sizeof (command_line),
-		IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
-		dev,
-		ifconfig_local,
-		ifconfig_remote,
-		tun_mtu
-		);
+      openvpn_snprintf (command_line, sizeof (command_line),
+			IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
+			dev,
+			ifconfig_local,
+			ifconfig_remote,
+			tun_mtu
+			);
       msg (M_INFO, "%s", command_line);
       if (!system_check (command_line, "Solaris ifconfig failed", false))
 	{
-	  snprintf (command_line, sizeof (command_line),
-		    IFCONFIG_PATH " %s unplumb",
-		    dev
-		    );
+	  openvpn_snprintf (command_line, sizeof (command_line),
+			    IFCONFIG_PATH " %s unplumb",
+			    dev
+			    );
 	  msg (M_INFO, "%s", command_line);
 	  system_check (command_line, "Solaris ifconfig unplumb failed", false);
 	  msg (M_FATAL, "ifconfig failed");
@@ -169,16 +169,16 @@ do_ifconfig (const char *dev, const char *dev_type,
        * (if it exists), and re-ifconfig.  Let me know if you know a better way.
        */
 
-      snprintf (command_line, sizeof (command_line),
-		IFCONFIG_PATH " %s delete",
-		dev);
+      openvpn_snprintf (command_line, sizeof (command_line),
+			IFCONFIG_PATH " %s delete",
+			dev);
       msg (M_INFO, "%s", command_line);
       system_check (command_line, NULL, false);
       msg (M_INFO, "NOTE: Tried to delete pre-existing tun instance -- No Problem if failure");
 
 
       /* example: ifconfig tun2 10.2.0.2 10.2.0.1 mtu 1450 netmask 255.255.255.255 up */
-      snprintf (command_line, sizeof (command_line),
+      openvpn_snprintf (command_line, sizeof (command_line),
 		IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
 		dev,
 		ifconfig_local,
@@ -190,7 +190,7 @@ do_ifconfig (const char *dev, const char *dev_type,
 
 #elif defined(TARGET_NETBSD)
 
-      snprintf (command_line, sizeof (command_line),
+      openvpn_snprintf (command_line, sizeof (command_line),
 	        IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
 	        dev,
 		ifconfig_local,
@@ -206,39 +206,39 @@ do_ifconfig (const char *dev, const char *dev_type,
        * Darwin seems to exhibit similar behaviour to OpenBSD...
        */
 
-      snprintf (command_line, sizeof (command_line),
-		IFCONFIG_PATH " %s delete",
-		dev);
+      openvpn_snprintf (command_line, sizeof (command_line),
+			IFCONFIG_PATH " %s delete",
+			dev);
       msg (M_INFO, "%s", command_line);
       system_check (command_line, NULL, false);
       msg (M_INFO, "NOTE: Tried to delete pre-existing tun instance -- No Problem if failure");
 
 
       /* example: ifconfig tun2 10.2.0.2 10.2.0.1 mtu 1450 netmask 255.255.255.255 up */
-      snprintf (command_line, sizeof (command_line),
-		IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
-		dev,
-		ifconfig_local,
-		ifconfig_remote,
-		tun_mtu
-		);
+      openvpn_snprintf (command_line, sizeof (command_line),
+			IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
+			dev,
+			ifconfig_local,
+			ifconfig_remote,
+			tun_mtu
+			);
       msg (M_INFO, "%s", command_line);
       system_check (command_line, "Darwin ifconfig failed", true);
 
 #elif defined(TARGET_FREEBSD)
 
       /* example: ifconfig tun2 10.2.0.2 10.2.0.1 mtu 1450 netmask 255.255.255.255 up */
-      snprintf (command_line, sizeof (command_line),
-		IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
-		dev,
-		ifconfig_local,
-		ifconfig_remote,
-		tun_mtu
-		);
+      openvpn_snprintf (command_line, sizeof (command_line),
+			IFCONFIG_PATH " %s %s %s mtu %d netmask 255.255.255.255 up",
+			dev,
+			ifconfig_local,
+			ifconfig_remote,
+			tun_mtu
+			);
       msg (M_INFO, "%s", command_line);
       system_check (command_line, "FreeBSD ifconfig failed", true);
 #else
-      msg (M_FATAL, "Sorry, but I don't know how to do 'ifconfig' commands on this operating system.  You should ifconfig your TUN/TAP device manually or use an --up script.");
+      msg (M_FATAL, "Sorry, but I don't know how to do 'ifconfig' commands on this operating system.  You should ifconfig your TUN/TAP device manually or use an --up script.  Attempted ifconfig command was: '%s'", command_line);
 #endif
     }
 }
@@ -286,7 +286,7 @@ open_tun_generic (const char *dev, const char *dev_node,
        */
       if (dev_node)
 	{
-	  snprintf (tunname, sizeof (tunname), "%s", dev_node);
+	  openvpn_snprintf (tunname, sizeof (tunname), "%s", dev_node);
 	}
       else
 	{
@@ -300,8 +300,10 @@ open_tun_generic (const char *dev, const char *dev_node,
 	      int i;
 	      for (i = 0; i < 256; ++i)
 		{
-		  snprintf (tunname, sizeof (tunname), "/dev/%s%d", dev, i);
-		  snprintf (dynamic_name, sizeof (dynamic_name), "%s%d", dev, i);
+		  openvpn_snprintf (tunname, sizeof (tunname),
+				    "/dev/%s%d", dev, i);
+		  openvpn_snprintf (dynamic_name, sizeof (dynamic_name),
+				    "%s%d", dev, i);
 		  if ((tt->fd = open (tunname, O_RDWR)) > 0)
 		    {
 		      dynamic_opened = true;
@@ -317,7 +319,7 @@ open_tun_generic (const char *dev, const char *dev_node,
 	   */
 	  else
 	    {
-	      snprintf (tunname, sizeof (tunname), "/dev/%s", dev);
+	      openvpn_snprintf (tunname, sizeof (tunname), "/dev/%s", dev);
 	    }
 	}
 
@@ -621,7 +623,8 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 
   close (if_fd);
 
-  snprintf (tt->actual, sizeof (tt->actual), "%s%d", dev_tuntap_type, ppa);
+  openvpn_snprintf (tt->actual, sizeof (tt->actual),
+		    "%s%d", dev_tuntap_type, ppa);
 
   CLEAR (ifr);
   strncpynt (ifr.ifr_name, tt->actual, sizeof (ifr.ifr_name));

@@ -125,6 +125,15 @@ void buf_printf (struct buffer *buf, const char *format, ...)
     ;
 
 /*
+ * Like snprintf but guarantees null termination for size > 0
+ */
+int openvpn_snprintf(char *str, size_t size, const char *format, ...)
+#ifdef __GNUC__
+    __attribute__ ((format (printf, 3, 4)))
+#endif
+    ;
+
+/*
  * remove trailing newline
  */
 static inline void

@@ -8,6 +8,8 @@
  * Modified 2003 by Matthias Andree <matthias.andree@gmx.de>.
  */
 
+#ifndef WIN32
+
 #if HAVE_CONFIG_H
 # include <config.h>
 #endif
@@ -27,3 +29,5 @@ rpl_malloc (size_t n)
 		n = 1;
 	return malloc (n);
 }
+
+#endif

@@ -166,7 +166,7 @@ fragment_incoming (struct fragment_master *f, struct buffer *buf,
 	{
 	  msg (D_FRAG_DEBUG,
 	       "FRAG_IN buf->len=%d type=FRAG_WHOLE max=[%d/%d] flags="
-	       fragment_type_format,
+	       fragment_header_format,
 	       buf->len,
 	       f->max_packet_size_sent_sync,
 	       f->max_packet_size_sent_confirmed,
@@ -188,7 +188,7 @@ fragment_incoming (struct fragment_master *f, struct buffer *buf,
 
 	  msg (D_FRAG_DEBUG,
 	       "FRAG_IN len=%d type=%d seq_id=%d frag_id=%d size=%d max=[%d/%d] flags="
-	       fragment_type_format,
+	       fragment_header_format,
 	       buf->len,
 	       frag_type,
 	       seq_id,
@@ -247,7 +247,7 @@ fragment_incoming (struct fragment_master *f, struct buffer *buf,
 
  error:
   if (errmsg)
-    msg (D_FRAG_ERRORS, "FRAG_IN error flags=" fragment_type_format ": %s", flags, errmsg);
+    msg (D_FRAG_ERRORS, "FRAG_IN error flags=" fragment_header_format ": %s", flags, errmsg);
   buf->len = 0;
   return;
 }
@@ -283,7 +283,7 @@ fragment_prepend_flags (struct buffer *buf,
 
       msg (D_FRAG_DEBUG,
 	   "FRAG_OUT len=%d type=%d seq_id=%d frag_id=%d frag_size=%d max_packet_size=%d flags="
-	   fragment_type_format,
+	   fragment_header_format,
 	   buf->len, type, seq_id, frag_id, frag_size, mps, flags);
     }
   else
@@ -292,7 +292,7 @@ fragment_prepend_flags (struct buffer *buf,
 
       msg (D_FRAG_DEBUG,
 	   "FRAG_OUT len=%d type=%d seq_id=%d frag_id=%d frag_size=%d flags="
-	   fragment_type_format,
+	   fragment_header_format,
 	   buf->len, type, seq_id, frag_id, frag_size, flags);
     }
 

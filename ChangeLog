@@ -22,6 +22,15 @@ Upcoming Version 1.4.2
 * Add compiled-in options to the program title
   (1.4.1.5).
 * Coded the beginnings of a WIN32 port (1.4.1.5).
+* Succeeded in porting to Win32 Mingw environment
+  and running loopback tests (1.4.1.6).
+* Fixed a bug in error.h where
+  HAVE_CPP_VARARG_MACRO_GCC was misspelled.
+  This would have caused a significant slowdown
+  of OpenVPN when built by compilers that
+  lack ISO C99 vararg macros (1.4.1.6).
+* Created an init script for Gentoo Linux
+  in sample-scripts directory (1.4.1.6).
 
 2003.05.15 -- Version 1.4.1
 
