@@ -25,7 +25,7 @@
 
 /*
  * These routines implement a reliability layer on top of UDP,
- * so that TLS can be run over UDP.
+ * so that SSL/TLS can be run over UDP.
  */
 
 #include "config.h"
@@ -45,12 +45,14 @@
 packet_id_type
 reliable_ack_read_packet_id (struct reliable_ack *ack, struct buffer *buf)
 {
-  packet_id_type *pid;
+  packet_id_type net_pid;
   packet_id_type ret = -1;
 
-  pid = (packet_id_type *) buf_read_alloc (buf, sizeof (packet_id_type));
-  if (pid && ack->len < RELIABLE_ACK_SIZE)
-    ret = ack->packet_id[ack->len++] = ntohpid (*pid);
+  if (buf_read (buf, &net_pid, sizeof (net_pid)))
+    {
+      if (ack->len < RELIABLE_ACK_SIZE)
+	ret = ack->packet_id[ack->len++] = ntohpid (net_pid);
+    }
 
   msg (D_REL_DEBUG, "ACK ID %d (buf->len=%d, ack->len=%d)", ret, buf->len,
        ack->len);
@@ -393,11 +395,12 @@ reliable_mark_active (struct reliable *rel, struct buffer *buf, int pid, int opc
 	    }
 	  else
 	    {
-	      /* Write mode, increment packet_id linearly and prepend id to packet */
-	      packet_id_type *net_pid;
+	      /* Write mode, increment packet_id (i.e. sequence number)
+		 linearly and prepend id to packet */
+	      packet_id_type net_pid;
 	      e->packet_id = rel->packet_id++;
-	      ASSERT (net_pid = (packet_id_type *) buf_prepend (buf, sizeof (packet_id_type)));
-	      *net_pid = htonpid (e->packet_id);
+	      net_pid = htonpid (e->packet_id);
+	      ASSERT (buf_write_prepend (buf, &net_pid, sizeof (net_pid)));
 	      e->active = true;
 	    }
 	  e->opcode = opcode;

@@ -33,12 +33,11 @@
 #include "buffer.h"
 #include "common.h"
 #include "error.h"
+#include "crypto.h"
 
 #include "memdbg.h"
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
-
-#include <openssl/crypto.h>
 
 static pthread_mutex_t *ssl_lock_cs;
 static long *ssl_lock_count;

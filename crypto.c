@@ -132,13 +132,13 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 	       format_hex (BPTR (buf), BLEN (buf), 80));
 
 	  /* cipher_ctx was already initialized with key & keylen */
-	  ASSERT (EVP_CipherInit (ctx->cipher, NULL, NULL, iv, DO_ENCRYPT));
+	  ASSERT (EVP_CipherInit_ov (ctx->cipher, NULL, NULL, iv, DO_ENCRYPT));
 
 	  /* Buffer overflow check (should never happen) */
 	  ASSERT (buf_safe (&work, buf->len + EVP_CIPHER_CTX_block_size (ctx->cipher)));
 
 	  /* Encrypt packet ID, payload */
-	  ASSERT (EVP_CipherUpdate (ctx->cipher, BPTR (&work), &outlen, BPTR (buf), BLEN (buf)));
+	  ASSERT (EVP_CipherUpdate_ov (ctx->cipher, BPTR (&work), &outlen, BPTR (buf), BLEN (buf)));
 	  work.len += outlen;
 
 	  /* Flush the encryption buffer */
@@ -266,7 +266,7 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
 	    CRYPT_ERROR ("missing payload");
 
 	  /* ctx->cipher was already initialized with key & keylen */
-	  if (!EVP_CipherInit (ctx->cipher, NULL, NULL, iv, DO_DECRYPT))
+	  if (!EVP_CipherInit_ov (ctx->cipher, NULL, NULL, iv, DO_DECRYPT))
 	    CRYPT_ERROR ("cipher init failed");
 
 	  /* Buffer overflow check (should never happen) */
@@ -274,7 +274,7 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
 	    CRYPT_ERROR ("buffer overflow");
 
 	  /* Decrypt packet ID, payload */
-	  if (!EVP_CipherUpdate (ctx->cipher, BPTR (&work), &outlen, BPTR (buf), BLEN (buf)))
+	  if (!EVP_CipherUpdate_ov (ctx->cipher, BPTR (&work), &outlen, BPTR (buf), BLEN (buf)))
 	    CRYPT_ERROR ("cipher update failed");
 	  work.len += outlen;
 
@@ -367,7 +367,7 @@ get_cipher (const char *ciphername)
   const EVP_CIPHER *cipher = NULL;
   ASSERT (ciphername);
   cipher = EVP_get_cipherbyname (ciphername);
-  if (!cipher)
+  if ( !(cipher && cipher_ok (OBJ_nid2sn (EVP_CIPHER_nid (cipher)))))
     msg (M_SSLERR, "Cipher algorithm '%s' not found", ciphername);
   return cipher;
 }
@@ -389,11 +389,13 @@ init_cipher (EVP_CIPHER_CTX * ctx, const EVP_CIPHER * cipher,
 	     const char *prefix)
 {
   EVP_CIPHER_CTX_init (ctx);
-  if (!EVP_CipherInit (ctx, cipher, NULL, NULL, enc))
+  if (!EVP_CipherInit_ov (ctx, cipher, NULL, NULL, enc))
     msg (M_SSLERR, "EVP cipher init #1");
+#ifdef HAVE_EVP_CIPHER_CTX_SET_KEY_LENGTH
   if (!EVP_CIPHER_CTX_set_key_length (ctx, kt->cipher_length))
     msg (M_SSLERR, "EVP set key size");
-  if (!EVP_CipherInit (ctx, NULL, key->cipher, NULL, enc))
+#endif
+  if (!EVP_CipherInit_ov (ctx, NULL, key->cipher, NULL, enc))
     msg (M_SSLERR, "EVP cipher init #2");
 
   msg (D_HANDSHAKE, "%s: Cipher '%s' initialized with %d bit key",
@@ -1032,14 +1034,12 @@ show_available_ciphers ()
 	  "Each cipher name is shown in brackets and may be used as a\n"
 	  "parameter to the --cipher option.  The default key size is\n"
 	  "shown as well as whether or not it can be changed with\n"
-	  "the --keysize directive.  If you don't know what\n"
-	  "to choose, I would recommend BF-CBC (Blowfish in CBC mode)\n"
-	  "as a cipher that combines good security with speed.\n\n");
+	  "the --keysize directive.\n\n");
 
   for (nid = 0; nid < 10000; ++nid)	/* is there a better way to get the size of the nid list? */
     {
       const EVP_CIPHER *cipher = EVP_get_cipherbynid (nid);
-      if (cipher)
+      if (cipher && cipher_ok (OBJ_nid2sn (nid)))
 	{
 	  const unsigned int mode = EVP_CIPHER_mode (cipher);
 	  if (mode == EVP_CIPH_CBC_MODE || mode == EVP_CIPH_CFB_MODE || mode == EVP_CIPH_OFB_MODE)
@@ -1063,8 +1063,7 @@ show_available_digests ()
 	  "the HMAC function, to authenticate received packets.\n"
 	  "You can specify a message digest as parameter to\n"
 	  "the --auth option.\n"
-	  "Each message digest is shown below in brackets.\n"
-	  "If you don't know what to choose, I would pick SHA1.\n\n");
+	  "Each message digest is shown below in brackets.\n\n");
 
   for (nid = 0; nid < 10000; ++nid)
     {

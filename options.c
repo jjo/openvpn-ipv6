@@ -69,10 +69,6 @@ static const char usage_message[] =
   "                  UDP MTU from it (default=%d).\n"
   "--udp-mtu n     : Take the UDP device MTU to be n and derive the TUN MTU\n"
   "                  from it (disabled by default).\n"
-  "--tun-af-inet   : Remove a leading htonl(AF_INET) from incoming tunnel\n"
-  "                  data and add it onto outgoing tunnel data.\n"
-  "                  This option should be used on the OpenBSD side of an\n"
-  "                  OpenBSD <-> Linux tunnel (Experimental).\n"
 #ifdef _POSIX_MEMLOCK
   "--mlock         : Disable Paging -- ensures key material and tunnel\n"
   "                  data will never be written to disk.\n"
@@ -128,7 +124,9 @@ static const char usage_message[] =
   "--cipher alg    : Encrypt packets with cipher algorithm alg\n"
   "                  (default=%s).\n"
   "                  Set alg=none to disable encryption.\n"
+#ifdef HAVE_EVP_CIPHER_CTX_SET_KEY_LENGTH
   "--keysize n     : Size of cipher key in bits (optional).\n"
+#endif
   "                  If unspecified, defaults to cipher-specific default.\n"
   "--no-replay     : Disable replay protection.\n"
   "--no-iv         : Disable cipher IV -- only allowed with CBC mode ciphers.\n"
@@ -182,7 +180,7 @@ static const char usage_message[] =
   "                  for use with the --secret option.\n"
   "--secret file   : Write key to file.\n"
 #endif				/* USE_CRYPTO */
-#if !defined(OLD_TUN_TAP) && defined(TUNSETPERSIST)
+#ifdef TUNSETPERSIST
   "\n"
   "TUN/TAP config mode (available with linux 2.4+):\n"
   "--mktun         : Create a persistent tunnel.\n"
@@ -200,7 +198,7 @@ void
 init_options (struct options *o)
 {
   CLEAR (*o);
-#if !defined(OLD_TUN_TAP) && defined(TUNSETPERSIST)
+#ifdef TUNSETPERSIST
   o->persist_mode = 1;
 #endif
   o->local_port = o->remote_port = 5000;
@@ -237,7 +235,7 @@ show_settings (const struct options *o)
 {
   msg (D_SHOW_PARMS, "Current Parameter Settings:");
 
-#if !defined(OLD_TUN_TAP) && defined(TUNSETPERSIST)
+#ifdef TUNSETPERSIST
   SHOW_BOOL (persist_config);
   SHOW_INT (persist_mode);
 #endif
@@ -268,7 +266,6 @@ show_settings (const struct options *o)
   SHOW_BOOL (tun_mtu_defined);
   SHOW_INT (udp_mtu);
   SHOW_BOOL (udp_mtu_defined);
-  SHOW_BOOL (tun_af_inet);
 #ifdef _POSIX_MEMLOCK
   SHOW_BOOL (mlock);
 #endif
@@ -653,10 +650,6 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
       options->tun_mtu = positive (atoi (p2));
       options->tun_mtu_defined = true;
     }
-  else if (streq (p1, "tun-af-inet"))
-    {
-      options->tun_af_inet = true;
-    }
   else if (streq (p1, "nice") && p2)
     {
       ++i;
@@ -799,6 +792,7 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       options->test_crypto = true;
     }
+#ifdef HAVE_EVP_CIPHER_CTX_SET_KEY_LENGTH
   else if (streq (p1, "keysize") && p2)
     {
       ++i;
@@ -809,6 +803,7 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
 	  usage_small ();
 	}
     }
+#endif
 #ifdef USE_SSL
   else if (streq (p1, "show-tls"))
     {
@@ -893,7 +888,7 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     }
 #endif /* USE_SSL */
 #endif /* USE_CRYPTO */
-#if !defined(OLD_TUN_TAP) && defined(TUNSETPERSIST)
+#ifdef TUNSETPERSIST
   else if (streq (p1, "rmtun"))
     {
       options->persist_config = true;

@@ -37,6 +37,9 @@ test $TEST_TYPE $FILE || {
 	exit 1
 }
 
+# Let's have a fresh start
+rm -f *.o openvpn config.cache configure Makefile stamp-h* config.log config.status config.h config.h.in aclocal.m4
+
 aclocal $ACLOCAL_FLAGS || exit 1
 
 #libtoolize --force --copy || exit 1

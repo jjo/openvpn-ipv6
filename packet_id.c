@@ -123,8 +123,6 @@ packet_id_net_print(const struct packet_id_net *pin)
 
 #ifdef PID_TEST
 
-#include <stdio.h>
-
 void packet_id_interactive_test()
 {
   struct packet_id_rec p;

@@ -36,9 +36,6 @@
 #undef USE_PTHREAD
 #undef _REENTRANT
 
-/* use old version of TUN/TAP driver */
-#undef OLD_TUN_TAP
-
 /* enable dmalloc memory leak debugging */
 #undef DMALLOC
 
@@ -57,5 +54,8 @@
 /* are we running on solaris? */
 #undef TARGET_SOLARIS
 
-/* are we running on BSD? */
-#undef TARGET_BSD
+/* are we running on OpenBSD? */
+#undef TARGET_OPENBSD
+
+/* are we running on FreeBSD? */
+#undef TARGET_FREEBSD

@@ -27,11 +27,31 @@
 #include "error.h"
 #include "common.h"
 
+struct tuntap
+{
+  int fd;
+#ifdef TARGET_SOLARIS
+  int ip_fd;
+#endif
+  char actual[64];
+};
+
 #define IS_TUN(dev) (!strncmp (dev, "tun", 3)) 
 #define IS_TAP(dev) (!strncmp (dev, "tap", 3)) 
 
-int open_tun (const char *dev, char *actual, int size);
+void clear_tuntap (struct tuntap *tuntap);
+
+void open_tun (const char *dev, struct tuntap *tt);
+void close_tun (struct tuntap *tt);
+
+int write_tun (struct tuntap* tt, unsigned char *buf, int len);
+int read_tun (struct tuntap* tt, unsigned char *buf, int len);
+
 void tuncfg (const char *dev, int persist_mode);
+
+void do_ifconfig (const char *dev,
+		  const char *ifconfig_local, const char* ifconfig_remote,
+		  int tun_mtu);
 
 /*
  * Inline functions
@@ -40,26 +60,4 @@ static inline void
 tun_adjust_frame_parameters (struct frame* frame, int size)
 {
   frame->extra_tun += size;
-}
-
-static inline void
-tun_add_head (struct buffer* buf, uint32_t value)
-{
-  uint32_t *p = (uint32_t*) buf_prepend (buf, sizeof (uint32_t));
-  *p = htonl(value);
-}
-
-static inline void
-tun_rm_head (struct buffer* buf, uint32_t value)
-{
-  uint32_t found = ntohl (*(uint32_t*) BPTR (buf));
-  if (found == value)
-    ASSERT (buf_advance (buf, sizeof (uint32_t)));
-  else
-    {
-      msg (D_LINK_ERRORS,
-	   "Failed to match TUN packet leading uint32_t (expected=0x%08x, found=0x%08x)",
-	   value, found);
-      buf->len = 0;
-    }
 }

@@ -36,15 +36,10 @@ struct udp_socket
 {
   struct sockaddr_in local;
   struct sockaddr_in remote;
-
   bool remote_float;
-
   const char *ipchange_command;
-
   struct sockaddr_in *actual;
-
   int sd;			/* file descriptor for socket */
-
   bool set_outgoing_initial;
 };
 

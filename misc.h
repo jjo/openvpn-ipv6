@@ -29,10 +29,6 @@ void set_user (const char *username);
 void set_nice (int niceval);
 void do_chroot (const char *path);
 
-void do_ifconfig (const char *dev,
-		  const char *ifconfig_local, const char* ifconfig_remote,
-		  int tun_mtu);
-
 void run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu,
 		 const char *ifconfig_local, const char* ifconfig_remote);
 

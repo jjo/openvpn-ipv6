@@ -77,38 +77,6 @@ set_nice (int niceval)
     }
 }
 
-/* do ifconfig */
-void
-do_ifconfig (const char *dev,
-	     const char *ifconfig_local, const char* ifconfig_remote,
-	     int tun_mtu)
-{
-  if (ifconfig_local && ifconfig_remote)
-    {
-      char command_line[256];
-      const char *middle = "";
-
-      if (!IS_TUN (dev))
-	msg (M_FATAL, "%s is not a tun device.  The --ifconfig option works only for tun devices.  You should use an --up script to ifconfig a tap device.", dev);
-
-#ifdef TARGET_LINUX
-      middle = "pointopoint";
-#endif
-
-      snprintf (command_line, sizeof (command_line), "ifconfig %s %s %s %s mtu %d",
-		dev,
-		ifconfig_local,
-		middle,
-		ifconfig_remote,
-		tun_mtu
-		);
-
-      msg (M_INFO, "%s", command_line);
-      if (system (command_line) != 0)
-	msg (M_ERR, "ifconfig failed");
-    }
-}
-
 /* Run a shell script with one arg */
 void
 run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu,

@@ -33,7 +33,6 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-ping\fR\ \fIn\fR\ ]
 [\ \fB\-\-ping\-exit\fR\ \fIn\fR\ ]
 [\ \fB\-\-mlock\fR\ ]
-[\ \fB\-\-tun\-af\-inet\fR\ ]
 [\ \fB\-\-up\fR\ \fIcmd\fR\ ]
 [\ \fB\-\-down\fR\ \fIcmd\fR\ ]
 [\ \fB\-\-user\fR\ \fIuser\fR\ ]
@@ -631,17 +630,6 @@ of using
 .B --mlock
 is that it will reduce the amount of physical
 memory available to other applications.
-.TP
-.B --tun-af-inet
-Remove a leading htonl(AF_INET) from incoming tunnel
-data and add it onto outgoing tunnel data.
-This option should be used on the OpenBSD side of an
-OpenBSD <-> Linux tunnel.
-
-This option is necessary to work around an incompatibility
-between the Linux and OpenBSD TUN/TAP drivers.
-
-Note: Currently, this option should be considered experimental.
 .TP
 .B --up cmd
 Shell command to run after successful TUN/TAP device open

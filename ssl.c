@@ -1149,8 +1149,11 @@ key_state_soft_reset (struct tls_session *session, time_t current)
  * want to send to our peer.
  */
 static bool
-tls_process (struct tls_multi *multi, struct tls_session *session,
-	     struct buffer *to_udp, struct sockaddr_in *to_udp_addr,
+tls_process (struct tls_multi *multi,
+	     struct tls_session *session,
+	     struct buffer *to_udp,
+	     struct sockaddr_in *to_udp_addr,
+	     struct udp_socket *to_udp_socket,
 	     time_t * wakeup, time_t current)
 {
   struct buffer *buf;
@@ -1249,6 +1252,9 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 		    print_details (ks->ssl, "Control Channel:");
 		  state_change = true;
 		  ks->state = S_ACTIVE;
+
+		  /* Set outgoing address for data channel packets */
+		  udp_socket_set_outgoing_addr (NULL, to_udp_socket, &ks->remote_addr);
 		}
 	    }
 
@@ -1545,11 +1551,9 @@ tls_multi_process (struct tls_multi *multi,
       if (ks->state >= S_INITIAL && ADDR (ks->remote_addr))
 	{
 	  current = time (NULL);
-	  if (tls_process (multi, session, to_udp, to_udp_addr, wakeup, current))
-	    {
-	      generated_output = true;
-	      udp_socket_set_outgoing_addr (to_udp, to_udp_socket, to_udp_addr);
-	    }
+
+	  if (tls_process (multi, session, to_udp, to_udp_addr, to_udp_socket, wakeup, current))
+	    generated_output = true;
 
 	  /*
 	   * If tls_process hits an error:

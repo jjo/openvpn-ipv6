@@ -12,7 +12,9 @@ For the latest version of OpenVPN, go to:
 
 SUPPORTED PLATFORMS:
   (1) Linux 2.2 or higher.
-  (2) OpenBSD 3.0 (experimental).
+  (2) Solaris.
+  (3) OpenBSD (experimental).
+  (4) FreeBSD (experimental).
 
 REQUIRES:
   (1) Linux Kernel 2.2+ or OpenBSD 3.0+ (Though Linux Kernel
@@ -30,7 +32,7 @@ REQUIRES:
       users can easily install them from the "ports" collection.
 
 OPTIONAL (but recommended):
-  (1) OpenSSL library, necessary for encryption, version 0.9.6 or higher
+  (1) OpenSSL library, necessary for encryption, version 0.9.5 or higher
       required, available from http://www.openssl.org/
   (2) LZO real-time compression library, required for link compression,
       available from http://www.oberhumer.com/opensource/lzo/
@@ -75,7 +77,7 @@ TUN/TAP Driver Configuration:
   load driver:              modprobe tun
   enable routing:           echo 1 > /proc/sys/net/ipv4/ip_forward
 
- Linux 2.2 or earlier:
+ Linux 2.2 or Solaris:
 
   You should obtain
   version 1.1 of the TUN/TAP driver from

@@ -26,7 +26,6 @@
 #ifndef BUFFER_H
 #define BUFFER_H
 
-#include <string.h>
 #include "basic.h"
 #include "thread.h"
 

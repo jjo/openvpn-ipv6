@@ -117,7 +117,7 @@ udp_socket_set_outgoing_addr (const struct buffer *buf,
 			      const struct sockaddr_in *addr)
 {
   mutex_lock (L_SOCK);
-  if (buf->len > 0)
+  if (!buf || buf->len > 0)
     {
       ASSERT (ADDR_P (addr));
       if ((sock->remote_float

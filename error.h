@@ -28,9 +28,6 @@
 
 /* String and Error functions */
 
-#include <string.h>
-#include <stdarg.h>
-#include <ctype.h>
 #include "basic.h"
 
 /*

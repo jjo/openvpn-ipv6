@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.05.02 -- Version 1.1.1.6
+2002.05.06 -- Version 1.1.1.9
 
 * Added configuration file support via
   the --config option.
@@ -23,7 +23,8 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   including compression statistics.
 * Added --writepid option to write main
   process ID to a file.
-* Preliminary work porting to Solaris.
+* Backported to OpenSSL 0.9.5
+* Ported to Solaris.
 
 2002.04.22 -- Version 1.1.1
 	

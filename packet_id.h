@@ -160,31 +160,54 @@ packet_id_alloc_outgoing (struct packet_id_send *p, struct packet_id_net *pin, b
  * Read/write a packet ID to/from the buffer.  Short form is sequence number
  * only.  Long form is sequence number and timestamp.
  */
+
 static inline bool
 packet_id_read (struct packet_id_net *pin, struct buffer *buf, bool long_form)
 {
-  unsigned const char *p = buf_read_alloc (buf, packet_id_size (long_form));
+  packet_id_type net_id;
+  time_t net_time;
 
   pin->id = 0;
   pin->time = 0;
-  if (!p)
+
+  if (!buf_read (buf, &net_id, sizeof (net_id)))
     return false;
-  pin->id = ntohpid (*(packet_id_type*)p);
+  pin->id = ntohpid (net_id);
   if (long_form)
-    pin->time = ntohtime (*(time_t*)(p + sizeof (packet_id_type)));
+    {
+      if (!buf_read (buf, &net_time, sizeof (net_time)))
+	return false;
+      pin->time = ntohtime (net_time);
+    }
   return true;
 }
 
 static inline bool
 packet_id_write (const struct packet_id_net *pin, struct buffer *buf, bool long_form, bool prepend)
 {
-  unsigned char *p = buf_write_alloc_prepend (buf, packet_id_size (long_form), prepend);
+  packet_id_type net_id = htonpid (pin->id);
+  time_t net_time = htontime (pin->time);
 
-  if (!p)
-    return false;
-  *(packet_id_type*)p = htonpid (pin->id);
-  if (long_form)
-    *(time_t*)(p + sizeof (packet_id_type)) = htontime (pin->time);
+  if (prepend)
+    {
+      if (long_form)
+	{
+	  if (!buf_write_prepend (buf, &net_time, sizeof (net_time)))
+	    return false;
+	}
+      if (!buf_write_prepend (buf, &net_id, sizeof (net_id)))
+	return false;
+    }
+  else
+    {
+      if (!buf_write (buf, &net_id, sizeof (net_id)))
+	return false;
+      if (long_form)
+	{
+	  if (!buf_write (buf, &net_time, sizeof (net_time)))
+	    return false;
+	}
+    }
   return true;
 }
 
