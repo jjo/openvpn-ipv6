@@ -89,6 +89,20 @@ BUILD A TARBALL FROM CVS:
 
 *************************************************************************
 
+LOOPBACK TESTS (after BUILD):
+
+Test Crypto:
+
+./openvpn --genkey --secret key
+./openvpn --test-crypto --secret key
+
+Test SSL/TLS negotiations (runs for 2 minutes):
+
+./openvpn --config sample-config-files/loopback-client  (In one window) 
+./openvpn --config sample-config-files/loopback-server  (Simultaneously in another window) 
+
+*************************************************************************
+
 OPTIONS for ./configure:
 
   --enable-pthread          Compile pthread support for

@@ -18,6 +18,8 @@ of the OpenSSL library to securely tunnel IP networks over a single
 UDP port. It can use the Marcus Franz Xaver Johannes Oberhumer's LZO
 library for compression.
 
+%define debug_package %{nil}
+
 %prep
 %setup -q
 
