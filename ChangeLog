@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.09.14 -- Version 1.3.1.4
+2002.09.28 -- Version 1.3.1.5
 
 * Added SSL_CTX_set_client_CA_list call
   to follow the canonical form for TLS initialization
@@ -17,6 +17,11 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
 * Added --days 3650 to the root CA generation command
   in the howto to override the woefully small 30 day
   default (Dominik 'Aeneas' Schnitzer).
+* Fixed bug where --ping-restart would sometimes
+  not re-resolve remote DNS hostname.
+* Added "Important Note on the use of commercial certificate
+  authorities (CAs) with OpenVPN" to HOWTO based on
+  issues raised on the openvpn-users list.
 * Added paypal links to website for project donations.
 * Configured sourceforge mailing lists to require
   admin approval for non-member posts to reduce spam.

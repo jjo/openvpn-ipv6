@@ -1382,7 +1382,10 @@ openvpn (const struct options *options,
    */
   udp_socket_close (&udp_socket);
   if ( !(signal_received == SIGUSR1 && options->persist_remote_ip) )
-    CLEAR (udp_socket_addr->actual);
+    {
+      CLEAR (udp_socket_addr->remote);
+      CLEAR (udp_socket_addr->actual);
+    }
   if ( !(signal_received == SIGUSR1 && options->persist_local_ip) )
     CLEAR (udp_socket_addr->local);
 
