@@ -1608,6 +1608,8 @@ main (int argc, char *argv[])
 	  MUST_BE_UNDEF (handshake_window);
 	  MUST_BE_UNDEF (transition_window);
 	  MUST_BE_UNDEF (tls_auth_file);
+	  MUST_BE_UNDEF (single_session);
+	  MUST_BE_UNDEF (disable_occ);
 	}
 #undef MUST_BE_UNDEF
 #endif /* USE_CRYPTO */

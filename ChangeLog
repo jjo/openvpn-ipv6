@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.07.09 -- Version 1.2.1.11
+2002.07.10 -- Version 1.3.0
 
 * Added --dev-node option to allow explicit selection of
   tun/tap device node.

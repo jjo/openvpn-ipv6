@@ -105,6 +105,19 @@ bio_debug_oc (const char *mode, BIO *bio)
   fflush (biofp);
 }
 
+void
+openvpn_dump_binary(void *data, int size)
+{
+  FILE *fp;
+  char fn[256];
+
+  snprintf(fn, sizeof(fn), "bio/data-%d.der", getpid());
+  fp = fopen (fn, "w");
+  ASSERT (fp);
+  ASSERT (fwrite (data, size, 1, fp) == 1);
+  ASSERT (fclose(fp) == 0);
+}
+
 #endif
 
 /*
