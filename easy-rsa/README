@@ -1,0 +1,101 @@
+This is a small RSA key management package,
+based on the openssl command line tool, that
+can be found in the easy-rsa subdirectory
+of the OpenVPN distribution.
+
+INSTALL
+
+1. Edit vars.
+2. Set KEY_CONFIG to point to the openssl.cnf file
+   included in this distribution.
+3. Set KEY_DIR to point to a directory which will
+   contain all keys, certificates, etc.  This
+   directory need not exist, and if it does,
+   it will be deleted with rm -rf, so BE
+   CAREFUL how you set KEY_DIR.
+4. (Optional) Edit other fields in vars
+   per your site data.  You may want to
+   increase KEY_SIZE to 2048 if you are
+   paranoid and don't mind slower key
+   processing, but certainly 1024 is
+   fine for testing purposes.  KEY_SIZE
+   must be compatible across both peers
+   participating in a secure SSL/TLS
+   connection.
+5  . vars
+6. ./clean-all
+7. As you create certificates, keys, and
+   certificate signing requests, understand that
+   only .key files should be kept confidential.
+   .crt and .csr files can be sent over insecure
+   channels such as plaintext email.
+8. You should never need to copy a .key file
+   between computers.  Normally each computer
+   will have its own certificate/key pair.
+
+BUILD A CERTIFICATE SIGNING REQUEST (If
+you want to sign your certificate with a root
+certificate controlled by another individual
+or organization, or residing on a different machine).
+
+1. Get ca.crt (the root certificate) from your
+   certificate authority.  Though this
+   transfer can be over an insecure channel, to prevent
+   man-in-the-middle attacks you must confirm that
+   ca.crt was not tampered with.  Large CAs solve this
+   problem by hardwiring their root certificates into
+   popular web browsers.  A simple way to verify a root
+   CA is to call the issuer on the telephone and confirm
+   that the md5sum or sha1sum signatures on the ca.crt
+   files match (such as with the command: "md5sum ca.crt").
+2. Choose a name for your certificate such as your computer
+   name.  In our example we will use "deception".
+3. ./build-req deception
+4. You can ignore most of the fields, but set
+   "Common Name" to something unique such as your
+   computer's host name.  Leave all password
+   fields blank, unless you want your private key
+   to be protected by password.  Using a password
+   is not required -- it will make your key more secure
+   but also more inconvenient to use, because you will
+   need to supply your password anytime the key is used.
+   NOTE: if you are using a password, use ./build-req-pass
+   instead of ./build-req
+5. Your key will be written to $KEY_DIR/deception.key
+6. Your certificate signing request will be written to
+   to $KEY_DIR/deception.csr
+7. Email deception.csr to the individual or organization
+   which controls the root certificate.  This can be
+   done over an insecure channel.
+8. After the .csr file is signed by the root certificate
+   authority, you will receive a file deception.crt
+   (your certificate).  Place deception.crt in your
+   KEY_DIR directory.
+9. The combined files of deception.crt, deception.key,
+   and ca.crt can now be used to secure one end of
+   an SSL/TLS connection.
+
+BUILD YOUR OWN ROOT CERTIFICATE/KEY
+
+1. ./build-ca
+2. ca.crt and ca.key will be built in your KEY_DIR
+   directory
+
+SIGN SOMEONE ELSE's CERTIFICATE SIGNING REQUEST
+
+1. ./sign-req deception
+2. deception.crt will be built in your KEY_DIR
+   directory.
+
+BUILD AND SIGN A CERTIFICATE SIGNING REQUEST LOCALLY
+BASED ON A LOCALLY INSTALLED ROOT CERTIFICATE
+
+1. ./build-key deception (no password protection)
+2. OR ./build-key-pass deception (with password protection)
+3. deception.crt and deception.key will be built in your
+   KEY_DIR directory.
+
+BUILD DIFFIE-HELLMAN PARAMETERS (necessary for
+the server end of a SSL/TLS connection).
+
+1. ./build-dh

@@ -1,0 +1,29 @@
+# Edit this variable to point to
+# the openssl.cnf file included
+# with easy-rsa.
+export KEY_CONFIG=$HOME/easy-rsa/openssl.cnf
+
+# Edit this variable to point to
+# your soon-to-be-created key
+# directory.
+#
+# WARNING: clean-all will do
+# a rm -rf on this directory
+# so make sure you define
+# it correctly!
+export KEY_DIR=$HOME/my-openvpn-keys
+
+# Increase this to 2048 if you
+# are paranoid.  If you do increase,
+# make sure you build OpenVPN with
+# pthread support, so you don't incur
+# any performance penalty.
+export KEY_SIZE=1024
+
+# These are the default values for fields
+# which will be placed in the certificate.
+export KEY_COUNTRY=KG
+export KEY_PROVINCE=NA
+export KEY_CITY=BISHKEK
+export KEY_ORG="OpenVPN-TEST"
+export KEY_EMAIL="me@mail.kg"

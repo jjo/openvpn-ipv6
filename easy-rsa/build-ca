@@ -1,0 +1,12 @@
+#!/bin/bash
+
+#
+# Build a root certificate
+#
+
+if test $KEY_DIR; then
+	cd $KEY_DIR && \
+	openssl req -days 3650 -nodes -new -x509 -keyout ca.key -out ca.crt -config $KEY_CONFIG
+else
+	echo you must define KEY_DIR
+fi
