@@ -118,17 +118,17 @@ void work_thread_join (void);
 #define MUTEX_UNLOCK(lock)
 
 static inline void
-thread_init()
+thread_init(void)
 {
 }
 
 static inline void
-thread_cleanup()
+thread_cleanup(void)
 {
 }
 
 static inline int
-thread_number()
+thread_number(void)
 {
   return 0;
 }
@@ -139,7 +139,7 @@ work_thread_create (void *(*start_routine) (void *), void* arg)
 }
 
 static inline void
-work_thread_join ()
+work_thread_join (void)
 {
 }
 
