@@ -129,9 +129,11 @@ static const char usage_message[] =
   "                  'maybe' -- Use per-route hints\n"
   "                  'yes'   -- Always DF (Don't Fragment)\n"
 #ifdef FRAGMENT_ENABLE
-  "--mtu-dynamic [min] [max] : Enable advanced MTU negotiation and datagram\n"
-  "                  fragmentation, automatic MTU size negotiation between min\n"
-  "                  and max, adds 4 octets of overhead per datagram.\n"
+  "--mtu-dynamic [min] [max] : EXPERIMENTAL -- Enable internal datagram\n"
+  "                  fragmentation so that no UDP datagrams are sent which\n"
+  "                  are larger than max bytes.  Currently, dynamic MTU\n"
+  "                  sizing is not yet implemented, so min should equal max.\n"
+  "                  Adds 4 bytes of overhead per datagram.\n"
   "--mtu-noicmp    : Don't automatically generate 'Fragmentation needed but\n"
   "                  DF set' IPv4 ICMP messages.\n" 
 #endif

@@ -43,7 +43,11 @@ man_MANS = openvpn.8
 EXTRA_DIST = $(man_MANS) \
 	     COPYRIGHT.GPL PORTS openvpn.spec \
 	     easy-rsa sample-config-files sample-keys \
-	     sample-scripts openvpn.spec.in
+	     sample-scripts openvpn.spec.in \
+	     config-win32.h \
+	     openvpn-win32.h \
+	     openvpn-win32.c \
+	     makefile.w32
 
 dist-hook:
 	cd $(distdir) && for i in $(EXTRA_DIST) ; do find $$i -name CVS -type d -prune -exec rm -r '{}' ';' ; rm -f `find $$i -type f | grep -E '(^|\/)\.?\#|\~$$'` ; done

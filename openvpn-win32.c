@@ -23,6 +23,11 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+/*
+ * Win32-specific OpenVPN code, targetted at the mingw
+ * development environment.
+ */
+
 #include "config-win32.h"
 #include "syshead.h"
 #include "error.h"
@@ -36,6 +41,12 @@ init_win32 (void)
     {
       msg (M_ERR, "WSAStartup failed");
     }
+}
+
+void
+uninit_win32 (void)
+{
+  WSACleanup ();
 }
 
 /* taken from stunnel */

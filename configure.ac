@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.4.1.6], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.4.1.7], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -144,6 +144,11 @@ case "$target" in
 	AC_DEFINE(TARGET_DARWIN, 1, [Are we running on Mac OS X?])
 	CPPFLAGS="$CPPFLAGS -no-cpp-precomp"
 	;;
+*mingw*)
+	OPENVPN_ADD_LIBS(-lgdi32)
+	OPENVPN_ADD_LIBS(-lwsock32)
+	;;
+	
 esac
 
 dnl Checks for programs.

@@ -28,7 +28,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "28 June 2003"
+.TH openvpn 8 "6 Julu 2003"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -113,6 +113,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-tun\-mtu\fR\ \fIn\fR\ ]
 [\ \fB\-\-tun\-mtu\-extra\fR\ \fIn\fR\ ]
 [\ \fB\-\-mtu\-disc\fR\ \fItype\fR\ ]
+[\ \fB\-\-mtu\-dynamic\fR\ \fI[min]\ [max]\fR\ ]
 [\ \fB\-\-shaper\fR\ \fIn\fR\ ]
 [\ \fB\-\-inactive\fR\ \fIn\fR\ ]
 [\ \fB\-\-ping\fR\ \fIn\fR\ ]
@@ -441,10 +442,13 @@ Execute as:
 
 .B cmd ip_address port_number
 
-Commas (',') may be used to separate multiple args in
-.B cmd.
-Before the command line is passed to the shell, all commas
-will be converted to spaces.
+Note that
+.B cmd
+can be a shell command with multiple arguments, in which
+case all OpenVPN-generated arguments will be appended
+to
+.B cmd
+to build a command line which will be passed to the script.
 
 If you are running in a dynamic IP address environment where
 the IP addresses of either peer could change without notice,
@@ -672,6 +676,35 @@ as Linux that supports the necessary system call to set.
 -- Always DF (Don't Fragment)
 .br
 .TP
+.B --mtu-dynamic [min] [max]
+EXPERIMENTAL -- Enable internal datagram fragmentation so
+that no UDP datagrams are sent which
+are larger than
+.B max
+bytes.  Currently, dynamic MTU
+sizing is not yet implemented, so
+.B min
+should equal
+.B max.
+
+Adds 4 bytes of overhead per datagram.
+
+Since this option is currently experimental, you must rebuild
+OpenVPN with the
+.B --enable-mtu-dynamic
+configure flag in order to have the capability of using
+this option.
+
+It should also be noted that this option is not meant to replace
+UDP fragmentation at the IP stack level.  It is only meant as a
+last resort when path MTU discovery is broken.  Using this option
+is less efficient than fixing path MTU discovery for your IP link and
+using native IP fragmentation instead.
+
+Having said that, there are circumstances where using OpenVPN's
+internal fragmentation capability may be your only option, such
+as tunneling a UDP multicast stream which requires fragmentation.
+.TP
 .B --shaper n
 Limit bandwidth of outgoing tunnel data to
 .B n
@@ -896,6 +929,14 @@ UID change).
 Execute as:
 
 .B cmd tun_tap_dev tun_mtu udp_mtu ifconfig_local_ip ifconfig_remote_ip
+
+Note that
+.B cmd
+can be a shell command with multiple arguments, in which
+case all OpenVPN-generated arguments will be appended
+to
+.B cmd
+to build a command line which will be passed to the script.
 
 Typically,
 .B cmd
@@ -1687,11 +1728,13 @@ is executed as
 
 .B cmd certificate_depth X509_NAME_oneline
 
-Commas (',') may be used to separate multiple args in
-.B cmd.
-
-Before the command line is passed to the shell, all commas
-will be converted to spaces.
+Note that
+.B cmd
+can be a shell command with multiple arguments, in which
+case all OpenVPN-generated arguments will be appended
+to
+.B cmd
+to build a command line which will be passed to the script.
 
 This feature is useful if the peer you want to trust has a certificate
 which was signed by a certificate authority who also signed a zillion

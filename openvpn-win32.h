@@ -23,6 +23,11 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+/*
+ * Win32-specific OpenVPN code, targetted at the mingw
+ * development environment.
+ */
+
 #include <windows.h>
 #include <winsock.h>
 
@@ -35,9 +40,10 @@
 #define srandom srand
 
 typedef unsigned int in_addr_t;
-typedef int ssize_t;
+typedef unsigned int ssize_t;
 
 void init_win32 (void);
+void uninit_win32 (void);
 int inet_aton (const char *name, struct in_addr *addr);
 const char *strerror_win32 (int errnum);
 

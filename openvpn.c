@@ -2028,8 +2028,13 @@ main (int argc, char *argv[])
   } while (sig == SIGHUP);
 
   thread_cleanup();
+
 #ifdef USE_CRYPTO
   free_ssl_lib ();
+#endif
+
+#ifdef WIN32
+  uninit_win32 ();
 #endif
 
  exit:

@@ -23,7 +23,9 @@ Upcoming Version 1.4.2
   (1.4.1.5).
 * Coded the beginnings of a WIN32 port (1.4.1.5).
 * Succeeded in porting to Win32 Mingw environment
-  and running loopback tests (1.4.1.6).
+  and running loopback tests (1.4.1.6).  Still
+  need a kernel driver for full Win32
+  functionality.
 * Fixed a bug in error.h where
   HAVE_CPP_VARARG_MACRO_GCC was misspelled.
   This would have caused a significant slowdown
