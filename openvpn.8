@@ -877,7 +877,7 @@ address conflicts which occasionally annoy more experienced
 users by triggering "false positive" warnings.
 .\"*********************************************************
 .TP
-.B --route network [netmask] [gateway] [metric]
+.B --route network/IP [netmask] [gateway] [metric]
 Add route to routing table after connection is established.
 Multiple routes can be specified.  Routes will be
 automatically torn down in reverse order prior to
@@ -1903,7 +1903,7 @@ or TUN/TAP devices.  In such cases, one can optimize the event loop
 by avoiding the poll/epoll/select call, improving CPU efficiency
 by 5% to 10%.
 
-This option can only be used on non-Windows system, when
+This option can only be used on non-Windows systems, when
 .B --proto udp
 is specified, and when
 .B --shaper
@@ -2245,13 +2245,6 @@ configuration file.  This option will ignore
 options at the global config file level.
 .\"*********************************************************
 .TP
-.B --pull
-This option must be used on a client which is connecting
-to a multi-client server.  It indicates to OpenVPN that it
-should accept options pushed by the server, provided they
-are part of the legal set of pushable options.
-.\"*********************************************************
-.TP
 .B --ifconfig-pool start-IP end-IP [netmask]
 Set aside a pool of subnets to be
 dynamically allocated to connecting clients, similar
@@ -2324,7 +2317,13 @@ and
 are set according to the
 .B --ifconfig
 directive which you want to execute on the client machine to
-configure the remote end of the tunnel.
+configure the remote end of the tunnel.  Note that the parameters
+.B local
+and
+.B remote-netmask
+are from the perspective of the client, not the server.  They may be
+DNS names rather than IP addresses, in which case they will be resolved
+on the server at the time of client connection.
 
 This option must be associated with a specific client instance,
 which means that it must be specified either in a client
@@ -2334,8 +2333,15 @@ or dynamically generated using a
 .B --client-connect
 script.
 
-There are three ways a set of client tunnel endpoints can
-be selected:
+Remember also to include a
+.B --route
+directive in the main OpenVPN config file which encloses
+.B local,
+so that the kernel will know to route it
+to the server's TUN/TAP interface.
+
+OpenVPN's internal client IP address selection algorithm works as
+follows:
 
 .B 1
 -- Use
@@ -2430,13 +2436,20 @@ Run
 .B script
 on client connection.  The script is passed the common name
 and IP address of the just-authenticated client
-as environmental variables.  The script is also passed
-a single argument which is the pathname of a temporary file.
-If the script wants to generate client-instance-specific
-options, it can write them to this file.  See the
+as environmental variables (see environmental variable section
+below).  The script is also passed
+the pathname of a not-yet-created temporary file as $1
+(i.e. the first command line argument), to be used by the script
+to pass dynamically generated config file directives back to OpenVPN.
+
+If the script wants to generate a dynamic config file
+to be applied on the server when the client connects,
+it should write it to the file named by $1.
+
+See the
 .B --client-config-dir
 option below for options which
-can be legally used in a client-specific context.
+can be legally used in a dynamically generated config file.
 
 Note that the return value of
 .B script
@@ -2527,8 +2540,9 @@ When OpenVPN is tunneling data from a TUN/TAP device to a
 remote client over a TCP connection, it is possible that the TUN/TAP device
 might produce data at a faster rate than the TCP connection
 can support.  When the number of queued TCP output packets reaches
-this limit, OpenVPN will start to drop packets coming from
-the TUN/TAP device.
+this limit for a given client connection,
+OpenVPN will start to drop outgoing packets directed
+at this client.
 .\"*********************************************************
 .TP
 .B --max-clients n
@@ -2712,6 +2726,13 @@ of OpenVPN's client mode.  This directive is equivalent to:
 .LP
 .RE
 .fi
+.\"*********************************************************
+.TP
+.B --pull
+This option must be used on a client which is connecting
+to a multi-client server.  It indicates to OpenVPN that it
+should accept options pushed by the server, provided they
+are part of the legal set of pushable options.
 .\"*********************************************************
 .TP
 .B --auth-user-pass [up]
@@ -4056,6 +4077,55 @@ Executed in
 .B --mode server
 mode on new client connections, when the client is
 still untrusted.
+.\"*********************************************************
+.SS String Types and Remapping
+In certain cases, OpenVPN will perform remapping of characters
+in strings.  Essentially, any characters outside the set of
+permitted characters for each string type will be converted
+to underbar ('_').
+
+.B Q:
+Why is string remapping necessary?
+
+.B A:
+It's an important security feature to prevent the malicious coding of
+strings from untrusted sources to be passed as parameters to scripts,
+saved in the environment, used as a common name, translated to a filename,
+etc.
+
+Here is a brief rundown of OpenVPN's current string types and the 
+permitted character class for each string:
+
+.B X509 Names:
+Alphanumeric, underbar ('_'), dash ('-'), dot ('.'), at 
+('@'), colon (':'), slash ('/'), and equal ('=').  Alphanumeric is defined 
+as a character which will cause the C library isalnum() function to return 
+true.
+
+.B Common Names:
+Alphanumeric, underbar ('_'), dash ('-'), dot ('.'), and at                
+('@').
+
+.B --auth-user-pass username
+Same as Common Name.
+
+.B --auth-user-pass password
+Any "printable" character except CR or LF.  
+Printable is defined to be a character which will cause the C library 
+isprint() function to return true.
+
+.B --client-config-dir filename as derived from common name or username:
+Alphanumeric, underbar ('_'), dash ('-'), and dot ('.') except for "." or 
+".." as standalone strings.
+
+.B Environmental variable names:
+Alphanumeric or underbar ('_').
+
+.B Environmental variable values:
+Any printable character.
+
+For all cases, characters in a string which are not members of the legal 
+character class for that string type will be remapped to underbar ('_').
 .\"*********************************************************
 .SS Environmental Variables
 Once set, a variable is persisted

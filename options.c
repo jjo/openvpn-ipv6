@@ -3697,8 +3697,8 @@ add_option (struct options *options,
 
       i += 2;
       VERIFY_PERMISSION (OPT_P_INSTANCE);
-      local = getaddr (GETADDR_HOST_ORDER, p[1], 0, NULL, NULL);
-      remote_netmask = getaddr (GETADDR_HOST_ORDER, p[2], 0, NULL, NULL);
+      local = getaddr (GETADDR_HOST_ORDER|GETADDR_RESOLVE, p[1], 0, NULL, NULL);
+      remote_netmask = getaddr (GETADDR_HOST_ORDER|GETADDR_RESOLVE, p[2], 0, NULL, NULL);
       if (local && remote_netmask)
 	{
 	  options->push_ifconfig_defined = true;
