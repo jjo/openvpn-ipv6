@@ -13,6 +13,8 @@ Upcoming Version 1.4.1
   Occurs on platorms where
   EXTENDED_SOCKET_ERROR_CAPABILITY is defined,
   such as Linux 2.4.
+* Fixed typo in tun.c that was preventing
+  OpenBSD build.
 
 2003.05.07 -- Version 1.4.0
 

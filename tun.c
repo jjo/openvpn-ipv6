@@ -700,7 +700,7 @@ read_tun (struct tuntap* tt, uint8_t *buf, int len)
 #endif
 
 void
-open_tun (const char *dev, const char *dev_type, const chart *dev_name,
+open_tun (const char *dev, const char *dev_type, const char *dev_name,
 	  const char *dev_node, bool ipv6, struct tuntap *tt)
 {
   open_tun_generic (dev, dev_node, dev_name, ipv6, false, true, tt);
