@@ -251,10 +251,10 @@ udp_socket_get_outgoing_addr (struct buffer *buf,
 void
 udp_socket_close (struct udp_socket *sock)
 {
-  if (sock->sd)
+  if (sock->sd >= 0)
     {
       close (sock->sd);
-      sock->sd = 0;
+      sock->sd = -1;
     }
 }
 

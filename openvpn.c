@@ -993,7 +993,7 @@ openvpn (const struct options *options,
 		udp_read_bytes += buf.len;
 
 	      /* check recvfrom status */
-	      check_status (buf.len, "read from udp");
+	      check_status (buf.len, "read from UDP");
 
 	      /* possibly corrupt packet if we are in gremlin test mode */
 	      if (options->gremlin) {
@@ -1235,7 +1235,7 @@ openvpn (const struct options *options,
 		   * This should never happen, probably indicates some kind
 		   * of MTU mismatch.
 		   */
-		  msg (D_LINK_ERRORS, "TUN packet too large on write (tried=%d,max=%d)",
+		  msg (D_LINK_ERRORS, "tun packet too large on write (tried=%d,max=%d)",
 		       to_tun.len,
 		       MAX_RW_SIZE_TUN (&frame));
 		}
@@ -1289,7 +1289,7 @@ openvpn (const struct options *options,
 		    size = 0;
 
 		  /* Check sendto() return status */
-		  check_status (size, "write to udp");
+		  check_status (size, "write to UDP");
 
 		  if (size > 0)
 		    {
