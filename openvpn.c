@@ -108,6 +108,12 @@ signal_handler_exit (int signum)
 #define PROTO_DUMP(buf) format_hex (BPTR (buf), BLEN (buf), 80)
 #endif
 
+#ifdef USE_CRYPTO
+#define MD5SUM(buf, len) md5sum(buf, len)
+#else
+#define MD5SUM(buf, len) "[unavailable]"
+#endif
+
 #if defined(USE_PTHREAD) && defined(USE_CRYPTO)
 static void *test_crypto_thread (void *arg);
 #endif
@@ -403,7 +409,7 @@ openvpn (const struct options *options,
    */
 #ifdef FRAGMENT_ENABLE
   if (options->mtu_dynamic)
-    fragment = fragment_init (&frame);
+    fragment = fragment_init (&frame, /*!options->shaper*/ false); // CHANGEME
 #endif
 
 #ifdef USE_CRYPTO
@@ -1010,6 +1016,7 @@ openvpn (const struct options *options,
 	      to_tun = buf;
 	    }
 	  fragment_housekeeping (fragment, &frame_fragment, current, &timeval);
+	  tv = &timeval;
 	}
 #endif /* FRAGMENT_ENABLE */
 
@@ -1102,8 +1109,9 @@ openvpn (const struct options *options,
 	  if (options->shaper)
 	    delay = max_int (delay, shaper_delay (&shaper));
 
-	  if (delay)
+	  if (delay >= 1000) // CHANGEME
 	    {
+	      fprintf (stderr, "[%d]", delay); // CHANGEME
 	      shaper_soonest_event (&timeval, delay);
 	      tv = &timeval;
 	    }
@@ -1175,6 +1183,14 @@ openvpn (const struct options *options,
        * Wait for something to happen.
        */
       if (!signal_received) {
+	msg (D_SELECT, "SELECT %s|%s|%s|%s %d/%d",
+	     FD_ISSET (tuntap->fd, &reads) ?     "TR" : "tr", 
+	     FD_ISSET (tuntap->fd, &writes) ?    "TW" : "tw", 
+	     FD_ISSET (udp_socket.sd, &reads) ?  "UR" : "ur",
+	     FD_ISSET (udp_socket.sd, &writes) ? "UW" : "uw",
+	     tv ? (int)tv->tv_sec : -1,
+	     tv ? (int)tv->tv_usec : -1
+	     );
 	stat = select (fm, &reads, &writes, NULL, tv);
 	check_status (stat, "select", NULL);
       }
@@ -1278,6 +1294,10 @@ openvpn (const struct options *options,
 	      }
 
 	      /* log incoming packet */
+#ifdef LOG_RW
+	      if (check_debug_level (D_LOG_RW) && !check_debug_level (D_LOG_RW + 1))
+		fprintf (stderr, "R");
+#endif
 	      msg (D_UDP_RW, "UDP READ [%d] from %s: %s",
 		   BLEN (&buf), print_sockaddr (&from), PROTO_DUMP (&buf));
 
@@ -1420,6 +1440,12 @@ openvpn (const struct options *options,
 	      /* Check the status return from read() */
 	      check_status (buf.len, "read from TUN/TAP", NULL);
 
+	      /* show packet content */
+	      msg (D_TUN_RW, "TUN READ [%d]: %s md5=%s",
+		   BLEN (&buf),
+		   format_hex (BPTR (&buf), BLEN (&buf), 80),
+		   MD5SUM (BPTR (&buf), BLEN (&buf)));
+
 #ifdef FRAGMENT_ENABLE
 	      /* if packet is too big, we might want to bounce back a "fragmentation
 		 needed but DF set ICMP message */
@@ -1521,7 +1547,14 @@ openvpn (const struct options *options,
 		  /*
 		   * Write to TUN/TAP device.
 		   */
-		  const int size = write_tun (tuntap, BPTR (&to_tun), BLEN (&to_tun));
+		  int size;
+
+		  msg (D_TUN_RW, "TUN WRITE [%d]: %s md5=%s",
+		       BLEN (&to_tun),
+		       format_hex (BPTR (&to_tun), BLEN (&to_tun), 80),
+		       MD5SUM (BPTR (&to_tun), BLEN (&to_tun)));
+
+		  size = write_tun (tuntap, BPTR (&to_tun), BLEN (&to_tun));
 		  if (size > 0)
 		    tun_write_bytes += size;
 		  check_status (size, "write to TUN/TAP", NULL);
@@ -1624,6 +1657,10 @@ openvpn (const struct options *options,
 		    }
 
 		  /* Log packet send */
+#ifdef LOG_RW
+		  if (check_debug_level (D_LOG_RW) && !check_debug_level (D_LOG_RW + 1))
+		    fprintf (stderr, "W");
+#endif
 		  msg (D_UDP_RW, "UDP WRITE [%d] to %s: %s",
 		       BLEN (&to_udp), print_sockaddr (&to_udp_addr), PROTO_DUMP (&to_udp));
 		}

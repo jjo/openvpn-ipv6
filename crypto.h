@@ -262,6 +262,8 @@ void crypto_adjust_frame_parameters (struct frame *frame,
 
 void test_crypto (const struct crypto_options *co, struct frame* f);
 
+const char *md5sum(uint8_t *buf, int len);
+
 void show_available_ciphers (void);
 
 void show_available_digests (void);

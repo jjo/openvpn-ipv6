@@ -79,17 +79,20 @@ fragment_list_get_buf (struct fragment_list *list, int seq_id)
 static inline void
 fragment_shaper_init (struct fragment_master *f, const time_t current)
 {
-  f->output_bandwidth_throttle_expire = current + BANDWIDTH_THROTTLE_EXPIRE;
-  if (!f->need_output_bandwidth_throttle)
+  if (f->enable_output_bandwidth_throttle)
     {
-      shaper_reset_wakeup (&f->shaper);
-      f->need_output_bandwidth_throttle = true;
-      msg (D_FRAG_DEBUG, "FRAG started adaptive bandwidth throttle");
+      f->output_bandwidth_throttle_expire = current + BANDWIDTH_THROTTLE_EXPIRE;
+      if (!f->need_output_bandwidth_throttle)
+	{
+	  shaper_reset_wakeup (&f->shaper);
+	  f->need_output_bandwidth_throttle = true;
+	  msg (D_FRAG_DEBUG, "FRAG started adaptive bandwidth throttle");
+	}
     }
 }
 
 struct fragment_master *
-fragment_init (struct frame *frame)
+fragment_init (struct frame *frame, int enable_output_bandwidth_throttle)
 {
   struct fragment_master *ret;
 
@@ -106,10 +109,14 @@ fragment_init (struct frame *frame)
    * fragmentation control information resides inside of the encrypted/authenticated envelope.
    */
   ret->outgoing_seq_id = (int)get_random() & (N_SEQ_ID - 1);
+  ret->enable_output_bandwidth_throttle = enable_output_bandwidth_throttle;
 
   event_timeout_init (&ret->wakeup, 0, FRAG_WAKEUP_INTERVAL);
 
-  shaper_init (&ret->shaper, FRAG_INITIAL_BANDWIDTH);
+  if (enable_output_bandwidth_throttle) {
+    shaper_init (&ret->shaper, FRAG_INITIAL_BANDWIDTH);
+    fragment_shaper_init (ret, time (NULL)); // CHANGEME
+  }
 
   return ret;
 }

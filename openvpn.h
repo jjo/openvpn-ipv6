@@ -62,4 +62,10 @@
 /* #define OPENVPN_DEBUG_COMMAND_LINE */
 #define OPENVPN_DEBUG_FILE "/tmp/openvpn"
 
+/*
+ * At exactly --verb 5 (not less or greater), print 'R' and 'W' chars
+ * to stdout for each packet read/write on UDP port.
+ */
+#define LOG_RW // CHANGEME
+
 #endif

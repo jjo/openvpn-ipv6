@@ -1123,6 +1123,13 @@ get_random()
   return l;
 }
 
+const char *
+md5sum(uint8_t *buf, int len)
+{
+  uint8_t digest[MD5_DIGEST_LENGTH];
+  MD5 (buf, len, digest);
+  return format_hex (digest, MD5_DIGEST_LENGTH, 0);
+}
 
 #ifndef USE_SSL
 

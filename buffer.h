@@ -50,6 +50,8 @@ struct buffer alloc_buf_gc (size_t size);	/* allocate buffer with garbage collec
 struct buffer clear_buf (void);
 void free_buf (struct buffer *buf);
 
+/* inline functions */
+
 static inline bool
 buf_init (struct buffer *buf, int offset)
 {

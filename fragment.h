@@ -39,7 +39,7 @@
 #define FRAG_TTL_SEC                 10      /* number of seconds time-to-live for a fragment */
 #define FRAG_WAKEUP_INTERVAL         5       /* wakeup code called once per n seconds */
 
-#define FRAG_INITIAL_BANDWIDTH       10000   /* starting point (bytes per sec) for adaptive bandwidth */
+#define FRAG_INITIAL_BANDWIDTH       1000    /* starting point (bytes per sec) for adaptive bandwidth */
 #define BANDWIDTH_THROTTLE_EXPIRE    10      /* adaptive bandwidth expire (seconds) */
 
 struct fragment {
@@ -84,6 +84,7 @@ struct fragment_master {
   bool wrote_last_fragment;
 
   /* used by transfer event functions to measure correct output bandwidth */
+  bool enable_output_bandwidth_throttle;
   bool need_output_bandwidth_throttle;
   time_t output_bandwidth_throttle_expire;
   int transfer_bytes;
@@ -178,7 +179,7 @@ typedef uint32_t fragment_header_type;
  * Public functions
  */
 
-struct fragment_master *fragment_init (struct frame *frame);
+struct fragment_master *fragment_init (struct frame *frame, int enable_output_bandwidth_throttle);
 
 void fragment_frame_init (struct fragment_master *f, const struct frame *frame, bool generate_icmp);
 
@@ -243,18 +244,30 @@ fragment_icmp (struct fragment_master *f, struct buffer *buf)
 static inline void
 fragment_transfer_event_adjust_bandwidth (struct fragment_master *f)
 {
+  /* as this parm gets bigger, output bandwidth becomes more stable */
+  const int rel_ceil = 2;
+
   /* frequency of packets appearing on TUN/TAP interface */
-  const int tda = usec_timer_interval (&f->timer_tda);
+  int tda = usec_timer_interval (&f->timer_tda);
 
   /* frequency of datagrams being sent over UDP port */
-  const int udw = usec_timer_interval (&f->timer_udw);
+  int udw = usec_timer_interval (&f->timer_udw);
 
-  /* do magic */
-  if (udw * 16 > tda && f->transfer_bytes_save < MAX_FRAG_PKT_SIZE)
+  //fprintf (stderr, "[%d,%d", tda, udw); // CHANGEME
+
+  /* each of udw, tda should be no more than rel_ceil times the other */
+  udw = min_int (tda * rel_ceil, udw);
+  tda = min_int (udw * rel_ceil, tda);
+
+  /* compute rate */
+  if (f->transfer_bytes_save < MAX_FRAG_PKT_SIZE)
     {
       const int bytes_per_sec = (f->transfer_bytes_save * 32768) / ((tda + udw) / 128);
       shaper_reset (&f->shaper, bytes_per_sec);
+      //fprintf (stderr, ",%d", bytes_per_sec); // CHANGEME
     }
+
+  //fprintf (stderr, "]"); // CHANGEME
 
   msg (D_FRAG_DEBUG, "FRAG adjust_bandwidth tda=%d udw=%d bps=%d",
        tda, udw, shaper_current_bandwidth (&f->shaper));

@@ -91,9 +91,9 @@ shaper_delay (struct shaper* s)
     {
       ASSERT (!gettimeofday (&tv, NULL));
       delay = tv_subtract (&s->wakeup, &tv, SHAPER_MAX_TIMEOUT);
+      msg (D_SHAPER_DEBUG, "SHAPER shaper_delay delay=%d", delay);
     }
 
-  msg (D_SHAPER_DEBUG, "SHAPER shaper_delay delay=%d", delay);
   return delay > 0 ? delay : 0;
 }
 
@@ -142,18 +142,21 @@ shaper_wrote_bytes (struct shaper* s, int nbytes)
 {
   /* delay in microseconds */
   const int delay = s->bytes_per_second
-    ? min_int (((1000000 / s->bytes_per_second) * nbytes), (SHAPER_MAX_TIMEOUT*1000000))
+    ? min_int (((1000000 / s->bytes_per_second) * max_int (nbytes, 200)), (SHAPER_MAX_TIMEOUT*1000000))
     : 0;
   
-  ASSERT (!gettimeofday (&s->wakeup, NULL));
-  s->wakeup.tv_usec += delay;
-  while (s->wakeup.tv_usec >= 1000000)
+  if (delay)
     {
-      ++s->wakeup.tv_sec;
-      s->wakeup.tv_usec -= 1000000;
+      ASSERT (!gettimeofday (&s->wakeup, NULL));
+      s->wakeup.tv_usec += delay;
+      while (s->wakeup.tv_usec >= 1000000)
+	{
+	  ++s->wakeup.tv_sec;
+	  s->wakeup.tv_usec -= 1000000;
+	}
+      msg (D_SHAPER_DEBUG, "SHAPER shaper_wrote_bytes bytes=%d delay=%d sec=%d usec=%d",
+	   nbytes, delay, (int)s->wakeup.tv_sec, (int)s->wakeup.tv_usec);
     }
-  msg (D_SHAPER_DEBUG, "SHAPER shaper_wrote_bytes bytes=%d delay=%d sec=%d usec=%d",
-       nbytes, delay, (int)s->wakeup.tv_sec, (int)s->wakeup.tv_usec);
 }
 
 /*

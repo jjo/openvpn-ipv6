@@ -191,6 +191,7 @@ event_timeout_wakeup (struct event_timeout* et, time_t current, struct timeval* 
 	{
 	  msg (D_INTERVAL, "EVENT event_timeout_wakeup (%d/%d)", wakeup, et->n);
 	  tv->tv_sec = wakeup;
+	  tv->tv_usec = 0;
 	}
     }
 }

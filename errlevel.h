@@ -52,6 +52,8 @@
 
 #define D_SHOW_PARMS         LOGLEV(4, 40, 0)        /* show all parameters on program initiation */
 
+#define D_LOG_RW             LOGLEV(5, 0, 0)         /* Print 'R' or 'W' to stdout for read/write */
+
 #define D_UDP_RW             LOGLEV(6, 60, M_DEBUG)  /* show UDP reads/writes (terse) */
 
 #define D_SHOW_KEYS          LOGLEV(7, 70, M_DEBUG)  /* show data channel encryption keys */
@@ -76,8 +78,10 @@
 #define D_PID_PERSIST_DEBUG  LOGLEV(9, 70, M_DEBUG)  /* show packet-id persist debugging info */
 #define D_UDP_RW_VERBOSE     LOGLEV(9, 70, M_DEBUG)  /* show UDP reads/writes with greater verbosity */
 #define D_TLS_THREAD_DEBUG   LOGLEV(9, 70, M_DEBUG)  /* show detailed info from TLS thread routines */
+#define D_SELECT             LOGLEV(9, 70, M_DEBUG)  /* show detailed info from main select() call */
+#define D_TUN_RW             LOGLEV(9, 70, M_DEBUG)  /* show TUN/TAP reads/writes */
 
-#define D_SHAPER_DEBUG       LOGLEV(10, 70, M_DEBUG)  /* show traffic shaper info */
+#define D_SHAPER_DEBUG       LOGLEV(10, 70, M_DEBUG) /* show traffic shaper info */
 
 #define D_OPENSSL_LOCK       LOGLEV(11, 70, M_DEBUG) /* show OpenSSL locks */
 
