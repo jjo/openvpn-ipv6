@@ -32,6 +32,7 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/des.h>
+#include <openssl/md5.h>
 
 #include "basic.h"
 #include "buffer.h"
