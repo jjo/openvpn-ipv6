@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.12.09 -- Version 1.3.2.5
+2003.02.06 -- Version 1.3.2.6
 
 * Added --replay-persist feature to allow replay
   protection across sessions.
@@ -22,6 +22,12 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   where stdout, stderr, and syslog cannot be used
   for message output, such as when OpenVPN is
   instantiated by inetd/xinetd.
+* Removed owner-execute permission from file
+  created by static key generator (Herbert Xu
+  and Alberto Gonzalez Iniesta).
+* Added --passtos option to allow IPv4 TOS bits
+  to be passed from TUN/TAP input packets to
+  the outgoing UDP socket (Craig Knox).
 
 2002.10.23 -- Version 1.3.2
 

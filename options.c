@@ -86,6 +86,9 @@ static const char usage_message[] =
   "--persist-remote-ip : Keep remote IP address across SIGUSR1 or --ping-restart.\n"
   "--persist-local-ip  : Keep local IP address across SIGUSR1 or --ping-restart.\n"
   "--persist-key   : Don't re-read key files across SIGUSR1 or --ping-restart.\n"
+#if ENABLE_PASSTOS
+  "--passtos       : TOS passthrough (applies to IPv4 only).\n"
+#endif
   "--tun-mtu n     : Take the tun/tap device MTU to be n and derive the\n"
   "                  UDP MTU from it (default=%d).\n"
   "--tun-mtu-extra n : Assume that tun/tap device might return as many as n bytes\n"
@@ -312,6 +315,10 @@ show_settings (const struct options *o)
   SHOW_BOOL (persist_local_ip);
   SHOW_BOOL (persist_remote_ip);
   SHOW_BOOL (persist_key);
+  
+#if ENABLE_PASSTOS
+  SHOW_BOOL (passtos);
+#endif
 
   SHOW_INT (resolve_retry_seconds);
 
@@ -884,6 +891,12 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
     {
       options->persist_remote_ip = true;
     }
+#if ENABLE_PASSTOS
+  else if (streq (p1, "passtos"))
+    {
+      options->passtos = true;
+    }
+#endif
 #ifdef USE_LZO
   else if (streq (p1, "comp-lzo"))
     {

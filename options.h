@@ -78,6 +78,10 @@ struct options
   bool persist_remote_ip;       /* Don't re-resolve remote address on SIGUSR1 or PING_RESTART */
   bool persist_key;             /* Don't re-read key files on SIGUSR1 or PING_RESTART */
 
+#if ENABLE_PASSTOS
+  bool passtos;                  
+#endif
+
   int resolve_retry_seconds;    /* If hostname resolve fails, retry for n seconds */
 
   /* Misc parms */

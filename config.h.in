@@ -135,6 +135,9 @@
 /* Define to 1 if you have the `setgroups' function. */
 #undef HAVE_SETGROUPS
 
+/* Define to 1 if you have the `setsockopt' function. */
+#undef HAVE_SETSOCKOPT
+
 /* Define to 1 if you have the `setuid' function. */
 #undef HAVE_SETUID
 

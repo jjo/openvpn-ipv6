@@ -5,7 +5,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "27 November 2002"
+.TH openvpn 8 "6 February 2003"
 .SH NAME
 openvpn \- secure IP tunnel daemon.
 .SH SYNOPSIS
@@ -106,6 +106,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-cd\fR\ \fIdir\fR\ ]
 [\ \fB\-\-chroot\fR\ \fIdir\fR\ ]
 [\ \fB\-\-daemon\fR\ ]
+[\ \fB\-\-passtos\fR\ ]
 [\ \fB\-\-inetd\fR\ ]
 [\ \fB\-\-writepid\fR\ \fIfile\fR\ ]
 [\ \fB\-\-nice\fR\ \fIn\fR\ ]
@@ -938,6 +939,9 @@ including special files such
 .TP
 .B --daemon
 Become a daemon and write all messages to the syslog file (such as /var/log/messages).
+.TP
+.B --passtos
+Set the TOS field of the tunnel packet to what the payload's TOS is.
 .TP
 .B --inetd
 Use this option when OpenVPN is being run from the inetd or

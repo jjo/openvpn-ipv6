@@ -227,4 +227,13 @@
 #include <pthread.h>
 #endif
 
+/*
+ * Do we have the capability to support the --passtos option?
+ */
+#if defined(HAVE_IPHDR) && defined(IPPROTO_IP) && defined(IP_TOS) && defined(HAVE_SETSOCKOPT)
+#define ENABLE_PASSTOS 1
+#else
+#define ENABLE_PASSTOS 0
+#endif
+
 #endif

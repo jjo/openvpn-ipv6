@@ -972,7 +972,8 @@ write_key_file (const struct key *key, const char *filename)
   struct buffer out = alloc_buf_gc (512);
 
   /* open key file */
-  fd = open (filename, O_CREAT | O_TRUNC | O_WRONLY, S_IRWXU);
+  fd = open (filename, O_CREAT | O_TRUNC | O_WRONLY, S_IRUSR | S_IWUSR);
+
   if (fd == -1)
     msg (M_ERR, "Cannot open shared secret file %s for write", filename);
 

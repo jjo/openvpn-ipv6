@@ -1497,7 +1497,7 @@ tls_process (struct tls_multi *multi,
 	      ks->state = S_SENT_KEY;
 	    }
 
-	  /* Recieve Key */
+	  /* Receive Key */
 	  buf = &ks->plaintext_read_buf;
 	  if (buf->len
 	      && ((ks->state == S_SENT_KEY && !session->opt->server)

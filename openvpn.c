@@ -187,6 +187,13 @@ openvpn (const struct options *options,
   /* used by select() */
   int fm;
 
+#if ENABLE_PASSTOS
+  /* used to get/set TOS. */
+  struct iphdr *iph;
+  unsigned char ptos;
+  bool ptos_defined = false;
+#endif
+
   /* declare various buffers */
   struct buffer to_tun = clear_buf ();
   struct buffer to_udp = clear_buf ();
@@ -1162,6 +1169,21 @@ openvpn (const struct options *options,
 		  if (options->tun_af_inet)
 		    tun_rm_head (&buf, AF_INET);
 #endif
+#if ENABLE_PASSTOS
+		  if (options->passtos)
+		    {
+		      /* Get the TOS before compression/encryption. */
+		      iph = (struct iphdr*) BPTR (&buf);
+
+		      /* Check that it's an IPv4 packet. */
+		      if (iph->version == 0x04)
+			{
+			  ptos = iph->tos;
+			  ptos_defined = true;
+			}
+		    }
+#endif
+
 #ifdef USE_LZO
 		  /* Compress the packet. */
 		  if (options->comp_lzo)
@@ -1293,6 +1315,12 @@ openvpn (const struct options *options,
 		       */
 		      if (options->ping_send_timeout)
 			event_timeout_reset (&ping_send_interval, current);
+
+#if ENABLE_PASSTOS
+		      /* Set TOS */
+		      if (ptos_defined)
+			setsockopt(udp_socket.sd, IPPROTO_IP, IP_TOS, &ptos, sizeof(ptos));
+#endif
 
 		      /* Send packet */
 		      size = sendto (udp_socket.sd, BPTR (&to_udp), BLEN (&to_udp), 0,
