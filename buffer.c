@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -146,12 +146,12 @@ buf_catrunc (struct buffer *buf, const char *str)
  * Garbage collection
  */
 
-struct gc_thread _gc_thread[N_THREADS];
+struct gc_thread x_gc_thread[N_THREADS];
 
 void *
 gc_malloc (size_t size)
 {
-  struct gc_thread* thread = &_gc_thread[thread_number()];
+  struct gc_thread* thread = &x_gc_thread[thread_number()];
   size_t s = sizeof (struct gc_entry) + size;
   struct gc_entry *e = (struct gc_entry *) malloc (s);
   ++thread->gc_count;
@@ -167,7 +167,7 @@ void
 gc_collect (int level)
 {
   struct gc_entry *e;
-  struct gc_thread* thread = &_gc_thread[thread_number()];
+  struct gc_thread* thread = &x_gc_thread[thread_number()];
 
   while (e = thread->gc_stack)
     {
@@ -176,11 +176,11 @@ gc_collect (int level)
       /*printf("GC FREE " ptr_format " lev=%d\n", e, e->level); */
       --thread->gc_count;
       thread->gc_stack = e->back;
-      _gc_free (e);
+      x_gc_free (e);
     }
 }
 
-void _gc_free (void *p) {
+void x_gc_free (void *p) {
   free (p);
 }
 
@@ -188,7 +188,7 @@ void _gc_free (void *p) {
 void
 debug_gc_check_corrupt (const char *file, int line)
 {
-  struct gc_thread* thread = &_gc_thread[thread_number()];
+  struct gc_thread* thread = &x_gc_thread[thread_number()];
   const struct gc_entry *stack = thread->gc_stack;
   const struct gc_entry *e;
   while (e = stack)

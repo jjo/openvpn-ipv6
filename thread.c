@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -102,27 +102,27 @@ ssl_thread_cleanup (void)
 
 #endif /* defined(USE_CRYPTO) && defined(USE_SSL) */
 
-pthread_t _main_thread_id;
-pthread_t _work_thread_id;
-pthread_mutex_t _lock_cs[N_MUTEXES];
-bool _lock_cs_init;
+pthread_t x_main_thread_id;
+pthread_t x_work_thread_id;
+pthread_mutex_t x_lock_cs[N_MUTEXES];
+bool x_lock_cs_init;
 
 void
 work_thread_create (void *(*start_routine) (void *), void* arg)
 {
-  ASSERT (_main_thread_id);
-  ASSERT (!_work_thread_id);
-  ASSERT (!pthread_create (&_work_thread_id, NULL, start_routine, arg));
-  msg (D_THREAD_DEBUG, "CREATE THREAD ID=%d", _work_thread_id);
+  ASSERT (x_main_thread_id);
+  ASSERT (!x_work_thread_id);
+  ASSERT (!pthread_create (&x_work_thread_id, NULL, start_routine, arg));
+  msg (D_THREAD_DEBUG, "CREATE THREAD ID=%d", x_work_thread_id);
 }
 
 void
 work_thread_join ()
 {
-  if (_work_thread_id)
+  if (x_work_thread_id)
     {
-      pthread_join (_work_thread_id, NULL);
-      _work_thread_id = 0;
+      pthread_join (x_work_thread_id, NULL);
+      x_work_thread_id = 0;
     }
 }
 
@@ -131,12 +131,12 @@ thread_init ()
 {
   int i;
 
-  ASSERT (!_main_thread_id);
-  ASSERT (!_work_thread_id);
+  ASSERT (!x_main_thread_id);
+  ASSERT (!x_work_thread_id);
 
   msg (M_INFO, "PTHREAD support initialized");
 
-  _main_thread_id = pthread_self ();
+  x_main_thread_id = pthread_self ();
 
   /* initialize OpenSSL library locking */
 #if defined(USE_CRYPTO) && defined(USE_SSL)
@@ -144,17 +144,17 @@ thread_init ()
 #endif
   
   /* initialize static mutexes */
-  ASSERT (!_lock_cs_init);
+  ASSERT (!x_lock_cs_init);
   for (i = 0; i < N_MUTEXES; i++)
-    ASSERT (!pthread_mutex_init (&(_lock_cs[i]), NULL));
-  _lock_cs_init = true;
+    ASSERT (!pthread_mutex_init (&(x_lock_cs[i]), NULL));
+  x_lock_cs_init = true;
 }
 
 void
 thread_cleanup ()
 {
-  ASSERT (!_work_thread_id);
-  if (_main_thread_id)
+  ASSERT (!x_work_thread_id);
+  if (x_main_thread_id)
     {
       int i;
 
@@ -164,14 +164,14 @@ thread_cleanup ()
 #endif
 
       /* destroy static mutexes */
-      if (_lock_cs_init)
+      if (x_lock_cs_init)
 	{
-	  _lock_cs_init = false;
+	  x_lock_cs_init = false;
 	  for (i = 0; i < N_MUTEXES; i++)
-	    ASSERT (!pthread_mutex_destroy (&(_lock_cs[i])));
+	    ASSERT (!pthread_mutex_destroy (&(x_lock_cs[i])));
 	}
 
-      _main_thread_id = 0;
+      x_main_thread_id = 0;
     }
 }
 

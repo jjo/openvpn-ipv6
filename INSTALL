@@ -111,6 +111,8 @@ OPTIONS for ./configure:
   --with-leak-check=TYPE    Build with memory leak checking
                             TYPE = dmalloc or ssl
 
+  --enable-strict           Enable strict compiler warnings
+
 *************************************************************************
 
 BUILDING ON LINUX 2.4+ FROM RPM

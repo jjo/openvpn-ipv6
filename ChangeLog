@@ -1,7 +1,7 @@
 OpenVPN
-Copyright (C) 2002 James Yonan <jim@yonan.net>
+Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
 
-2003.02.20 -- Version 1.3.2.11
+2003.02.21 -- Version 1.3.2.12
 
 * Added --replay-persist feature to allow replay
   protection across sessions.
@@ -34,6 +34,10 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   fixes (Matthias Andree).
 * Added support for compilers which do not support
   variable argument preprocessor macros.
+* Removed generated files from CVS.  Note INSTALL
+  file for new CVS build commands.
+* Changed all internal _* symbols to x_*
+  for C standards compliance.
 
 2002.10.23 -- Version 1.3.2
 

@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -34,9 +34,9 @@
  * These globals should not be accessed directly,
  * but rather through macros or inline functions defined below.
  */
-extern int _debug_level;
-extern int _cs_info_level;
-extern int _cs_verbose_level;
+extern int x_debug_level;
+extern int x_cs_info_level;
+extern int x_cs_verbose_level;
 
 extern int msg_line_num;
 
@@ -81,18 +81,18 @@ extern int msg_line_num;
  * msg() as a macro for optimization win.
  */
 
-#define MSG_TEST(flags) (((flags) & M_DEBUG_LEVEL) < _debug_level || ((flags) & M_FATAL))
+#define MSG_TEST(flags) (((flags) & M_DEBUG_LEVEL) < x_debug_level || ((flags) & M_FATAL))
 
 #if defined(HAVE_VARARG_MACROS_ISO)
 #define HAVE_VARARG_MACROS
-#define msg(flags, ...) do { if (MSG_TEST(flags)) _msg((flags), __VA_ARGS__); } while (false)
+#define msg(flags, ...) do { if (MSG_TEST(flags)) x_msg((flags), __VA_ARGS__); } while (false)
 #elif defined(HAVE_VARARG_MACROS_GCC)
 #define HAVE_VARARG_MACROS
-#define msg(flags, args...) do { if (MSG_TEST(flags)) _msg((flags), args); } while (false)
+#define msg(flags, args...) do { if (MSG_TEST(flags)) x_msg((flags), args); } while (false)
 #endif
 
 #ifdef HAVE_VARARG_MACROS
-void _msg (unsigned int flags, const char *format, ...); /* should be called via msg above */
+void x_msg (unsigned int flags, const char *format, ...); /* should be called via msg above */
 #else
 void msg (unsigned int flags, const char *format, ...);
 #endif
@@ -121,15 +121,15 @@ void assert_failed (const char *filename, int line);
 static inline bool
 check_debug_level (int level)
 {
-  return (level & M_DEBUG_LEVEL) < _debug_level;
+  return (level & M_DEBUG_LEVEL) < x_debug_level;
 }
 
 static inline void
 check_status (int status, const char *description)
 {
-  msg (_cs_verbose_level, "%s returned %d", description, status);
+  msg (x_cs_verbose_level, "%s returned %d", description, status);
   if (status < 0)
-    msg (_cs_info_level | M_ERRNO, "%s", description);
+    msg (x_cs_info_level | M_ERRNO, "%s", description);
 }
 
 void become_daemon (const char *cd);

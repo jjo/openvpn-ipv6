@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -30,28 +30,28 @@
 
 #define CIRC_LIST(name, type, size) \
 struct name { \
-  int _head; \
-  int _size; \
-  type _list[size]; \
+  int x_head; \
+  int x_size; \
+  type x_list[size]; \
 }
 
 #define CIRC_LIST_PUSH(obj, item) \
 do { \
-  if (--obj._head < 0) \
-    obj._head = SIZE(obj._list) - 1; \
-  if (++obj._size >= (int)SIZE(obj._list)) \
-    obj._size = SIZE(obj._list); \
-  obj._list[obj._head] = (item); \
+  if (--obj.x_head < 0) \
+    obj.x_head = SIZE(obj.x_list) - 1; \
+  if (++obj.x_size >= (int)SIZE(obj.x_list)) \
+    obj.x_size = SIZE(obj.x_list); \
+  obj.x_list[obj.x_head] = (item); \
 } while (0)
 
 #define CIRC_LIST_SIZE(obj) \
-  (obj._size)
+  (obj.x_size)
 
 #define CIRC_LIST_INDEX(obj, index) \
-  ((obj._head + (index)) % SIZE(obj._list))
+  ((obj.x_head + (index)) % SIZE(obj.x_list))
 
 #define CIRC_LIST_ITEM(obj, index) \
-  (obj._list[CIRC_LIST_INDEX(obj, index)])
+  (obj.x_list[CIRC_LIST_INDEX(obj, index)])
 
 #define CIRC_LIST_RESET(obj) \
   CLEAR(obj)

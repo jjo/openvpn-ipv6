@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -41,10 +41,10 @@
 
 #ifdef USE_PTHREAD
 
-extern pthread_t _main_thread_id;
-extern pthread_t _work_thread_id;
-extern pthread_mutex_t _lock_cs[N_MUTEXES];
-extern bool _lock_cs_init;
+extern pthread_t x_main_thread_id;
+extern pthread_t x_work_thread_id;
+extern pthread_mutex_t x_lock_cs[N_MUTEXES];
+extern bool x_lock_cs_init;
 
 #define MAIN_THREAD 0
 #define WORK_THREAD 1
@@ -60,24 +60,24 @@ extern bool _lock_cs_init;
 static inline int
 thread_number()
 {
-  return (!_main_thread_id || pthread_self () == _main_thread_id) ? MAIN_THREAD : WORK_THREAD;
+  return (!x_main_thread_id || pthread_self () == x_main_thread_id) ? MAIN_THREAD : WORK_THREAD;
 }
 
 static inline void
 mutex_lock (int type)
 {
-  if (_lock_cs_init)
+  if (x_lock_cs_init)
     {
-      pthread_mutex_lock (&(_lock_cs[type]));
+      pthread_mutex_lock (&(x_lock_cs[type]));
     }
 }
 
 static inline void
 mutex_unlock (int type)
 {
-  if (_lock_cs_init)
+  if (x_lock_cs_init)
     {
-      pthread_mutex_unlock (&(_lock_cs[type]));
+      pthread_mutex_unlock (&(x_lock_cs[type]));
 
 #if 0
       /* DEBUGGING -- if race conditions exist, make them more likely to occur */
@@ -92,11 +92,11 @@ mutex_unlock (int type)
 static inline void
 mutex_cycle (int type)
 {
-  if (_lock_cs_init)
+  if (x_lock_cs_init)
     {
-      pthread_mutex_unlock (&(_lock_cs[type]));
+      pthread_mutex_unlock (&(x_lock_cs[type]));
       sleep (0);
-      pthread_mutex_lock (&(_lock_cs[type]));
+      pthread_mutex_lock (&(x_lock_cs[type]));
     }
 }
 

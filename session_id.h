@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -44,9 +44,9 @@ struct session_id
   uint8_t id[8];
 };
 
-extern const struct session_id _session_id_zero;
+extern const struct session_id x_session_id_zero;
 
-#define SID_SIZE (sizeof (_session_id_zero.id))
+#define SID_SIZE (sizeof (x_session_id_zero.id))
 
 static inline bool
 session_id_equal (const struct session_id *sid1,
@@ -58,7 +58,7 @@ session_id_equal (const struct session_id *sid1,
 static inline bool
 session_id_defined (const struct session_id *sid1)
 {
-  return memcmp (sid1->id, &_session_id_zero.id, SID_SIZE) != 0;
+  return memcmp (sid1->id, &x_session_id_zero.id, SID_SIZE) != 0;
 }
 
 static inline bool

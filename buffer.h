@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -277,24 +277,24 @@ struct gc_thread
   struct gc_entry *gc_stack;
 };
 
-extern struct gc_thread _gc_thread[N_THREADS];
+extern struct gc_thread x_gc_thread[N_THREADS];
 
 void *gc_malloc (size_t size);
 void gc_collect (int level);
 
-void _gc_free (void *p);
+void x_gc_free (void *p);
 
 static inline int
 gc_new_level ()
 {
-  struct gc_thread* thread = &_gc_thread[thread_number()];
+  struct gc_thread* thread = &x_gc_thread[thread_number()];
   return ++thread->gc_level;
 }
 
 static inline void
 gc_free_level (int level)
 {
-  struct gc_thread* thread = &_gc_thread[thread_number()];
+  struct gc_thread* thread = &x_gc_thread[thread_number()];
 
   gc_collect (level);
   thread->gc_level = level - 1;

@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002 James Yonan <jim@yonan.net>
+ *  Copyright (C) 2002-2003 James Yonan <jim@yonan.net>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -39,9 +39,9 @@
 #include "memdbg.h"
 
 /* Globals */
-int _debug_level;
-int _cs_info_level;
-int _cs_verbose_level;
+int x_debug_level;
+int x_cs_info_level;
+int x_cs_verbose_level;
 
 /* Mute state */
 static int mute_cutoff;
@@ -57,7 +57,7 @@ static FILE *msgfp;
 void
 set_debug_level (int level)
 {
-  _debug_level = level;
+  x_debug_level = level;
 }
 
 void
@@ -70,9 +70,9 @@ void
 error_reset ()
 {
   use_syslog = false;
-  _debug_level = 1;
-  _cs_info_level = 0;
-  _cs_verbose_level = 0;
+  x_debug_level = 1;
+  x_cs_info_level = 0;
+  x_cs_verbose_level = 0;
   mute_cutoff = 0;
   mute_count = 0;
   mute_category = 0;
@@ -89,8 +89,8 @@ error_reset ()
 void
 set_check_status (int info_level, int verbose_level)
 {
-  _cs_info_level = info_level;
-  _cs_verbose_level = verbose_level;
+  x_cs_info_level = info_level;
+  x_cs_verbose_level = verbose_level;
 }
 
 /*
@@ -114,7 +114,7 @@ msg_fp()
 int msg_line_num;
 
 #ifdef HAVE_VARARG_MACROS
-void _msg (unsigned int flags, const char *format, ...)
+void x_msg (unsigned int flags, const char *format, ...)
 #else
 void msg (unsigned int flags, const char *format, ...)
 #endif
