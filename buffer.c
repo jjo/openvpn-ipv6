@@ -60,6 +60,19 @@ alloc_buf_gc (size_t size)
 }
 
 struct buffer
+clone_buf (const struct buffer* buf)
+{
+  struct buffer ret;
+  ret.capacity = buf->capacity;
+  ret.offset = buf->offset;
+  ret.len = buf->len;
+  ret.data = (unsigned char *) malloc (buf->capacity);
+  ASSERT (ret.data);
+  memcpy (BPTR (&ret), BPTR (buf), BLEN (buf));
+  return ret;
+}
+
+struct buffer
 clear_buf ()
 {
   struct buffer buf;
@@ -133,22 +146,38 @@ buf_catrunc (struct buffer *buf, const char *str)
  * Garbage collection
  */
 
-int gc_count = 0;
-int _gc_level = 0;
-struct gc_entry *_gc_stack = NULL;
+struct gc_thread _gc_thread[N_THREADS];
 
 void *
 gc_malloc (size_t size)
 {
+  struct gc_thread* thread = &_gc_thread[thread_number()];
   size_t s = sizeof (struct gc_entry) + size;
   struct gc_entry *e = (struct gc_entry *) malloc (s);
-  ++gc_count;
+  ++thread->gc_count;
   ASSERT (e);
-  e->level = _gc_level;
-  e->back = _gc_stack;
-  _gc_stack = e;
+  e->level = thread->gc_level;
+  e->back = thread->gc_stack;
+  thread->gc_stack = e;
   /*printf("GC MALLOC 0x%08x size=%d lev=%d\n", e, s, e->level); */
   return (void *) e + sizeof (struct gc_entry);
+}
+
+void
+gc_collect (int level)
+{
+  struct gc_entry *e;
+  struct gc_thread* thread = &_gc_thread[thread_number()];
+
+  while (e = thread->gc_stack)
+    {
+      if (e->level < level)
+	break;
+      /*printf("GC FREE 0x%08x lev=%d\n", e, e->level); */
+      --thread->gc_count;
+      thread->gc_stack = e->back;
+      _gc_free (e);
+    }
 }
 
 void _gc_free (void *p) {
@@ -159,11 +188,12 @@ void _gc_free (void *p) {
 void
 debug_gc_check_corrupt (const char *file, int line)
 {
-  const struct gc_entry *stack = _gc_stack;
+  struct gc_thread* thread = &_gc_thread[thread_number()];
+  const struct gc_entry *stack = thread->gc_stack;
   const struct gc_entry *e;
   while (e = stack)
     {
-      if (e->level > _gc_level)
+      if (e->level > thread->gc_level)
 	printf ("GC CORRUPT 0x%08x lev=%d back=0x%08x file=%s line=%d\n", e,
 		e->level, e->back, file, line);
       stack = e->back;

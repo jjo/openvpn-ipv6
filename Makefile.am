@@ -24,7 +24,7 @@
 #
 
 sbin_PROGRAMS = openvpn
-openvpn_SOURCES = acconfig.h buffer.h crypto.c error.h gremlin.c lzo.c misc.c openvpn.h reliable.c session_id.h ssl.c tun.h basic.h circ_list.h crypto.h fdmisc.c gremlin.h lzo.h misc.h packet_id.c reliable.h shaper.c socket.c ssl.h buffer.c common.h error.c fdmisc.h interval.h memdbg.h openvpn.c packet_id.h session_id.c socket.h syshead.h tun.c shaper.h
+openvpn_SOURCES = basic.h buffer.c buffer.h circ_list.h common.h config.h crypto.c crypto.h error.c error.h fdmisc.c fdmisc.h gremlin.c gremlin.h interval.h lzo.c lzo.h memdbg.h misc.c misc.h openvpn.c openvpn.h options.c options.h packet_id.c packet_id.h reliable.c reliable.h session_id.c session_id.h shaper.c shaper.h socket.c socket.h ssl.c ssl.h syshead.h thread.c thread.h tun.c tun.h
 
 KEY_FILES = dh1024.pem client.crt client.key server.crt server.key tmp-ca.crt tmp-ca.key
 

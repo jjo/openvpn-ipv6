@@ -226,7 +226,7 @@ reliable_empty (const struct reliable *rel)
 /* in how many seconds should we wake up to check for timeout */
 /* if we return 0, nothing to wait for */
 int
-reliable_send_timeout (const struct reliable *rel)
+reliable_send_timeout (const struct reliable *rel, time_t current)
 {
   int ret = 0;
   int i;
@@ -236,7 +236,7 @@ reliable_send_timeout (const struct reliable *rel)
       const struct reliable_entry *e = &rel->array[i];
       if (e->active && e->next_try)
 	{
-	  int wake = e->next_try - rel->current;
+	  int wake = e->next_try - current;
 	  if (wake < 1)
 	    wake = 1;
 	  if (!ret || wake < ret)
@@ -259,8 +259,14 @@ reliable_send_purge (struct reliable *rel, struct reliable_ack *ack)
 	  struct reliable_entry *e = &rel->array[j];
 	  if (e->active && e->packet_id == pid)
 	    {
-	      msg (D_REL_DEBUG,
-		   "ACK received for pid %d, deleting from send buffer", pid);
+	      msg (D_REL_DEBUG, "ACK received for pid %d, deleting from send buffer", pid);
+#if 0
+	      /* DEBUGGING -- how close were we timing out on ACK failure and resending? */
+	      {
+		const int wake = e->next_try - time(NULL);
+		msg (M_INFO, "ACK %d, wake=%d", pid, wake);
+	      }
+#endif
 	      e->active = false;
 	      break;
 	    }
@@ -317,13 +323,13 @@ reliable_get_buf_sequenced (struct reliable *rel)
 
 /* return true if reliable_send would return a non-NULL result */
 bool
-reliable_can_send (const struct reliable *rel)
+reliable_can_send (const struct reliable *rel, time_t current)
 {
   int i;
   for (i = 0; i < RELIABLE_SIZE; ++i)
     {
       const struct reliable_entry *e = &rel->array[i];
-      if (e->active && rel->current >= e->next_try)
+      if (e->active && current >= e->next_try)
 	return true;
     }
   return false;
@@ -331,14 +337,14 @@ reliable_can_send (const struct reliable *rel)
 
 /* return next buffer to send to remote */
 struct buffer *
-reliable_send (struct reliable *rel, int *opcode)
+reliable_send (struct reliable *rel, int *opcode, time_t current)
 {
   int i;
   struct reliable_entry *best = NULL;
   for (i = 0; i < RELIABLE_SIZE; ++i)
     {
       struct reliable_entry *e = &rel->array[i];
-      if (e->active && rel->current >= e->next_try)
+      if (e->active && current >= e->next_try)
 	{
 	  if (!best || e->packet_id < best->packet_id)
 	    best = e;
@@ -346,7 +352,7 @@ reliable_send (struct reliable *rel, int *opcode)
     }
   if (best)
     {
-      best->next_try = rel->current + rel->timeout;
+      best->next_try = current + rel->timeout;
       *opcode = best->opcode;
       return &best->buf;
     }
@@ -355,14 +361,15 @@ reliable_send (struct reliable *rel, int *opcode)
 
 /* schedule all pending packets for immediate retransmit */
 void
-reliable_schedule_now (struct reliable *rel)
+reliable_schedule_now (struct reliable *rel, time_t current)
 {
   int i;
+  msg (D_REL_DEBUG, "reliable_schedule_now");
   for (i = 0; i < RELIABLE_SIZE; ++i)
     {
       struct reliable_entry *e = &rel->array[i];
       if (e->active)
-	e->next_try = rel->current;
+	e->next_try = current;
     }
 }
 
@@ -445,7 +452,7 @@ reliable_debug_print (const struct reliable *rel, char *desc)
   printf ("********* struct reliable %s\n", desc);
   printf ("  timeout=%d\n", rel->timeout);
   printf ("  packet_id=%d\n", rel->packet_id);
-  printf ("  current=%u\n", rel->current);
+  printf ("  current=%u\n", current);
   for (i = 0; i < RELIABLE_SIZE; ++i)
     {
       const struct reliable_entry *e = &rel->array[i];

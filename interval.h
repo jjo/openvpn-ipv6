@@ -38,12 +38,12 @@
 /*
  * Interval test is true at least once per n seconds.
  */
-#define I_INTERVAL 15
+#define I_INTERVAL TLS_MULTI_REFRESH
 
 /*
  * Seconds after last trigger or before next timeout,
  */
-#define I_HORIZON 60
+#define I_HORIZON  TLS_MULTI_HORIZON
 
 struct interval
 {

@@ -50,6 +50,7 @@
  * file position where leaked memory was allocated instead
  * of the source code file and line number.  Make sure
  * to increase the size of dmalloc's info tables,
+ * (MEMORY_TABLE_SIZE in settings.h)
  * otherwise it might get overwhelmed by the large
  * number of unique file/line combinations.
  */

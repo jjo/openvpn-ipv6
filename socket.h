@@ -65,6 +65,17 @@ udp_socket_set_outgoing_addr (const struct buffer *buf,
 			      struct udp_socket *sock,
 			      const struct sockaddr_in *addr);
 
+void
+udp_socket_incoming_addr (struct buffer *buf,
+			  const struct udp_socket *sock,
+			  const struct sockaddr_in *from_addr);
+
+
+void
+udp_socket_get_outgoing_addr (struct buffer *buf,
+			      const struct udp_socket *sock,
+			      struct sockaddr_in *addr);
+
 void udp_socket_close (struct udp_socket *sock);
 
 const char *
@@ -72,55 +83,5 @@ print_sockaddr_ex (const struct sockaddr_in *addr, bool do_port, const char* sep
 
 const char *
 print_sockaddr (const struct sockaddr_in *addr);
-
-/*
- * Inline functions
- */
-
-static inline void
-udp_socket_incoming_addr (struct buffer *buf,
-			  const struct udp_socket *sock,
-			  const struct sockaddr_in *from_addr)
-{
-  if (buf->len > 0)
-    {
-      ASSERT (from_addr->sin_family == AF_INET);
-      if (!ADDR_P (from_addr))
-	goto bad;
-      if (ADDR_P (from_addr) == ADDR (sock->remote))
-	goto good;
-      if (!ADDR (sock->remote) || sock->remote_float)
-	goto good;
-    }
-bad:
-  msg (D_LINK_ERRORS, "IP Address failed from %s",
-       print_sockaddr (from_addr));
-  buf->len = 0;
-  return;
-
-good:
-  msg (D_READ_WRITE, "IP Address OK from %s",
-       print_sockaddr (from_addr));
-  return;
-}
-
-static inline void
-udp_socket_get_outgoing_addr (struct buffer *buf,
-			      const struct udp_socket *sock,
-			      struct sockaddr_in *addr)
-{
-  if (buf->len > 0)
-    {
-      if (ADDR_P (sock->actual))
-	{
-	  *addr = *sock->actual;
-	}
-      else
-	{
-	  msg (D_READ_WRITE, "No outgoing address to send packet");
-	  buf->len = 0;
-	}
-    }
-}
 
 #endif /* SOCKET_H */

@@ -43,7 +43,7 @@
 #include "buffer.h"
 #include "error.h"
 
-typedef u_int32_t packet_id_type;
+typedef uint32_t packet_id_type;
 
 /* convert a packet_id_type to and from network order */
 #define htonpid(x) htonl(x)

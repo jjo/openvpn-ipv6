@@ -35,6 +35,13 @@
 
 #include "memdbg.h"
 
+static int
+open_null (char *actual, int size)
+{
+  strncpynt (actual, "null", size);
+  return -1;
+}
+
 /* Open a TUN device */
 #ifdef OLD_TUN_TAP
 
@@ -44,7 +51,10 @@ open_tun (const char *dev, char *actual, int size)
   char tunname[64];
   int fd;
 
-  /* NOTE: we don't support dynamic devices with kernel 2.2 */
+  if (!strcmp(dev, "null"))
+      return open_null(actual, size);
+
+  /* NOTE: we don't support dynamic devices with linux 2.2 */
   snprintf (tunname, sizeof (tunname), "/dev/%s", dev);
   if ((fd = open (tunname, O_RDWR)) < 0)
     msg (M_ERR, "Cannot open TUN/TAP dev %s", tunname);
@@ -61,7 +71,10 @@ open_tun (const char *dev, char *actual, int size)
 {
   struct ifreq ifr;
   int fd;
-  char *device = "/dev/net/tun";
+  const char device[] = "/dev/net/tun";
+
+  if (!strcmp(dev, "null"))
+      return open_null(actual, size);
 
   if ((fd = open (device, O_RDWR)) < 0)
     msg (M_ERR, "Cannot open TUN/TAP dev %s", device);

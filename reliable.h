@@ -91,7 +91,6 @@ struct reliable
 {
   int timeout;
   packet_id_type packet_id;
-  time_t current;
   int offset;
   struct reliable_entry array[RELIABLE_SIZE];
 };
@@ -105,12 +104,6 @@ reliable_set_timeout (struct reliable *rel, int timeout)
   rel->timeout = timeout;
 }
 
-static inline void
-reliable_set_current_time (struct reliable *rel, time_t current)
-{
-  rel->current = current;
-}
-
 void reliable_init (struct reliable *rel, int size, int offset);
 
 void reliable_free (struct reliable *rel);
@@ -119,7 +112,7 @@ void reliable_free (struct reliable *rel);
 bool reliable_empty (const struct reliable *rel);
 
 /* in how many seconds should we wake up to check for timeout */
-int reliable_send_timeout (const struct reliable *rel);
+int reliable_send_timeout (const struct reliable *rel, time_t current);
 
 /* del acknowledged items from send buf */
 void reliable_send_purge (struct reliable *rel, struct reliable_ack *ack);
@@ -134,13 +127,13 @@ struct buffer *reliable_get_buf (struct reliable *rel);
 struct buffer *reliable_get_buf_sequenced (struct reliable *rel);
 
 /* return true if reliable_send would return a non-NULL result */
-bool reliable_can_send (const struct reliable *rel);
+bool reliable_can_send (const struct reliable *rel, time_t current);
 
 /* return next buffer to send to remote */
-struct buffer *reliable_send (struct reliable *rel, int *opcode);
+struct buffer *reliable_send (struct reliable *rel, int *opcode, time_t current);
 
 /* schedule all pending packets for immediate retransmit */
-void reliable_schedule_now (struct reliable *rel);
+void reliable_schedule_now (struct reliable *rel, time_t current);
 
 /* enable a buffer previously returned by a get function as active */
 void reliable_mark_active (struct reliable *rel, struct buffer *buf, int pid, int opcode);

@@ -30,6 +30,7 @@
 #include "socket.h"
 #include "fdmisc.h"
 #include "error.h"
+#include "thread.h"
 
 #include "memdbg.h"
 
@@ -115,6 +116,7 @@ udp_socket_set_outgoing_addr (const struct buffer *buf,
 			      struct udp_socket *sock,
 			      const struct sockaddr_in *addr)
 {
+  mutex_lock (L_SOCK);
   if (buf->len > 0)
     {
       ASSERT (ADDR_P (addr));
@@ -124,6 +126,8 @@ udp_socket_set_outgoing_addr (const struct buffer *buf,
 	  && (ADDR_P (sock->actual) != ADDR_P (addr) || !sock->set_outgoing_initial))
 	{
 	  *sock->actual = *addr;
+	  sock->set_outgoing_initial = true;
+	  mutex_unlock (L_SOCK);
 	  msg (D_HANDSHAKE, "Peer Connection Initiated with %s", print_sockaddr (sock->actual));
 	  if (sock->ipchange_command)
 	    {
@@ -136,9 +140,61 @@ udp_socket_set_outgoing_addr (const struct buffer *buf,
 	      msg (D_TLS_DEBUG, "executing ip-change command: %d", command);
 	      system (command);
 	    }
-	  sock->set_outgoing_initial = true;
+	  mutex_lock (L_SOCK);
 	}
     }
+  mutex_unlock (L_SOCK);
+}
+
+void
+udp_socket_incoming_addr (struct buffer *buf,
+			  const struct udp_socket *sock,
+			  const struct sockaddr_in *from_addr)
+{
+  mutex_lock (L_SOCK);
+  if (buf->len > 0)
+    {
+      ASSERT (from_addr->sin_family == AF_INET);
+      if (!ADDR_P (from_addr))
+	goto bad;
+      if (ADDR_P (from_addr) == ADDR (sock->remote))
+	goto good;
+      if (!ADDR (sock->remote) || sock->remote_float)
+	goto good;
+    }
+bad:
+  msg (D_LINK_ERRORS, "IP Address failed from %s",
+       print_sockaddr (from_addr));
+  buf->len = 0;
+  mutex_unlock (L_SOCK);
+  return;
+
+good:
+  msg (D_READ_WRITE, "IP Address OK from %s",
+       print_sockaddr (from_addr));
+  mutex_unlock (L_SOCK);
+  return;
+}
+
+void
+udp_socket_get_outgoing_addr (struct buffer *buf,
+			      const struct udp_socket *sock,
+			      struct sockaddr_in *addr)
+{
+  mutex_lock (L_SOCK);
+  if (buf->len > 0)
+    {
+      if (ADDR_P (sock->actual))
+	{
+	  *addr = *sock->actual;
+	}
+      else
+	{
+	  msg (D_READ_WRITE, "No outgoing address to send packet");
+	  buf->len = 0;
+	}
+    }
+  mutex_unlock (L_SOCK);
 }
 
 void
@@ -163,7 +219,9 @@ print_sockaddr_ex (const struct sockaddr_in *addr, bool do_port, const char* sep
   struct buffer out = alloc_buf_gc (64);
   const int port = ntohs (addr->sin_port);
 
+  mutex_lock (L_INET_NTOA);
   buf_printf (&out, "%s", (ADDR_P(addr) ? inet_ntoa (addr->sin_addr) : "[undef]"));
+  mutex_unlock (L_INET_NTOA);
 
   if (do_port && port)
     {

@@ -77,6 +77,12 @@ struct lzo_compress_workspace
   lzo_voidp wmem;
   int wmem_size;
   struct lzo_adaptive_compress ac;
+
+  /* statistics */
+  unsigned long pre_decompress;
+  unsigned long post_decompress;
+  unsigned long pre_compress;
+  unsigned long post_compress;
 };
 
 void lzo_adjust_frame_parameters(struct frame *frame);
@@ -93,5 +99,7 @@ void lzo_compress (struct buffer *buf, struct buffer work,
 void lzo_decompress (struct buffer *buf, struct buffer work,
 		     struct lzo_compress_workspace *lzowork,
 		     const struct frame* frame);
+
+void lzo_print_stats (struct lzo_compress_workspace *lzo_compwork);
 
 #endif /* USE_LZO */

@@ -29,11 +29,12 @@ REQUIRES:
       and is normally included with most Linux distributions.  OpenBSD
       users can easily install them from the "ports" collection.
 
-OPTIONAL (but highly recommended):
+OPTIONAL (but recommended):
   (1) OpenSSL library, necessary for encryption, version 0.9.6 or higher
       required, available from http://www.openssl.org/
   (2) LZO real-time compression library, required for link compression,
       available from http://www.oberhumer.com/opensource/lzo/
+  (3) Pthread library.
 
 OPTIONAL (for debugging only):
   (1) Dmalloc library
@@ -52,10 +53,16 @@ OPTIONS for ./configure:
   --disable-crypto          Do not compile OpenSSL crypto support
   --disable-ssl             Do not compile OpenSSL SSL support for
                             TLS-based key exchange
+
+  --enable-pthread          Compile pthread support for
+                            improved latency during SSL/TLS key
+                            negotiations
+
   --with-ssl-headers=DIR    Crypto/SSL Include files location
   --with-ssl-lib=DIR        Crypto/SSL Library location
   --with-lzo-headers=DIR    LZO Include files location
   --with-lzo-lib=DIR        LZO Library location
+
   --with-leak-check=TYPE    Build with memory leak checking
                             TYPE = dmalloc or ssl
 
@@ -75,7 +82,8 @@ TUN/TAP Driver Configuration:
   http://vtun.sourceforge.net/tun/
   and follow the installation instructions.
 
- See the man page for more information and usage examples.
+ See the man page for more information, usage examples, and
+ information on firewall configuration.
 
 BUGS:
 

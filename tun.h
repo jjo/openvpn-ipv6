@@ -43,22 +43,22 @@ tun_adjust_frame_parameters (struct frame* frame, int size)
 }
 
 static inline void
-tun_add_head (struct buffer* buf, u_int32_t value)
+tun_add_head (struct buffer* buf, uint32_t value)
 {
-  u_int32_t *p = (u_int32_t*) buf_prepend (buf, sizeof (u_int32_t));
+  uint32_t *p = (uint32_t*) buf_prepend (buf, sizeof (uint32_t));
   *p = htonl(value);
 }
 
 static inline void
-tun_rm_head (struct buffer* buf, u_int32_t value)
+tun_rm_head (struct buffer* buf, uint32_t value)
 {
-  u_int32_t found = ntohl (*(u_int32_t*) BPTR (buf));
+  uint32_t found = ntohl (*(uint32_t*) BPTR (buf));
   if (found == value)
-    ASSERT (buf_advance (buf, sizeof (u_int32_t)));
+    ASSERT (buf_advance (buf, sizeof (uint32_t)));
   else
     {
       msg (D_LINK_ERRORS,
-	   "Failed to match TUN packet leading u_int32_t (expected=0x%08x, found=0x%08x)",
+	   "Failed to match TUN packet leading uint32_t (expected=0x%08x, found=0x%08x)",
 	   value, found);
       buf->len = 0;
     }

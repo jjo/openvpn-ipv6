@@ -91,7 +91,7 @@ do_ifconfig (const char *dev,
       if (!IS_TUN (dev))
 	msg (M_FATAL, "%s is not a tun device.  The --ifconfig option works only for tun devices.  You should use an --up script to ifconfig a tap device.", dev);
 
-#ifdef __linux__
+#ifdef TARGET_LINUX
       middle = "pointopoint";
 #endif
 
@@ -134,6 +134,20 @@ run_script (const char *command, const char *arg, int tun_mtu, int udp_mtu,
     }
 }
 
+/* Write our PID to a file */
+void
+write_pid (const char* filename)
+{
+  if (filename)
+    {
+      FILE* fp = fopen (filename, "w");
+      const pid_t pid = getpid ();
+
+      fprintf(fp, "%d\n", pid);
+      fclose (fp);
+    }
+}
+
 #ifdef _POSIX_MEMLOCK
 /* Disable paging */
 void
@@ -144,4 +158,40 @@ do_mlockall(bool print_msg)
   if (print_msg)
     msg (M_INFO, "mlockall() succeeded");
 }
+#endif
+
+#ifndef HAVE_DAEMON
+
+int
+daemon(int nochdir, int noclose)
+{
+  int fd;
+
+  switch (fork())
+    {
+    case -1:
+      return (-1);
+    case 0:
+      break;
+    default:
+      _exit(0);
+    }
+
+  if (setsid() == -1)
+    return (-1);
+
+  if (!nochdir)
+    chdir ("/");
+
+  if (!noclose && (fd = open ("/dev/null", O_RDWR, 0)) != -1)
+    {
+      dup2 (fd, 0);
+      dup2 (fd, 1);
+      dup2 (fd, 2);
+      if (fd > 2)
+	close (fd);
+    }
+  return (0);
+}
+
 #endif

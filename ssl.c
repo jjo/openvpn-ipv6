@@ -41,6 +41,7 @@
 #include "error.h"
 #include "common.h"
 #include "socket.h"
+#include "thread.h"
 
 #include "memdbg.h"
 
@@ -113,6 +114,10 @@ free_ssl_lib ()
   ERR_free_strings ();
 }
 
+/*
+ * OpenSSL library calls back here if the private key
+ * is protected by a password.
+ */
 int
 pem_password_callback (char *buf, int size, int rwflag, void *u)
 {
@@ -137,6 +142,10 @@ pem_password_callback (char *buf, int size, int rwflag, void *u)
   return 0;
 }
 
+/*
+ * OpenSSL callback to get a temporary RSA key, mostly
+ * used for export ciphers.
+ */
 static RSA *
 tmp_rsa_cb (SSL * s, int is_export, int keylength)
 {
@@ -166,7 +175,10 @@ system_safe_string (char *cp)
     }
 }
 
-/* Our verify callback function */
+/*
+ * Our verify callback function -- check
+ * that an incoming peer certificate is good.
+ */
 
 static const char *verify_command;
 
@@ -225,6 +237,9 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
     }
 }
 
+/*
+ * Print debugging information on SSL/TLS session negotiation.
+ */
 static void
 info_callback (INFO_CALLBACK_SSL_CONST SSL * s, int where, int ret)
 {
@@ -328,6 +343,9 @@ init_ssl (bool server,
   return ctx;
 }
 
+/*
+ * Print a one line summary of SSL/TLS session handshake.
+ */
 static void
 print_details (SSL * c_ssl, const char *prefix)
 {
@@ -369,6 +387,10 @@ print_details (SSL * c_ssl, const char *prefix)
   msg (M_INFO, "%s%s", s1, s2);
 }
 
+/*
+ * Show the TLS ciphers that are available for us to use
+ * in the OpenSSL library.
+ */
 void
 show_available_tls_ciphers ()
 {
@@ -394,6 +416,11 @@ show_available_tls_ciphers ()
   SSL_CTX_free (ctx);
 }
 
+/*
+ * The OpenSSL library has a notion of preference in TLS
+ * ciphers.  Higher preference == more secure.
+ * Return the highest preference cipher.
+ */
 void
 get_highest_preference_tls_cipher (char *buf, int size)
 {
@@ -415,6 +442,9 @@ get_highest_preference_tls_cipher (char *buf, int size)
   SSL_CTX_free (ctx);
 }
 
+/*
+ * Map internal constants to ascii names.
+ */
 static const char *
 state_name (int state)
 {
@@ -479,6 +509,9 @@ session_index_name (int index)
     }
 }
 
+/*
+ * For debugging.
+ */
 static const char *
 print_key_id (struct tls_multi *multi)
 {
@@ -496,6 +529,11 @@ print_key_id (struct tls_multi *multi)
   return out.data;
 }
 
+/*
+ * OpenVPN's interface to SSL/TLS authentication,
+ * encryption, and decryption is exclusively
+ * through "memory BIOs".
+ */
 static BIO *
 getbio (BIO_METHOD * type, const char *desc)
 {
@@ -506,6 +544,9 @@ getbio (BIO_METHOD * type, const char *desc)
   return ret;
 }
 
+/*
+ * Write to an OpenSSL BIO in non-blocking mode.
+ */
 static int
 bio_write (BIO * bio, struct buffer *buf, const char *desc)
 {
@@ -515,7 +556,15 @@ bio_write (BIO * bio, struct buffer *buf, const char *desc)
   ASSERT (buf->len >= 0);
   if (buf->len)
     {
+      /*
+       * Free the L_TLS lock prior to calling BIO routines
+       * so that foreground thread can still call
+       * tls_pre_decrypt or tls_pre_encrypt,
+       * allowing tunnel packet forwarding to continue.
+       */
+      mutex_unlock (L_TLS);
       i = BIO_write (bio, BPTR (buf), BLEN (buf));
+      mutex_lock (L_TLS);
       if (i < 0)
 	{
 	  if (BIO_should_retry (bio))
@@ -538,6 +587,7 @@ bio_write (BIO * bio, struct buffer *buf, const char *desc)
       else
 	{			/* successful write */
 	  msg (D_HANDSHAKE_VERBOSE, "BIO write %s %d bytes", desc, i);
+	  memset (BPTR (buf), 0, BLEN (buf)); /* erase data just written */
 	  buf->len = 0;
 	  ret = 1;
 	}
@@ -545,6 +595,9 @@ bio_write (BIO * bio, struct buffer *buf, const char *desc)
   return ret;
 }
 
+/*
+ * Read from an OpenSSL BIO in non-blocking mode.
+ */
 static int
 bio_read (BIO * bio, struct buffer *buf, int maxlen, const char *desc)
 {
@@ -561,7 +614,18 @@ bio_read (BIO * bio, struct buffer *buf, int maxlen, const char *desc)
       int len = buf_forward_capacity (buf);
       if (maxlen < len)
 	len = maxlen;
+      /*
+       * Free the L_TLS lock prior to calling BIO routines
+       * so that foreground thread can still call
+       * tls_pre_decrypt or tls_pre_encrypt,
+       * allowing tunnel packet forwarding to continue.
+       *
+       * BIO_read brackets most of the serious RSA
+       * key negotiation number crunching.
+       */
+      mutex_unlock (L_TLS);
       i = BIO_read (bio, BPTR (buf), len);
+      mutex_lock (L_TLS);
       if (i < 0)
 	{
 	  if (BIO_should_retry (bio))
@@ -590,6 +654,11 @@ bio_read (BIO * bio, struct buffer *buf, int maxlen, const char *desc)
   return ret;
 }
 
+/*
+ * Inline functions for reading from and writing
+ * to BIOs.
+ */
+
 static inline int
 key_state_write_plaintext (struct key_state *ks, struct buffer *buf)
 {
@@ -616,15 +685,20 @@ key_state_read_ciphertext (struct key_state *ks, struct buffer *buf,
   return bio_read (ks->ct_out, buf, maxlen, "tls_read_ciphertext");
 }
 
+/*
+ * Initialize a key_state.  Each key_state corresponds to
+ * a specific SSL/TLS session.
+ */
 static void
 key_state_init (struct tls_session *session, struct key_state *ks,
-		const time_t current)
+		time_t current)
 {
   /*
    * Build TLS object that reads/writes ciphertext
    * to/from memory BIOs.
    */
   CLEAR (*ks);
+
   ks->ssl = SSL_new (session->opt->ssl_ctx);
   if (!ks->ssl)
     msg (M_SSLERR, "SSL_new failed");
@@ -651,7 +725,6 @@ key_state_init (struct tls_session *session, struct key_state *ks,
    * key_id increments to KEY_ID_MASK then recycles back to 1.
    * This way you know that if key_id is 0, it is the first key.
    */
-
   ++session->key_id;
   session->key_id &= P_KEY_ID_MASK;
   if (!session->key_id)
@@ -671,6 +744,7 @@ key_state_init (struct tls_session *session, struct key_state *ks,
 static void
 key_state_free (struct key_state *ks, bool clear)
 {
+  ks->state = S_UNDEF;
 
   if (ks->ssl) {
     BIO_free_all(ks->ssl_bio);
@@ -688,10 +762,17 @@ key_state_free (struct key_state *ks, bool clear)
     CLEAR (*ks);
 }
 
+/*
+ * Must be called if we move a tls_session in memory.
+ */
 static inline void tls_session_set_self_referential_pointers (struct tls_session* session) {
   session->tls_auth.packet_id = &session->tls_auth_pid;
 }
 
+/*
+ * Initialize a TLS session.  A TLS session normally has 2 key_state objects,
+ * one for the current key, and one for the retiring key.
+ */
 static void
 tls_session_init (struct tls_multi *multi, struct tls_session *session)
 {
@@ -752,14 +833,22 @@ move_session(struct tls_multi* multi, int dest, int src, bool reinit_src)
   msg (D_TLS_DEBUG, "move_session: exit");
 }
 
+/*
+ * Used to determine in how many seconds we should be
+ * called again.
+ */
 static inline void
 compute_earliest_wakeup (time_t* earliest, int seconds_from_now) {
   if (seconds_from_now > 0 && (seconds_from_now < *earliest || !*earliest))
     *earliest = seconds_from_now;
 }
 
+/*
+ * Return true if "lame duck" or retiring key has expired and can
+ * no longer be used.
+ */
 static inline bool
-lame_duck_must_die (const struct tls_session* session, time_t* wakeup, const time_t current)
+lame_duck_must_die (const struct tls_session* session, time_t* wakeup, time_t current)
 {
   const struct key_state* lame = &session->key[KS_LAME_DUCK];
   if (lame->state >= S_INITIAL)
@@ -779,13 +868,18 @@ lame_duck_must_die (const struct tls_session* session, time_t* wakeup, const tim
     return false;
 }
 
+/*
+ * A tls_multi object fully encapsulates OpenVPN's TLS state.
+ * See ssl.h for more comments.
+ */
 struct tls_multi *
 tls_multi_init (struct tls_options *tls_options,
 		struct udp_socket *udp_socket)
 {
-  struct tls_multi *ret = (struct tls_multi *) malloc (sizeof (struct tls_multi));
+  struct tls_multi *ret;
   int i;
 
+  ret = (struct tls_multi *) malloc (sizeof (struct tls_multi));
   ASSERT (ret);
   CLEAR (*ret);
 
@@ -804,6 +898,9 @@ tls_multi_init (struct tls_options *tls_options,
   return ret;
 }
 
+/*
+ * Finalize our computation of frame sizes.
+ */
 void
 tls_multi_init_finalize(struct tls_multi* multi, const struct frame* frame)
 {
@@ -818,6 +915,7 @@ void
 tls_multi_free (struct tls_multi *multi, bool clear)
 {
   int i;
+
   ASSERT (multi);
 
   for (i = 0; i < TM_SIZE; ++i)
@@ -902,7 +1000,7 @@ swap_hmac (struct buffer *buf, const struct crypto_options *co, bool incoming)
  * Never limit the rate unless we have an active lame duck key
  * which will not be expiring any time soon.
  */
-static bool transmit_rate_limiter(struct tls_session* session, time_t* wakeup, const time_t current)
+static bool transmit_rate_limiter(struct tls_session* session, time_t* wakeup, time_t current)
 {
   const struct key_state *lame = &session->key[KS_LAME_DUCK];
   const struct key_state *pri = &session->key[KS_PRIMARY];
@@ -914,7 +1012,7 @@ static bool transmit_rate_limiter(struct tls_session* session, time_t* wakeup, c
   const int estimated_bytes = 20000;
 
   /* worst-case estimated finish at this rate */
-  const time_t finish = current + ((freq * estimated_bytes) / MTU_SIZE (&session->opt->frame));
+  time_t finish = current + ((freq * estimated_bytes) / MTU_SIZE (&session->opt->frame));
 
   if (check_debug_level (D_TLS_DEBUG))
     {
@@ -942,6 +1040,9 @@ static bool transmit_rate_limiter(struct tls_session* session, time_t* wakeup, c
   return true;
 }
 
+/*
+ * Write a control channel authentication record.
+ */
 static void
 write_control_auth (struct tls_session *session,
 		    struct key_state *ks,
@@ -950,7 +1051,7 @@ write_control_auth (struct tls_session *session,
 		    int opcode,
 		    int max_ack,
 		    bool prepend_ack,
-		    const time_t current)
+		    time_t current)
 {
   unsigned char *header;
   struct buffer null = clear_buf ();
@@ -970,11 +1071,14 @@ write_control_auth (struct tls_session *session,
   *to_udp_addr = ks->remote_addr;
 }
 
+/*
+ * Read a control channel authentication record.
+ */
 static bool
 read_control_auth (struct buffer *buf,
 		   struct crypto_options *co,
 		   struct sockaddr_in *from,
-		   const time_t current)
+		   time_t current)
 {
   if (co->key_ctx_bi->decrypt.hmac)
     {
@@ -1024,7 +1128,7 @@ read_control_auth (struct buffer *buf,
  * active key.
  */
 static void
-key_state_soft_reset (struct tls_session *session, const time_t current)
+key_state_soft_reset (struct tls_session *session, time_t current)
 {
   ks->must_die = current + session->opt->transition_window; /* remaining lifetime of old key */
   key_state_free (ks_lame, false);
@@ -1047,7 +1151,7 @@ key_state_soft_reset (struct tls_session *session, const time_t current)
 static bool
 tls_process (struct tls_multi *multi, struct tls_session *session,
 	     struct buffer *to_udp, struct sockaddr_in *to_udp_addr,
-	     time_t * wakeup, const time_t current)
+	     time_t * wakeup, time_t current)
 {
   struct buffer *buf;
   bool state_change = false;
@@ -1057,10 +1161,6 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
   ASSERT (ks->state != S_UNDEF);
   ASSERT (ks->state != S_ERROR);
   ASSERT (session_id_defined (&session->session_id));
-
-  /* Let the reliability level know what time it is */
-  reliable_set_current_time (&ks->send_reliable, current);
-  reliable_set_current_time (&ks->rec_reliable, current);
 
   /* Should we trigger a soft reset? -- new key, keeps old key for a while */
   if (ks->state == S_ACTIVE &&
@@ -1085,8 +1185,12 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 	msg (D_TLS_DEBUG_LOW, "tls_process: killed lame duck key");
   }
 
+  mutex_cycle (L_TLS);
+
   do
     {
+      current = time (NULL);
+
       msg (D_TLS_DEBUG, "tls_process: chg=%d ks=%s lame=%s",
 	   state_change, state_name (ks->state), state_name (ks_lame->state));
 
@@ -1105,10 +1209,10 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 	      if (buf)
 		{
 		  ks->must_negotiate = current + session->opt->handshake_window;
-		  
+	      
 		  /* null buffer */
 		  reliable_mark_active (&ks->send_reliable, buf, -1, ks->initial_opcode);
-
+	      
 		  ks->state = S_PRE_START;
 		  state_change = true;
 		  msg (D_TLS_DEBUG, "Initial Handshake, sid=%s",
@@ -1139,13 +1243,51 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 	    {
 	      if (FULL_SYNC)
 		{
-		  ks->state = S_ACTIVE;
 		  ks->established = current;
 		  msg (D_TLS_DEBUG, "Transition to S_ACTIVE");
 		  if (check_debug_level (D_HANDSHAKE))
 		    print_details (ks->ssl, "Control Channel:");
 		  state_change = true;
+		  ks->state = S_ACTIVE;
 		}
+	    }
+
+	  /* Reliable buffer to outgoing UDP (send up to CONTROL_SEND_ACK_MAX ACKs
+	     for previously received packets) */
+	  if (!to_udp->len && reliable_can_send (&ks->send_reliable, current))
+	    {
+	      if (transmit_rate_limiter(session, wakeup, current))
+		{
+		  unsigned char *header;
+		  int opcode;
+		  struct buffer b;
+
+		  buf = reliable_send (&ks->send_reliable, &opcode, current);
+		  ASSERT (buf);
+		  b = *buf;
+
+		  write_control_auth (session, ks, &b, to_udp_addr, opcode,
+				      CONTROL_SEND_ACK_MAX, true, current);
+		  *to_udp = b;
+		  generated_output = true;
+		  state_change = true;
+		  msg (D_TLS_DEBUG, "Reliable -> UDP");
+		  break;
+		}
+	    }
+
+	  /* Send 1 or more ACKs (each received control packet gets one ACK) */
+	  if (!to_udp->len && !reliable_ack_empty (&ks->rec_ack))
+	    {
+	      buf = &ks->ack_write_buf;
+	      ASSERT (buf_init (buf, EXTRA_FRAME (&multi->opt.frame)));
+	      write_control_auth (session, ks, buf, to_udp_addr, P_ACK_V1,
+				  RELIABLE_ACK_SIZE, false, current);
+	      *to_udp = *buf;
+	      generated_output = true;
+	      state_change = true;
+	      msg (D_TLS_DEBUG, "Dedicated ACK -> UDP");
+	      break;
 	    }
 
 	  /* Write incoming ciphertext to TLS object */
@@ -1155,7 +1297,6 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 	      int status = 0;
 	      if (buf->len)
 		{
-
 		  status = key_state_write_ciphertext (ks, buf);
 		  if (status == -1)
 		    {
@@ -1184,6 +1325,7 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 
 	      ASSERT (buf_init (buf, EXTRA_FRAME (&multi->opt.frame)));
 	      status = key_state_read_plaintext (ks, buf, MTU_SIZE (&multi->opt.frame));
+	      current = time (NULL);
 	      if (status == -1)
 		{
 		  msg (D_TLS_ERRORS, "TLS Error: TLS object -> incoming plaintext read error");
@@ -1216,9 +1358,9 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 	      ASSERT (buf_write
 		      (buf, session->opt->options,
 		       strlen (session->opt->options) + 1));
-	      ks->state = S_SENT_KEY;
 	      state_change = true;
 	      msg (D_TLS_DEBUG, "Send Key");
+	      ks->state = S_SENT_KEY;
 	    }
 
 	  /* Recieve Key */
@@ -1252,17 +1394,19 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 		       session->opt->options, BPTR (buf));
 		  status = 0;
 		}
-	      buf->len = 0;
+	      buf_clear (buf);
 
 	      if (status == 1)
-		init_key_ctx (&ks->key.decrypt, &key, &session->opt->key_type,
-			      DO_DECRYPT, "Data Channel Decrypt");
+		{
+		  init_key_ctx (&ks->key.decrypt, &key, &session->opt->key_type,
+				DO_DECRYPT, "Data Channel Decrypt");
+		}
 	      CLEAR (key);
 	      if (status == 0)
 		goto error;
-	      ks->state = S_GOT_KEY;
 	      state_change = true;
 	      msg (D_TLS_DEBUG, "Rec Key");
+	      ks->state = S_GOT_KEY;
 	    }
 
 	  /* Write outgoing plaintext to TLS object */
@@ -1304,51 +1448,34 @@ tls_process (struct tls_multi *multi, struct tls_session *session,
 		    }
 		}
 	    }
-
-	  /* Reliable buffer to outgoing UDP (send up to CONTROL_SEND_ACK_MAX ACKs
-	     for previously received packets) */
-	  if (!to_udp->len && reliable_can_send (&ks->send_reliable))
+	}
+      else /* state is ACTIVE */
+	{
+	  /* Send 1 or more ACKs (each received control packet gets one ACK) */
+	  if (!to_udp->len && !reliable_ack_empty (&ks->rec_ack))
 	    {
-	      if (transmit_rate_limiter(session, wakeup, current))
-		{
-		  unsigned char *header;
-		  int opcode;
-		  struct buffer b;
-
-		  buf = reliable_send (&ks->send_reliable, &opcode);
-		  ASSERT (buf);
-		  b = *buf;
-
-		  write_control_auth (session, ks, &b, to_udp_addr, opcode,
-				      CONTROL_SEND_ACK_MAX, true, current);
-		  *to_udp = b;
-		  generated_output = true;
-		  state_change = true;
-		  msg (D_TLS_DEBUG, "Reliable -> UDP");
-		}
+	      buf = &ks->ack_write_buf;
+	      ASSERT (buf_init (buf, EXTRA_FRAME (&multi->opt.frame)));
+	      write_control_auth (session, ks, buf, to_udp_addr, P_ACK_V1,
+				  RELIABLE_ACK_SIZE, false, current);
+	      *to_udp = *buf;
+	      generated_output = true;
+	      state_change = true;
+	      msg (D_TLS_DEBUG, "Post-Active Dedicated ACK -> UDP");
+	      break;
 	    }
 	}
-
-      /* Send 1 or more ACKs (each received control packet gets one ACK) */
-      if (!to_udp->len && !reliable_ack_empty (&ks->rec_ack))
-	{
-	  buf = &ks->ack_write_buf;
-	  ASSERT (buf_init (buf, EXTRA_FRAME (&multi->opt.frame)));
-	  write_control_auth (session, ks, buf, to_udp_addr, P_ACK_V1,
-			      RELIABLE_ACK_SIZE, false, current);
-	  *to_udp = *buf;
-	  generated_output = true;
-	  state_change = true;
-	  msg (D_TLS_DEBUG, "Dedicated ACK -> UDP");
-	}
+      mutex_cycle (L_TLS); 
     }
   while (state_change);
+
+  current = time (NULL);
 
   /* When should we wake up again? */
   {
     if (ks->state >= S_INITIAL && ks->state < S_ACTIVE)
       {
-	compute_earliest_wakeup (wakeup, reliable_send_timeout (&ks->send_reliable));
+	compute_earliest_wakeup (wakeup, reliable_send_timeout (&ks->send_reliable, current));
 	
 	if (ks->must_negotiate)
 	  compute_earliest_wakeup (wakeup, ks->must_negotiate - current);
@@ -1385,12 +1512,12 @@ tls_multi_process (struct tls_multi *multi,
 		   struct sockaddr_in *to_udp_addr,
 		   struct udp_socket *to_udp_socket,
 		   time_t * wakeup,
-		   const time_t current)
+		   time_t current)
 {
   int i;
   bool generated_output = false;
 
-  multi->save_ks = NULL;
+  mutex_lock (L_TLS);
 
   /*
    * Process each session object having state of S_INITIAL or greater,
@@ -1417,10 +1544,12 @@ tls_multi_process (struct tls_multi *multi,
 
       if (ks->state >= S_INITIAL && ADDR (ks->remote_addr))
 	{
-	  if (tls_process (multi, session, to_udp, to_udp_addr, wakeup, current)
-	      && DECRYPT_KEY_ENABLED (multi, ks))
-	    generated_output = true;
-	    udp_socket_set_outgoing_addr (to_udp, to_udp_socket, to_udp_addr);
+	  current = time (NULL);
+	  if (tls_process (multi, session, to_udp, to_udp_addr, wakeup, current))
+	    {
+	      generated_output = true;
+	      udp_socket_set_outgoing_addr (to_udp, to_udp_socket, to_udp_addr);
+	    }
 
 	  /*
 	   * If tls_process hits an error:
@@ -1438,7 +1567,10 @@ tls_multi_process (struct tls_multi *multi,
 		}
 	    }
 	}
+      mutex_cycle (L_TLS);
     }
+
+  current = time (NULL);
 
   /*
    * If lame duck session expires, kill it.
@@ -1457,8 +1589,246 @@ tls_multi_process (struct tls_multi *multi,
     msg (D_TLS_DEBUG_LOW, "tls_multi_process: untrusted session promoted to trusted");
   }
 
+  mutex_unlock (L_TLS);
+
   return generated_output;
 }
+
+/*
+ * When OpenVPN is built in pthread-mode, thread_func
+ * will periodically call tls_multi_process.
+ */
+#ifdef USE_PTHREAD
+
+/*
+ * Main thread <-> TLS thread communication
+ * errors are fatal if they are of these types.
+ */
+static inline bool
+local_sock_fatal ()
+{
+  return errno == ENOTCONN || errno == ECONNREFUSED;
+}
+
+/*
+ * This routine is the TLS work thread.
+ */
+static void *
+thread_func (void *arg)
+{
+  const int gc_level = gc_new_level ();
+  const struct thread_parms parm = *(struct thread_parms*) arg;
+  fd_set reads;
+  time_t current;
+  bool fatal;
+
+#ifdef _POSIX_MEMLOCK
+  if (parm.mlock) /* should we disable paging? */
+    do_mlockall (true);  
+#endif
+
+  /* change thread priority if requested */
+  set_nice (parm.nice);
+
+  /* event loop */
+  current = time (NULL);
+  while (true)
+    {
+      int stat;
+      time_t wakeup;
+      struct tt_ret ret;
+      struct buffer buf;
+
+      /*
+       * Call tls_multi_process repeatedly as long
+       * as it has data to forward to the UDP port.
+       */
+      do {
+	CLEAR (ret);
+	CLEAR (buf);
+	wakeup = TLS_MULTI_REFRESH;   /* maximum timeout */
+	
+	/* do one TLS process pass */
+	if (tls_multi_process (parm.multi, &buf, &ret.to_udp_addr,
+			       parm.udp_socket, &wakeup, current))
+	  {
+	    /* make a fresh copy of buf in ret */
+	    ret.to_udp = clone_buf(&buf);
+
+	    /* send buffer to foreground where it will be forwarded to remote */
+	    stat = write (parm.sd, &ret, sizeof (ret));
+	    fatal = local_sock_fatal();
+	    check_status (stat, "write to foreground");
+	    if (fatal)
+	      goto exit;
+	  }
+      } while (ret.to_udp.len);
+
+      /* do a quick garbage collect */
+      gc_collect (gc_level);
+
+      /* wait on select */
+      {
+	struct timeval tv;
+	tv.tv_sec = wakeup;
+	tv.tv_usec = 0;
+	FD_ZERO (&reads);
+	FD_SET (parm.sd, &reads);
+	stat = select (parm.sd + 1, &reads, NULL, NULL, &tv);
+      }
+
+      /* update current time */
+      current = time (NULL);
+
+      /* received a message from foreground */
+      check_status (stat, "select");
+
+      /* timeout? */
+      if (!stat)
+	continue;
+
+      /* process message from foreground */
+      if (stat > 0 && FD_ISSET (parm.sd, &reads))
+	{
+	  struct tt_cmd tc;
+	  stat = read (parm.sd, &tc, sizeof (tc));
+	  fatal = local_sock_fatal();
+	  check_status (stat, "read from foreground");
+	  if (stat == sizeof (tc))
+	    {
+	      if (tc.cmd == TTCMD_PROCESS)
+		;
+	      else if (tc.cmd == TTCMD_EXIT)
+		break;
+	      else
+		msg (D_TLS_DEBUG, "TLS_THREAD: Unknown TTCMD code: %d", tc.cmd);
+	    }
+	  else if (fatal)
+	    break;
+	}
+    }
+ exit:
+  close (parm.sd);
+  gc_free_level (gc_level);
+  return NULL;
+}
+
+/*
+ * Send a command to TLS thread.
+ */
+static int
+tls_thread_send_command (int sd, int cmd)
+{
+  struct tt_cmd tc;
+  int stat;
+  bool fatal;
+
+  tc.cmd = cmd;
+  stat = write (sd, &tc, sizeof (tc));
+  fatal = local_sock_fatal();
+  check_status (stat, "write command to tls thread");
+  if (stat == sizeof (tc))
+    return 1;
+  else if (fatal)
+    return -1;
+  else
+    return 0;
+}
+
+/*
+ * Create the TLS thread.
+ */
+int
+tls_thread_create (struct tls_multi *multi,
+		   struct udp_socket *udp_socket,
+		   int nice, bool mlock)
+{
+  struct thread_parms *tp = (struct thread_parms *) malloc (sizeof (struct thread_parms));
+  int sd[2];
+
+  ASSERT (tp);
+  tp->multi = multi;
+  tp->udp_socket = udp_socket;
+  tp->nice = nice;
+  tp->mlock = mlock;
+
+  /*
+   * Make a socket for foreground and background threads
+   * to communicate.  The background thread will set its
+   * end to blocking, while the foreground will set its
+   * end to non-blocking.
+   */
+  if (socketpair (PF_UNIX, SOCK_DGRAM, 0, sd) == -1)
+    msg (M_ERR, "socketpair call failed");
+  set_nonblock (sd[0]);
+  tp->sd = sd[1];
+  work_thread_create (thread_func, (void*)tp);
+  return sd[0];
+}
+
+/*
+ * Send a command to TLS thread telling it to cycle
+ * through tls_multi_process() as long as there
+ * is data to process.
+ */
+int
+tls_thread_process (int sd)
+{
+  return tls_thread_send_command (sd, TTCMD_PROCESS);
+}
+
+/*
+ * Close the TLS thread
+ */
+void
+tls_thread_close (int sd)
+{
+  if (sd)
+    {
+      struct tt_ret ttr;
+
+      tls_thread_send_command (sd, TTCMD_EXIT);
+      work_thread_join ();
+
+      /* free any unprocessed buffers sent from background to foreground */
+      while (tls_thread_rec_buf (sd, &ttr, false) == 1)
+	{
+	  free_buf (&ttr.to_udp);
+	}
+
+      close (sd);
+    }
+}
+
+/*
+ * Receive an object from the TLS thread which
+ * normally contains a buffer to be sent to
+ * the remote peer over the UDP port.
+ *
+ * Return:
+ *  1 if ok
+ *  0 if non-fatal error
+ *  -1 if fatal error
+ */
+int
+tls_thread_rec_buf (int sd, struct tt_ret* ttr, bool do_check_status)
+{
+  int stat;
+  bool fatal;
+
+  stat = read (sd, ttr, sizeof (*ttr));
+  fatal = local_sock_fatal();
+  if (do_check_status)
+    check_status (stat, "read buffer from tls thread");
+  if (stat == sizeof (*ttr))
+    return 1;
+  else if (fatal)
+    return -1;
+  else
+    return 0;
+}
+
+#endif
 
 /*
  * Pre and post-process the encryption & decryption buffers in order
@@ -1485,6 +1855,9 @@ tls_multi_process (struct tls_multi *multi,
  *
  * Return true if input was an authenticated control channel
  * packet.
+ *
+ * If we are running in TLS thread mode, all public routines
+ * below this point must be called with the L_TLS lock held.
  */
 
 bool
@@ -1492,7 +1865,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 		 struct sockaddr_in *from,
 		 struct buffer *buf,
 		 struct crypto_options *opt,
-		 const time_t current)
+		 time_t current)
 {
   bool ret = false;
 
@@ -1504,7 +1877,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 
       /* get opcode and key ID */
       {
-	char c = *BPTR (buf);
+	unsigned char c = *BPTR (buf);
 	op = c >> P_OPCODE_SHIFT;
 	key_id = c & P_KEY_ID_MASK;
       }
@@ -1671,9 +2044,10 @@ tls_pre_decrypt (struct tls_multi *multi,
 	      if (i != TM_ACTIVE && i != TM_UNTRUSTED)
 		{
 		  msg (D_TLS_ERRORS,
-		       "TLS Error: Unroutable control packet received from %s (i=%d)",
+		       "TLS Error: Unroutable control packet received from %s (si=%d op=%s)",
 		       print_sockaddr (from),
-		       i);
+		       i,
+		       packet_opcode_name (op));
 		  goto done;
 		}
 
@@ -1704,8 +2078,12 @@ tls_pre_decrypt (struct tls_multi *multi,
 		}
 	      else
 		{
+		  /*
+		   * Remote responding to our key renegotiation request?
+		   */
 		  if (op == P_CONTROL_SOFT_RESET_V1)
 		    do_burst = true;
+
 		  if (!read_control_auth (buf, &session->tls_auth, from, current))
 		    goto done;
 		  msg (D_TLS_DEBUG,
@@ -1727,10 +2105,6 @@ tls_pre_decrypt (struct tls_multi *multi,
 	    ASSERT (ks->state != S_UNDEF);
 	    ASSERT (ks->state != S_ERROR);
 	    ASSERT (session_id_defined (&session->session_id));
-
-	    /* Let the reliability level know what time it is */
-	    reliable_set_current_time (&ks->send_reliable, current);
-	    reliable_set_current_time (&ks->rec_reliable, current);
 
 	    /* Let our caller know we processed a control channel packet */
 	    ret = true;
@@ -1756,10 +2130,10 @@ tls_pre_decrypt (struct tls_multi *multi,
 	     * the send buffer?  This improves the start-up efficiency of the
 	     * initial key negotiation after the 2nd peer comes online.
 	     */
-	    if (do_burst && !ks->burst)
+	    if (do_burst && !session->burst)
 	      {
-		reliable_schedule_now (&ks->send_reliable);
-		ks->burst = true;
+		reliable_schedule_now (&ks->send_reliable, current);
+		session->burst = true;
 	      }
 
 	    /* Check key_id */
@@ -1822,6 +2196,7 @@ void
 tls_pre_encrypt (struct tls_multi *multi,
 		 struct buffer *buf, struct crypto_options *opt)
 {
+  multi->save_ks = NULL;
   if (buf->len > 0)
     {
       int i;
@@ -1852,9 +2227,11 @@ tls_pre_encrypt (struct tls_multi *multi,
 void
 tls_post_encrypt (struct tls_multi *multi, struct buffer *buf)
 {
-  struct key_state *ks = multi->save_ks;
+  struct key_state *ks;
   unsigned char *op;
 
+  ks = multi->save_ks;
+  multi->save_ks = NULL;
   if (buf->len > 0)
     {
       ASSERT (ks);
@@ -1863,7 +2240,6 @@ tls_post_encrypt (struct tls_multi *multi, struct buffer *buf)
       ++ks->n_packets;
       ks->n_bytes += buf->len;
     }
-  multi->save_ks = NULL;
 }
 
 /*

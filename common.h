@@ -164,7 +164,24 @@ struct frame {
 #define D_PACKET_CONTENT     7	/* show before/after encryption packet content */
 #define D_GREMLIN_VERBOSE    7  /* show verbose info from gremlin module */
 #define D_TLS_NO_SEND_KEY    7  /* show when no data channel send-key is available */
+#define D_THREAD_DEBUG       7  /* show debug information from the pthread code */
 
 #define D_SHAPER             8  /* show traffic shaper info */
+
+#define D_OPENSSL_LOCK       9  /* show OpenSSL locks */
+
+/*
+ * OpenVPN static mutex locks, by mutex type
+ */
+#define L_MSG       0
+#define L_INET_NTOA 1
+#define L_TLS       2
+#define L_SOCK      3
+#define N_MUTEXES   4
+
+/* TLS time constants */
+
+#define TLS_MULTI_REFRESH 15    /* seconds */
+#define TLS_MULTI_HORIZON 60    /* seconds */
 
 #endif

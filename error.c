@@ -28,6 +28,8 @@
 #include "syshead.h"
 
 #include "error.h"
+#include "thread.h"
+#include "misc.h"
 
 #ifdef USE_CRYPTO
 #include <openssl/err.h>
@@ -75,10 +77,17 @@ _msg (unsigned int flags, const char *format, ...)
   int level;
   char msg1[ERR_BUF_SIZE];
   char msg2[ERR_BUF_SIZE];
-  char *m1 = msg1;
-  char *m2 = msg2;
+  char *m1;
+  char *m2;
   char *tmp;
-  int e = errno;
+  int e;
+
+  mutex_lock (L_MSG);
+
+  e = errno;
+
+  m1 = msg1;
+  m2 = msg2;
 
   va_start (arglist, format);
   vsnprintf (m1, ERR_BUF_SIZE, format, arglist);
@@ -124,10 +133,17 @@ _msg (unsigned int flags, const char *format, ...)
     }
   else
     {
+#ifdef USE_PTHREAD
+      printf ("%d[%d]: %s\n", msg_line_num, thread_number (), m1);
+#else
       printf ("%d: %s\n", msg_line_num, m1);
+#endif
       ++msg_line_num;
       fflush(stdout);
     }
+
+  mutex_unlock (L_MSG);
+
   if (flags & M_FATAL)
     {
       msg (M_INFO, "Exiting");
@@ -142,11 +158,11 @@ assert_failed (const char *filename, int line)
 }
 
 void
-become_daemon (bool daemon_flag)
+become_daemon (bool daemon_flag, const char *cd)
 {
   if (daemon_flag)
     {
-      if (daemon (0, 0) < 0)
+      if (daemon (cd != NULL, 0) < 0)
 	msg (M_ERR, "daemon() failed");
       openlog ("openvpn", LOG_PID, 0);
       _is_daemon = true;

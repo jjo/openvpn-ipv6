@@ -1,6 +1,30 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
+2002.05.02 -- Version 1.1.1.6
+
+* Added configuration file support via
+  the --config option.
+* Added pthread support to improve latency.
+  With pthread support, OpenVPN
+  will offload CPU-intensive tasks such as RSA
+  key number crunching to a background thread
+  to improve tunnel packet forwarding
+  latency.  pthread support can be enabled
+  with the --enable-pthread configure option.
+* SIGHUP signal now causes OpenVPN to restart
+  and re-read command line and or config file,
+  in conformance with canonical daemon behaviour.
+* SIGUSR1 now does what SIGHUP did in
+  version 1.1.1 and earlier -- close and reopen
+  the UDP socket for use when DHCP changes
+  host's IP address.
+* SIGUSR2 added -- outputs current statistics,
+  including compression statistics.
+* Added --writepid option to write main
+  process ID to a file.
+* Preliminary work porting to Solaris.
+
 2002.04.22 -- Version 1.1.1
 	
 * Added --ifconfig option to automatically configure

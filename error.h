@@ -95,6 +95,6 @@ is_daemon ()
   return _is_daemon;
 }
 
-void become_daemon (bool daemon_flag);
+void become_daemon (bool daemon_flag, const char *cd);
 
 #endif /* ERROR_H */

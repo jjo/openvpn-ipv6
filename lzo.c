@@ -158,6 +158,8 @@ lzo_compress (struct buffer *buf, struct buffer work,
       compressed = true;
 
       msg (D_COMP, "compress %d -> %d", buf->len, work.len);
+      lzowork->pre_compress += buf->len;
+      lzowork->post_compress += work.len;
 
       /* tell adaptive level about our success or lack thereof in getting any size reduction */
       lzo_adaptive_compress_data(&lzowork->ac, buf->len, work.len);
@@ -210,6 +212,8 @@ lzo_decompress (struct buffer *buf, struct buffer work,
       work.len = zlen;
 
       msg (D_COMP, "decompress %d -> %d", buf->len, work.len);
+      lzowork->pre_decompress += buf->len;
+      lzowork->post_decompress += work.len;
 
       *buf = work;
     }
@@ -222,6 +226,17 @@ lzo_decompress (struct buffer *buf, struct buffer work,
       msg (M_INFO, "Bad LZO decompression header byte: %d", c);
       buf->len = 0;
     }
+}
+
+/*
+ * Print statistics
+ */
+void lzo_print_stats (struct lzo_compress_workspace *lzo_compwork)
+{
+  msg (M_INFO, " pre-compress bytes:   %10u", lzo_compwork->pre_compress);
+  msg (M_INFO, " post-compress bytes:  %10u", lzo_compwork->post_compress);
+  msg (M_INFO, " pre-decompress bytes: %10u", lzo_compwork->pre_decompress);
+  msg (M_INFO, " post-decompress bytes:%10u", lzo_compwork->post_decompress);
 }
 
 #endif /* USE_LZO */

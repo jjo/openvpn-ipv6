@@ -27,10 +27,11 @@
 
 #include "syshead.h"
 
+#include "common.h"
 #include "error.h"
+#include "options.h"
 #include "socket.h"
 #include "openvpn.h"
-#include "common.h"
 #include "buffer.h"
 #include "crypto.h"
 #include "ssl.h"
@@ -38,159 +39,11 @@
 #include "lzo.h"
 #include "tun.h"
 #include "gremlin.h"
-#include "interval.h"
 #include "shaper.h"
+#include "thread.h"
+#include "interval.h"
 
 #include "memdbg.h"
-
-#define max(a,b) ((a) > (b) ? (a) : (b))
-
-static const char usage_message[] =
-  "%s\n"
-  "\n"
-  "Tunnel Options:\n"
-  "--help          : Show options.\n"
-  "--local host    : Local host name or ip address.\n"
-  "--remote host   : Remote host name or ip address.\n"
-  "--float         : Allow remote to change its IP address, such as through\n"
-  "                  DHCP (this is the default if --remote is not used).\n"
-  "--ipchange cmd  : Execute shell command cmd on remote ip address initial\n"
-  "                  setting or change -- execute as: cmd ip-address port#\n"
-  "                  (',' may be used to separate multiple args in cmd)\n"
-  "--port port     : UDP port # for both local and remote.\n"
-  "--lport port    : UDP port # for local (default=%d).\n"
-  "--rport port    : UDP port # for remote (default=%d).\n"
-  "--nobind        : Do not bind to local address and port.\n"
-  "--dev tunX|tapX : TUN/TAP device (X can be omitted for dynamic device in\n"
-  "                  Linux 2.4+).\n"
-  "--ifconfig l r  : Configure TUN device to use IP address l as a local\n"
-  "                  endpoint and r as a remote endpoint.  l & r should be\n"
-  "                  swapped on the other peer.  l & r must be private\n"
-  "                  addresses outside of the subnets used by either peer.\n"
-  "                  Implies --udp-mtu %d if neither --udp-mtu or --tun-mtu\n"
-  "                  explicitly specified.\n"
-  "--shaper n      : Restrict output to peer to n bytes per second.\n"
-  "--inactive n    : Exit after n seconds of inactivity on TUN/TAP device.\n"
-  "--ping-exit n   : Exit if n seconds pass without reception of remote ping.\n"
-  "--ping n        : Ping remote once every n seconds over UDP port.\n"
-  "--tun-mtu n     : Take the TUN/TAP device MTU to be n and derive the\n"
-  "                  UDP MTU from it (default=%d).\n"
-  "--udp-mtu n     : Take the UDP device MTU to be n and derive the TUN MTU\n"
-  "                  from it (disabled by default).\n"
-  "--tun-af-inet   : Remove a leading htonl(AF_INET) from incoming tunnel\n"
-  "                  data and add it onto outgoing tunnel data.\n"
-  "                  This option should be used on the OpenBSD side of an\n"
-  "                  OpenBSD <-> Linux tunnel (Experimental).\n"
-#ifdef _POSIX_MEMLOCK
-  "--mlock         : Disable Paging -- ensures key material and tunnel\n"
-  "                  data will never be written to disk.\n"
-#endif
-  "--up cmd        : Shell cmd to execute after successful tun device open.\n"
-  "                  Execute as: cmd tun/tap-dev tun-mtu udp-mtu \\\n"
-  "                              ifconfig-local-ip ifconfig-remote-ip\n"              
-  "                  (pre --user UID change)\n"
-  "--down cmd      : Shell cmd to run after tun device close.\n"
-  "                  (post --user UID change and/or --chroot)\n"
-  "                  (script parameters are same as --up option)\n"
-  "--user user     : Drop privileges to user after initialization.\n"
-  "--chroot dir    : Chroot to this directory before initialization.\n"
-  "--daemon        : Become a daemon.\n"
-  "--nice n        : Change process priority (>0 = lower, <0 = higher).\n"
-  "--verb n        : Set output verbosity to n (default=%d):\n"
-  "                  (Level 5 is recommended if you want a good summary\n"
-  "                  of what's happening without being swamped by output).\n"
-  "                : 0 -- no output except fatal errors\n"
-  "                : 1 -- startup header + non-fatal encryption & net errors\n"
-  "                : 2 -- show all parameter settings\n"
-  "                : 3 -- show key negotiations + gremlin net outages\n"
-  "                : 4 -- show partial TLS debug info\n"
-  "                : 5 -- show adaptive compress info\n"
-  "                : 6 -- show keys\n"
-  "                : 7 -- show verbose key negotiations\n"
-  "                : 8 -- show all debug info\n"
-  "--gremlin       : Simulate dropped & corrupted packets + network outages\n"
-  "                  to test robustness of protocol (for debugging only).\n"
-#ifdef USE_LZO
-  "--comp-lzo      : Use fast LZO compression -- may add up to 1 byte per\n"
-  "                  packet for uncompressible data.\n"
-  "--comp-noadapt  : Don't use adaptive compression when --comp-lzo\n"
-  "                  is specified.\n"
-#endif
-#ifdef USE_CRYPTO
-  "\n"
-  "Data Channel Encryption Options (must be compatible between peers):\n"
-  "(These options are meaningful for both Static Key & TLS-mode)\n"
-  "--secret file   : Enable Static Key encryption mode (non-TLS),\n"
-  "                  use shared secret file, generate with --genkey.\n"
-  "--auth alg      : Authenticate packets with HMAC using message\n"
-  "                  digest algorithm alg (default=%s).\n"
-  "                  (usually adds 16 or 20 bytes per packet)\n"
-  "                  Set alg=none to disable authentication.\n"
-  "--cipher alg    : Encrypt packets with cipher algorithm alg\n"
-  "                  (default=%s).\n"
-  "                  Set alg=none to disable encryption.\n"
-  "--keysize n     : Size of cipher key in bits (optional).\n"
-  "                  If unspecified, defaults to cipher-specific default.\n"
-  "--no-replay     : Disable replay protection.\n"
-  "--no-iv         : Disable cipher IV -- only allowed with CBC mode ciphers.\n"
-  "--test-crypto   : Run a self-test of crypto features enabled.\n"
-  "                  For debugging only.\n"
-#ifdef USE_SSL
-  "\n"
-  "TLS Key Negotiation Options:\n"
-  "(These options are meaningful only for TLS-mode)\n"
-  "--tls-server    : Enable TLS and assume server role during TLS handshake.\n"
-  "--tls-client    : Enable TLS and assume client role during TLS handshake.\n"
-  "--ca file       : Certificate authority file in .pem format.\n"
-  "--dh file       : File containing Diffie Hellman parameters\n"
-  "                  in .pem format (for --tls-server only).\n"
-  "                  Use \"openssl dhparam -out dh1024.pem 1024\" to generate.\n"
-  "--cert file     : My signed certificate in .pem format -- must be signed\n"
-  "                  by a Certificate Authority in --ca file.\n"
-  "--key file      : My private key in .pem format.\n"
-  "--tls-cipher l  : A list l of allowable TLS ciphers separated by | (optional).\n"
-  "                : Use --show-tls to see a list of supported TLS ciphers.\n"
-  "--tls-timeout n : Packet retransmit timeout on TLS control channel\n"
-  "                  if no ACK from remote within n seconds (default=%d).\n"
-  "--reneg-bytes n : Renegotiate data chan. key after n bytes sent and recvd.\n"
-  "--reneg-pkts n  : Renegotiate data chan. key after n packets sent and recvd.\n"
-  "--reneg-sec n   : Renegotiate data chan. key after n seconds (default=%d).\n"
-  "--hand-window n : Data channel key exchange must finalize within n seconds\n"
-  "                  of handshake initiation by any peer (default=%d).\n"
-  "--tran-window n : Transition window -- old key can live this many seconds\n"
-  "                  after new key renegotiation begins (default=%d).\n"
-  "--tls-auth f    : Add an additional layer of authentication on top of the TLS\n"
-  "                  control channel to protect against DOS attacks.\n"
-  "                  f (required) is a shared-secret passphrase file.\n"
-  "--askpass       : Get PEM password from controlling tty before we daemonize.\n"
-  "--tls-verify cmd: Execute shell command cmd to verify the X509 name of a\n"
-  "                  pending TLS connection that has otherwise passed all other\n"
-  "                  tests of certification.  cmd should return 0 to allow\n"
-  "                  TLS handshake to proceed, or 1 to fail.  (cmd is\n"
-  "                  executed as 'cmd certificate_depth X509_NAME_oneline')\n"
-  "                  (',' may be used to separate multiple args in cmd)\n"
-#endif				/* USE_SSL */
-  "\n"
-  "SSL Library information:\n"
-  "--show-ciphers  : Show all cipher algorithms to use with --cipher option.\n"
-  "--show-digests  : Show all message digest algorithms to use with --auth option.\n"
-#ifdef USE_SSL
-  "--show-tls      : Show all TLS ciphers (TLS used only as a control channel).\n"
-#endif
-  "\n"
-  "Generate a random key (only for non-TLS static key encryption mode):\n"
-  "--genkey        : Generate a random key to be used as a shared secret,\n"
-  "                  for use with the --secret option.\n"
-  "--secret file   : Write key to file.\n"
-#endif				/* USE_CRYPTO */
-#if !defined(OLD_TUN_TAP) && defined(TUNSETPERSIST)
-  "\n"
-  "TUN/TAP config mode (available with linux 2.4+):\n"
-  "--mktun         : Create a persistent tunnel.\n"
-  "--rmtun         : Remove a persistent tunnel.\n"
-  "--dev tunX|tapX : tun/tap device\n"
-#endif
- ;
 
 /* Handle signals */
 
@@ -201,205 +54,6 @@ signal_handler (int signum)
 {
   signal_received = signum;
   signal (signum, signal_handler);
-}
-
-/*
- * This is where the options defaults go.
- * Any option not explicitly set here
- * will be set to 0.
- */
-static void
-init_options (struct options *o)
-{
-  CLEAR (*o);
-  o->local_port = o->remote_port = 5000;
-  o->verbosity = 1;
-  o->bind_local = true;
-  o->tun_mtu = DEFAULT_TUN_MTU;
-  o->udp_mtu = DEFAULT_UDP_MTU;
-#ifdef USE_LZO
-  o->comp_lzo_adaptive = true;
-#endif
-#ifdef USE_CRYPTO
-  o->ciphername = "BF-CBC";
-  o->ciphername_defined = true;
-  o->authname = "SHA1";
-  o->authname_defined = true;
-  o->packet_id = true;
-  o->iv = true;
-#ifdef USE_SSL
-  o->tls_timeout = 5;
-  o->renegotiate_seconds = 3600;
-  o->handshake_window = 60;
-  o->transition_window = 3600;
-#endif
-#endif
-}
-
-#define SHOW_PARM(name, value, format) msg(D_SHOW_PARMS, "  " #name " = " format, (value))
-#define SHOW_STR(var)  SHOW_PARM(var, o->var, "'%s'")
-#define SHOW_INT(var)  SHOW_PARM(var, o->var, "%d")
-#define SHOW_BOOL(var) SHOW_PARM(var, (o->var ? "ENABLED" : "DISABLED"), "%s");
-
-static void
-show_settings (const struct options *o)
-{
-  msg (D_SHOW_PARMS, "Current Parameter Settings:");
-  SHOW_STR (local);
-  SHOW_STR (remote);
-
-  SHOW_INT (local_port);
-  SHOW_INT (remote_port);
-  SHOW_BOOL (remote_float);
-  SHOW_STR (ipchange);
-  SHOW_BOOL (bind_local);
-  SHOW_STR (dev);
-  SHOW_STR (ifconfig_local);
-  SHOW_STR (ifconfig_remote);
-  SHOW_INT (shaper);
-  SHOW_INT (tun_mtu);
-  SHOW_BOOL (tun_mtu_defined);
-  SHOW_INT (udp_mtu);
-  SHOW_BOOL (udp_mtu_defined);
-  SHOW_BOOL (tun_af_inet);
-#ifdef _POSIX_MEMLOCK
-  SHOW_BOOL (mlock);
-#endif
-  SHOW_INT (inactivity_timeout);
-  SHOW_INT (ping_send_timeout);
-  SHOW_INT (ping_rec_timeout);
-
-  SHOW_STR (username);
-  SHOW_STR (chroot_dir);
-  SHOW_STR (up_script);
-  SHOW_STR (down_script);
-  SHOW_BOOL (daemon);
-  SHOW_INT (nice);
-  SHOW_INT (verbosity);
-  SHOW_BOOL (gremlin);
-
-#ifdef USE_LZO
-  SHOW_BOOL (comp_lzo);
-  SHOW_BOOL (comp_lzo_adaptive);
-#endif
-
-#ifdef USE_CRYPTO
-  SHOW_STR (shared_secret_file);
-  SHOW_BOOL (ciphername_defined);
-  SHOW_STR (ciphername);
-  SHOW_BOOL (authname_defined);
-  SHOW_STR (authname);
-  SHOW_INT (keysize);
-  SHOW_BOOL (packet_id);
-  SHOW_BOOL (iv);
-  SHOW_BOOL (test_crypto);
-
-#ifdef USE_SSL
-  SHOW_BOOL (tls_server);
-  SHOW_BOOL (tls_client);
-  SHOW_STR (ca_file);
-  SHOW_STR (dh_file);
-  SHOW_STR (cert_file);
-  SHOW_STR (priv_key_file);
-  SHOW_STR (cipher_list);
-  SHOW_STR (tls_verify);
-
-  SHOW_INT (tls_timeout);
-
-  SHOW_INT (renegotiate_bytes);
-  SHOW_INT (renegotiate_packets);
-  SHOW_INT (renegotiate_seconds);
-
-  SHOW_INT (handshake_window);
-  SHOW_INT (transition_window);
-
-  SHOW_STR (tls_auth_file);
-#endif
-#endif
-}
-
-#if defined(USE_CRYPTO) && defined(USE_SSL)
-
-/*
- * Build an options string to represent data channel encryption options.
- * This string must match exactly between peers.  The keysize is checked
- * separately by read_key().
- */
-static char *
-options_string (const struct options *o)
-{
-  struct buffer out = alloc_buf (128);
-  buf_printf (&out, "V1");
-  if (o->ciphername_defined)
-    buf_printf (&out, " --cipher %s", o->ciphername);
-  if (o->authname_defined)
-    buf_printf (&out, " --auth %s", o->authname);
-
-  if (!o->packet_id)
-    buf_printf (&out, " --no-replay");
-  if (!o->iv)
-    buf_printf (&out, " --no-iv");
-#ifdef USE_LZO
-  if (o->comp_lzo)
-    buf_printf (&out, " --comp-lzo");
-#endif
-  return out.data;
-}
-
-#endif
-
-static char* comma_to_space(const char* src)
-{
-  char* ret = (char*) gc_malloc(strlen(src) + 1);
-  char* dest = ret;
-  char c;
-
-  do {
-    c = *src++;
-    if (c == ',')
-      c = ' ';
-    *dest++ = c;
-  } while (c);
-  return ret;
-}
-
-static void
-usage ()
-{
-  struct options o;
-  init_options (&o);
-#if defined(USE_CRYPTO) && defined(USE_SSL)
-  printf (usage_message,
-	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.verbosity,
-	  o.authname, o.ciphername, o.tls_timeout, o.renegotiate_seconds,
-	  o.handshake_window, o.transition_window);
-#elif defined(USE_CRYPTO)
-  printf (usage_message,
-	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.verbosity,
-	  o.authname, o.ciphername);
-#else
-  printf (usage_message,
-	  TITLE, o.local_port, o.remote_port, o.udp_mtu, o.tun_mtu, o.verbosity);
-#endif
-
-  exit (1);
-}
-
-static void
-usage_small ()
-{
-  printf ("Use --help for more information\n");
-  exit (1);
-}
-
-static void
-notnull (char *arg, char *description)
-{
-  if (!arg)
-    {
-      msg (M_WARN, "You must define %s", description);
-      usage_small ();
-    }
 }
 
 /*
@@ -428,7 +82,22 @@ static void print_frame_parms(int level, const struct frame *frame, const char* 
        frame->extra_tun);
 }
 
-static void frame_finalize(struct frame *frame, const struct options *options)
+/*
+ * Used to disable paging.
+ */
+
+#ifdef _POSIX_MEMLOCK
+#define	MLOCK (options->mlock) 
+#else
+#define MLOCK (false)
+#endif
+
+/*
+ * Finish initialization of the frame MTU parameters
+ * based on command line options and buffering requirements.
+ */
+static void
+frame_finalize(struct frame *frame, const struct options *options)
 {
   if (options->tun_mtu_defined)
     {
@@ -449,44 +118,91 @@ static void frame_finalize(struct frame *frame, const struct options *options)
   frame->extra_buffer += frame->extra_frame + frame->extra_tun;
 }
 
+#if defined(USE_PTHREAD) && defined(USE_CRYPTO)
+static void *test_crypto_thread (void *arg);
+#endif
+
 /*
  * Do the work.  Initialize and enter main event loop.
  * Called after command line has been parsed.
+ *
+ * first_time is true during our first call -- we may
+ * be called multiple times due to SIGHUP.
  */
 static int
 openvpn (const struct options *options, struct sockaddr_in *remote_addr,
-	 bool * one_time_init)
+	 bool first_time)
 {
-  int td, fm;
-
+  /*
+   * Initialize garbage collection level.
+   * When we pop the level at the end
+   * of the routine, everything we
+   * allocated with gc_malloc at our level
+   * or recursively lower levels will
+   * automatically be freed.
+   */
   const int gc_level = gc_new_level ();
 
+  /* TUN/TAP device descriptor */
+  int td;
+
+  /* used by select() */
+  int fm;
+
+  /* declare various buffers */
   struct buffer to_tun = clear_buf ();
   struct buffer to_udp = clear_buf ();
   struct buffer buf = clear_buf ();
   struct buffer nullbuf = clear_buf ();
 
+  /* tells us to free to_udp buffer after it has been written to UDP port */
+  bool free_to_udp;
+
+  /* used by select() */
   fd_set reads, writes;
 
-  struct udp_socket udp_socket;
-  struct sockaddr_in to_udp_addr;
+  struct udp_socket udp_socket;   /* socket used for UDP connection to remote */
+  struct sockaddr_in to_udp_addr; /* IP address of remote */
 
-  int max_rw_size_udp = 0;
+  int max_rw_size_udp = 0;        /* max size of packet we can send to remote */
 
+  /*
+   * The specific TUN or TAP device used.
+   * If you said --dev tun, and tun3 was
+   * actually allocated, then actual_dev
+   * will be set to tun3.
+   */
   char actual_dev[64];
 
+  /* MTU frame parameters */
   struct frame frame;
 
+  /* Always set to current time. */
   time_t current;
 
+  /*
+   * Traffic shaper object.
+   */
   struct shaper shaper;
 
+  /*
+   * Statistics
+   */
+  unsigned long tun_read_bytes = 0;
+  unsigned long tun_write_bytes = 0;
+  unsigned long udp_read_bytes = 0;
+  unsigned long udp_write_bytes = 0;
+
+  /*
+   * Timer objects for ping and inactivity
+   * timeout features.
+   */
   struct event_timeout inactivity_interval;
   struct event_timeout ping_send_interval;
   struct event_timeout ping_rec_interval;
 
   /*
-   * This string identifies a ping packet.
+   * This random string identifies an OpenVPN ping packet.
    * It should be of sufficient length and randomness
    * so as not to collide with other tunnel data.
    */
@@ -497,30 +213,73 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 
 #ifdef USE_CRYPTO
 
+  /*
+   * TLS-mode crypto objects.
+   */
 #ifdef USE_SSL
+
+  /* master SSL_CTX object for generating new SSL/TLS sessions */
   SSL_CTX *ssl_ctx = NULL;
+
+  /* master OpenVPN SSL/TLS object */
   struct tls_multi *tls_multi = NULL;
+
+  /* an options string that must match on TLS client and server */
   char *data_channel_options = NULL;
+
+#ifdef USE_PTHREAD
+
+  /* local socket descriptor used to communicate with TLS thread */
+  int ttd = 0;
+
+  /* object sent to us by TLS thread */
+  struct tt_ret tt_ret;
+
+#else
+
+  /* used to optimize calls to tls_multi_process
+     in single-threaded mode */
   struct interval tmp_int;
+
+#endif
 #endif
 
+  /*
+   * Crypto objects used in both
+   * TLS-mode and static key mode.
+   */
   struct key_type key_type;
   struct key_ctx_bi key_ctx_bi;
 
+  /* workspace buffers used by crypto routines */
   struct buffer encrypt_buf = clear_buf ();
   struct buffer decrypt_buf = clear_buf ();
 
+  /* passed to encrypt or decrypt, contains all
+     crypto-related command line options related
+     to data channel encryption/decryption */
   struct crypto_options crypto_options;
+
+  /* used to keep track of data channel packet sequence numbers */
   struct packet_id packet_id;
+
+  /* our residual iv from all encrypts */
   unsigned char iv[EVP_MAX_IV_LENGTH];
 #endif
 
+  /*
+   * LZO compression library objects.
+   */
 #ifdef USE_LZO
   struct buffer lzo_compress_buf = clear_buf ();
   struct buffer lzo_decompress_buf = clear_buf ();
   struct lzo_compress_workspace lzo_compwork;
 #endif
 
+  /*
+   * Buffers used to read from TUN device
+   * and UDP port.
+   */
   struct buffer read_udp_buf = clear_buf ();
   struct buffer read_tun_buf = clear_buf ();
 
@@ -529,28 +288,31 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
   CLEAR (udp_socket);
   CLEAR (frame);
 
+  if (first_time)
+    {
+      /* initialize threading if pthread configure option enabled */
+      thread_init();
+      
+      /* save process ID in a file */
+      write_pid (options->writepid);
+
+#ifdef _POSIX_MEMLOCK
+      if (options->mlock) /* should we disable paging? */
+	do_mlockall (true);
+#endif
+
+      /* chroot if requested */
+      do_chroot (options->chroot_dir);
+    }
+
 #ifdef USE_CRYPTO
   if (!options->test_crypto)
-    {
 #endif
-      if (!*one_time_init)
-	{
-#ifdef _POSIX_MEMLOCK
-	  if (options->mlock) /* should we disable paging? */
-	    do_mlockall(true);
-#endif
-	  /* chroot if requested */
-	  do_chroot (options->chroot_dir);
-	}
-
-      /* open the UDP socket */
-      udp_socket_init (&udp_socket, options->local, options->remote,
-		       options->local_port, options->remote_port,
-		       options->bind_local, options->remote_float,
-		       remote_addr, options->ipchange);
-#ifdef USE_CRYPTO
-    }
-#endif
+    /* open the UDP socket */
+    udp_socket_init (&udp_socket, options->local, options->remote,
+		     options->local_port, options->remote_port,
+		     options->bind_local, options->remote_float,
+		     remote_addr, options->ipchange);
 
 #ifdef USE_CRYPTO
 
@@ -613,11 +375,25 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
       /* Erase the key */
       CLEAR (key);
 
+      /*
+       * Test-crypto is a debugging tool
+       * that basically does a loopback test
+       * on the crypto subsystem.
+       */
       if (options->test_crypto)
 	{
+#ifdef USE_PTHREAD
+	  if (first_time)
+	    work_thread_create(test_crypto_thread, (struct options*) options);
+#endif
 	  frame_finalize (&frame, options);
 	  test_crypto (&crypto_options, &frame);
+	  free_key_ctx_bi (&key_ctx_bi);
 	  signal_received = 0;
+#ifdef USE_PTHREAD
+	  if (first_time)
+	    work_thread_join ();
+#endif
 	  goto done;
 	}
     }
@@ -650,13 +426,15 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 				     options->iv,
 				     options->packet_id,
 				     packet_id_long_form);
-
       tls_adjust_frame_parameters(&frame);
 
+      /* Make sure we are either a TLS client or server but not both */
       ASSERT (options->tls_server == !options->tls_client);
 
+      /* Let user specify a script to verify the incoming certificate */
       tls_set_verify_command (options->tls_verify);
 
+      /* Set all command-line TLS-related options */
       CLEAR (to);
       to.key_type = key_type;
       to.server = options->tls_server;
@@ -670,7 +448,7 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
       to.renegotiate_packets = options->renegotiate_packets;
       to.renegotiate_seconds = options->renegotiate_seconds;
 
-      /* TLS handshake authentication */
+      /* TLS handshake authentication (--tls-auth) */
       if (options->tls_auth_file)
 	{
 	  get_tls_handshake_key (&key_type, &to.tls_auth_key,
@@ -684,6 +462,10 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 					 true);
 	}
 
+      /*
+       * Initialize the OpenSSL library's global
+       * SSL context.
+       */
       to.ssl_ctx = ssl_ctx = init_ssl (options->tls_server,
 				       options->ca_file,
 				       options->dh_file,
@@ -691,6 +473,9 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 				       options->priv_key_file,
 				       options->cipher_list);
 
+      /*
+       * Initialize OpenVPN's master TLS-mode object.
+       */
       tls_multi = tls_multi_init (&to, &udp_socket);
     }
 #endif
@@ -714,6 +499,9 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 #endif /* USE_CRYPTO */
 
 #ifdef USE_LZO
+  /*
+   * Initialize LZO compression library.
+   */
   if (options->comp_lzo)
     {
       lzo_compress_init (&lzo_compwork, options->comp_lzo_adaptive);
@@ -726,7 +514,7 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
    * and added to outgoing TUN packets.
    */
   if (options->tun_af_inet)
-    tun_adjust_frame_parameters (&frame, sizeof (u_int32_t));
+    tun_adjust_frame_parameters (&frame, sizeof (uint32_t));
 
   /*
    * Fill in the blanks in the frame parameters structure,
@@ -786,33 +574,45 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
   run_script (options->up_script, actual_dev, MAX_RW_SIZE_TUN (&frame), max_rw_size_udp,
 	       options->ifconfig_local, options->ifconfig_remote);
 
-  if (!*one_time_init)
-    {
-      /* change scheduling priority if requested */
-      set_nice (options->nice);
 
-      /* drop privileges if requested */
-      set_user (options->username);
-    }
+  /* drop privileges if requested */
+  if (first_time)
+    set_user (options->username);
 
   /* catch signals */
   signal (SIGINT, signal_handler);
   signal (SIGTERM, signal_handler);
   signal (SIGHUP, signal_handler);
+  signal (SIGUSR1, signal_handler);
+  signal (SIGUSR2, signal_handler);
   signal (SIGPIPE, SIG_IGN);
+
+  /* start the TLS thread */
+#if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
+  if (tls_multi)
+    ttd = tls_thread_create (tls_multi, &udp_socket, options->nice_work, MLOCK);
+#endif
+
+  /* change scheduling priority if requested */
+  if (first_time)
+    set_nice (options->nice);
 
   /*
    * MAIN EVENT LOOP
    *
    * Pipe UDP -> tun and tun -> UDP using nonblocked i/o.
    *
-   * If multi_state is defined, multiplex a TLS
+   * If tls_multi is defined, multiplex a TLS
    * control channel over the UDP connection which
    * will be used for secure key exchange with our peer.
    *
    */
 
-  fm = max (udp_socket.sd, td) + 1;
+  /* calculate max file handle + 1 for select */
+  fm = udp_socket.sd;
+  if (td > fm)
+    fm = td;
+
   current = time (NULL);
 
   /* initialize inactivity timeout */
@@ -828,11 +628,22 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
     event_timeout_init (&ping_rec_interval, current, options->ping_rec_timeout);
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
+#ifdef USE_PTHREAD
+  if (tls_multi && ttd > fm)
+    fm = ttd;
+#else
   /* initialize tmp_int optimization that limits the number of times we call
      tls_multi_process in the main event loop */
   CLEAR (tmp_int);
   interval_trigger (&tmp_int, current);
 #endif
+#endif
+
+  /* select() needs this */
+  ++fm;
+
+  /* this flag is true for buffers coming from the TLS background thread */
+  free_to_udp = false;
 
   while (true)
     {
@@ -844,7 +655,7 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
       timeval.tv_sec = 0;
       timeval.tv_usec = 0;
 
-#if defined(USE_CRYPTO) && defined(USE_SSL)
+#if defined(USE_CRYPTO) && defined(USE_SSL) && !defined(USE_PTHREAD)
       /*
        * In TLS mode, let TLS level respond to any control-channel packets which were
        * received, or prepare any packets for transmission.
@@ -867,8 +678,11 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 	  tv = &timeval;
 	  timeval.tv_sec = t;
 	  timeval.tv_usec = 0;
+	  free_to_udp = false;
 	}
 #endif
+
+      current = time (NULL);
 
       /*
        * Should we exit due to inactivity timeout?
@@ -925,6 +739,7 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 #endif
 #ifdef USE_CRYPTO
 #ifdef USE_SSL
+		  mutex_lock (L_TLS);
 		  if (tls_multi)
 		    tls_pre_encrypt (tls_multi, &buf, &crypto_options);
 #endif
@@ -936,9 +751,11 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 #ifdef USE_SSL
 		  if (tls_multi)
 		    tls_post_encrypt (tls_multi, &buf);
+		  mutex_unlock (L_TLS);
 #endif
 #endif
 		  to_udp = buf;
+		  free_to_udp = false;
 		  msg (D_PACKET_CONTENT, "SENT PING");
 		}
 	      event_timeout_wakeup (&ping_send_interval, current, &timeval);
@@ -951,6 +768,8 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 
       /*
        * Set up for select call.
+       *
+       * Decide what kind of events we want to wait for.
        */
       FD_ZERO (&reads);
       FD_ZERO (&writes);
@@ -959,6 +778,11 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 	{
 	  if (options->shaper)
 	    {
+	      /*
+	       * If sending this packet would put us over our traffic shaping
+	       * quota, don't send -- instead compute the delay we must wait
+	       * until it will be OK to send the packet.
+	       */
 	      const int delay = shaper_delay (&shaper); /* traffic shaping delay in microseconds */
 	      if (delay)
 		{
@@ -978,13 +802,23 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 	}
       else
 	{
-	  FD_SET (td, &reads);
+	  if (td >= 0)
+	    FD_SET (td, &reads);
+#if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
+	  if (tls_multi)
+	    FD_SET (ttd, &reads);
+#endif
 	}
 
       if (to_tun.len > 0)
-	FD_SET (td, &writes);
+	{
+	  if (td >= 0)
+	    FD_SET (td, &writes);
+	}
       else
-	FD_SET (udp_socket.sd, &reads);
+	{
+	  FD_SET (udp_socket.sd, &reads);
+	}
 
       /*
        * Possible scenarios:
@@ -992,12 +826,41 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
        *  (2) udp port is ready to accept more data to write
        *  (3) tun dev has data available to read
        *  (4) tun dev is ready to accept more data to write
-       *  (5) we received a SIGINT or SIGTERM (handler sets signal_received)
-       *  (6) timeout (tv) expired (timeout is set by either TLS level or traffic shaper)
+       *  (5) tls background thread has data available to forward to udp port
+       *  (6) we received a signal (handler sets signal_received)
+       *  (7) timeout (tv) expired (from TLS, shaper, inactivity timeout, or ping timeout)
        */
-      stat = select (fm, &reads, &writes, NULL, tv);
+
+      /*
+       * Wait for something to happen.
+       */
+      if (!signal_received)
+	stat = select (fm, &reads, &writes, NULL, tv);
+
+      /*
+       * Did we get a signal before or while we were waiting
+       * in select() ?
+       */
       if (signal_received)
-	break;
+	{
+	  if (signal_received == SIGUSR2)
+	    {
+	      msg (M_INFO, "Current OpenVPN Statistics:");
+	      msg (M_INFO, " TUN/TAP read bytes:   %10u", tun_read_bytes);
+	      msg (M_INFO, " TUN/TAP write bytes:  %10u", tun_write_bytes);
+	      msg (M_INFO, " UDP read bytes:       %10u", udp_read_bytes);
+	      msg (M_INFO, " UDP write bytes:      %10u", udp_write_bytes);
+#ifdef USE_LZO
+	      if (options->comp_lzo)
+		  lzo_print_stats (&lzo_compwork);		  
+#endif
+	      signal_received = 0;
+	      continue;
+	    }
+
+	  /* for all other signals (INT, TERM, HUP, USR1) we break */
+	  break;
+	}
       current = time (NULL);
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
@@ -1010,6 +873,10 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 	  /* Incoming data on UDP port */
 	  if (FD_ISSET (udp_socket.sd, &reads))
 	    {
+	      /*
+	       * Set up for recvfrom call to read datagram
+	       * sent to our UDP port from any source address.
+	       */
 	      struct sockaddr_in from;
 	      socklen_t fromlen = sizeof (from);
 	      ASSERT (!to_tun.len);
@@ -1020,45 +887,98 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 	      buf.len = recvfrom (udp_socket.sd, BPTR (&buf), max_rw_size_udp, 0,
 				  (struct sockaddr *) &from, &fromlen);
 	      ASSERT (fromlen == sizeof (from));
+	      if (buf.len > 0)
+		udp_read_bytes += buf.len;
+
+	      /* check recvfrom status */
 	      check_status (buf.len, "read from udp");
+
+	      /* possibly corrupt packet if we are in gremlin test mode */
 	      if (options->gremlin) {
 		if (!ask_gremlin())
 		  buf.len = 0;
 		corrupt_gremlin(&buf);
 	      }
+
+	      /* log incoming packet */
 	      msg (D_PACKET_CONTENT, "UDP READ from %s: %s",
 		   print_sockaddr (&from), PROTO_DUMP (&buf));
+
+	      /*
+	       * Good, non-zero length packet received.
+	       * Commence multi-stage processing of packet,
+	       * such as authenticate, decrypt, decompress.
+	       * If any stage fails, it sets buf.len to 0,
+	       * telling downstream stages to ignore the packet.
+	       */
 	      if (buf.len > 0)
 		{
 		  udp_socket_incoming_addr (&buf, &udp_socket, &from);
 #ifdef USE_CRYPTO
 #ifdef USE_SSL
+		  mutex_lock (L_TLS);
 		  if (tls_multi)
 		    {
+		      /*
+		       * If tls_pre_decrypt returns true, it means the incoming
+		       * packet was a good TLS control channel packet.  If so, TLS code
+		       * will deal with the packet and set buf.len to 0 so downstream
+		       * stages ignore it.
+		       *
+		       * It the packet is a data channel packet, tls_pre_decrypt
+		       * will load crypto_options with the correct encryption key
+		       * and return false.
+		       */
 		      if (tls_pre_decrypt (tls_multi, &from, &buf, &crypto_options, current))
 			{
+#ifdef USE_PTHREAD
+			  /* tell TLS thread a packet is waiting */
+			  if (tls_thread_process (ttd) == -1)
+			    {
+			      msg (M_WARN, "TLS thread is not responding, exiting");
+			      signal_received = 0;
+			      mutex_unlock (L_TLS);
+			      break;
+			    }
+#else
 			  interval_trigger(&tmp_int, current);
+#endif /* USE_PTHREAD */
+			  /* reset packet received timer if TLS packet */
 			  if (options->ping_rec_timeout)
 			    event_timeout_reset (&ping_rec_interval, current);
 			}
 		    }
-#endif
+#endif /* USE_SSL */
+		  /* authenticate and decrypt the incoming packet */
 		  openvpn_decrypt (&buf, decrypt_buf, &crypto_options, &frame, current);
+#ifdef USE_SSL
+		  mutex_unlock (L_TLS);
 #endif
+#endif /* USE_CRYPTO */
 #ifdef USE_LZO
+		  /* decompress the incoming packet */
 		  if (options->comp_lzo)
 		    lzo_decompress (&buf, lzo_decompress_buf, &lzo_compwork, &frame);
 #endif
+		  /*
+		   * Set our "official" outgoing address, since
+		   * if buf.len is non-zero, we know the packet
+		   * authenticated.  In TLS mode we do nothing
+		   * because TLS mode takes care of source address
+		   * authentication.
+		   */
 		  if (!TLS_MODE)
 		    udp_socket_set_outgoing_addr (&buf, &udp_socket, &from);
 
+		  /* reset packet received timer */
 		  if (options->ping_rec_timeout && buf.len > 0)
 		    event_timeout_reset (&ping_rec_interval, current);
 
+		  /* Did we just receive an openvpn ping packet? */
 		  if (buf_string_match (&buf, ping_string, sizeof (ping_string)))
 		    {
 		      msg (D_PACKET_CONTENT, "RECEIVED PING");
-		      buf.len = 0;
+		      buf.len = 0; /* drop it */
 		    }
 
 		  to_tun = buf;
@@ -1069,36 +989,97 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 		}
 	    }
 
-	  /* Incoming data on TUN device */
-	  if (FD_ISSET (td, &reads))
+#if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
+	  /* Incoming data from TLS background thread */
+	  else if (tls_multi && FD_ISSET (ttd, &reads))
 	    {
+	      int s;
+	      ASSERT (!to_udp.len);
+
+	      s = tls_thread_rec_buf (ttd, &tt_ret, true);
+	      if (s == 1)
+		{
+		  /*
+		   * TLS background thread has a control channel
+		   * packet to send to remote.
+		   */
+		  to_udp = tt_ret.to_udp;
+		  to_udp_addr = tt_ret.to_udp_addr;
+		
+		  /* tell UDP packet writer to free buffer after write */
+		  free_to_udp = true;
+		}
+
+	      /* remote died? */
+	      else if (s == -1)
+		{
+		  msg (M_WARN, "TLS thread is not responding, exiting");
+		  signal_received = 0;
+		  break;
+		}
+	    }
+#endif
+
+	  /* Incoming data on TUN device */
+	  else if (td >= 0 && FD_ISSET (td, &reads))
+	    {
+	      /*
+	       * Setup for read() call on TUN/TAP device.
+	       */
 	      ASSERT (!to_udp.len);
 	      buf = read_tun_buf;
 	      ASSERT (buf_init (&buf, EXTRA_FRAME (&frame)));
 	      ASSERT (buf_safe (&buf, MAX_RW_SIZE_TUN (&frame)));
 	      buf.len = read (td, BPTR (&buf), MAX_RW_SIZE_TUN (&frame));
+	      if (buf.len > 0)
+		tun_read_bytes += buf.len;
+
+	      /* Check the status return from read() */
 	      check_status (buf.len, "read from tun");
 	      if (buf.len > 0)
 		{
+		  /* special BSD <-> Linux mode, remove leading AF_INET
+		     from tun driver IP encoding */
 		  if (options->tun_af_inet)
 		    tun_rm_head (&buf, AF_INET);
 #ifdef USE_LZO
+		  /* Compress the packet. */
 		  if (options->comp_lzo)
 		    lzo_compress (&buf, lzo_compress_buf, &lzo_compwork, &frame, current);
 #endif
 #ifdef USE_CRYPTO
 #ifdef USE_SSL
+		  /*
+		   * If TLS mode, get the key we will use to encrypt
+		   * the packet.
+		   */
+		  mutex_lock (L_TLS);
 		  if (tls_multi)
 		    tls_pre_encrypt (tls_multi, &buf, &crypto_options);
 #endif
+		  /*
+		   * Encrypt the packet and write an optional
+		   * HMAC authentication record.
+		   */
 		  openvpn_encrypt (&buf, encrypt_buf, &crypto_options, &frame, current);
 #endif
+		  /*
+		   * Get the address we will be sending the packet to.
+		   */
 		  udp_socket_get_outgoing_addr (&buf, &udp_socket,
 						&to_udp_addr);
 #ifdef USE_CRYPTO
 #ifdef USE_SSL
+		  /*
+		   * In TLS mode, prepend the appropriate one-byte opcode
+		   * to the packet which identifies it as a data channel
+		   * packet and gives the low-permutation version of
+		   * the key-id to the recipient so it knows which
+		   * decrypt key to use.
+		   */
 		  if (tls_multi)
 		    tls_post_encrypt (tls_multi, &buf);
+		  mutex_unlock (L_TLS);
 #endif
 #endif
 		  to_udp = buf;
@@ -1107,24 +1088,51 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 		{
 		  to_udp = nullbuf;
 		}
+	      free_to_udp = false;
 	    }
 
 	  /* TUN device ready to accept write */
-	  if (FD_ISSET (td, &writes))
+	  else if (td >= 0 && FD_ISSET (td, &writes))
 	    {
+	      /*
+	       * Set up for write() call to TUN/TAP
+	       * device.
+	       */
 	      ASSERT (to_tun.len > 0);
 	      if (options->tun_af_inet)
 		tun_add_head (&to_tun, AF_INET);
 	      if (to_tun.len <= MAX_RW_SIZE_TUN(&frame))
 		{
+		  /*
+		   * Write to TUN/TAP device.
+		   */
 		  const int size = write (td, BPTR (&to_tun), BLEN (&to_tun));
+		  if (size > 0)
+		    tun_write_bytes += size;
 		  check_status (size, "write to tun");
+
+		  /* check written packet size */
+		  if (size > 0)
+		    {
+		      /* Did we write a different size packet than we intended? */
+		      if (size != BLEN (&to_tun))
+			msg (D_LINK_ERRORS,
+			     "TUN/TAP packet was fragmented on write to %s (tried=%d,actual=%d)",
+			     actual_dev,
+			     BLEN (&to_tun),
+			     size);
+		    }
+
 		}
 	      else
 		{
-		  msg (D_LINK_ERRORS, "TUN packet too large on write (%d,%d)",
+		  /*
+		   * This should never happen, probably indicates some kind
+		   * of MTU mismatch.
+		   */
+		  msg (D_LINK_ERRORS, "TUN packet too large on write (tried=%d,max=%d)",
 		       to_tun.len,
-		       MAX_RW_SIZE_TUN(&frame));
+		       MAX_RW_SIZE_TUN (&frame));
 		}
 
 	      /*
@@ -1139,42 +1147,77 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
 	    }
 
 	  /* UDP port ready to accept write */
-	  if (FD_ISSET (udp_socket.sd, &writes))
+	  else if (FD_ISSET (udp_socket.sd, &writes))
 	    {
 	      if (to_udp.len > 0 && to_udp.len <= max_rw_size_udp)
 		{
+		  /*
+		   * Setup for call to sendto() which will send
+		   * packet to remote over the UDP port.
+		   */
 		  int size;
 		  ASSERT (ADDR (to_udp_addr));
+		  /* In gremlin-test mode, we may choose to drop this packet */
 		  if (!options->gremlin || ask_gremlin())
 		    {
+		      /*
+		       * Let the traffic shaper know how many bytes
+		       * we wrote.
+		       */
 		      if (options->shaper)
 			shaper_wrote_bytes (&shaper, BLEN (&to_udp));
+
+		      /*
+		       * Let the pinger know that we sent a packet.
+		       */
 		      if (options->ping_send_timeout)
 			event_timeout_reset (&ping_send_interval, current);
+
+		      /* Send packet */
 		      size = sendto (udp_socket.sd, BPTR (&to_udp), BLEN (&to_udp), 0,
 				     (struct sockaddr *) &to_udp_addr,
 				     (socklen_t) sizeof (to_udp_addr));
+		      if (size > 0)
+			udp_write_bytes += size;
 		    }
 		  else
 		    size = 0;
+
+		  /* Check sendto() return status */
 		  check_status (size, "write to udp");
 
 		  if (size > 0)
 		    {
+		      /* Did we write a different size packet than we intended? */
 		      if (size != BLEN (&to_udp))
-			msg (D_LINK_ERRORS, "UDP packet was fragmented on write to %s",
-			     print_sockaddr (&to_udp_addr));
+			msg (D_LINK_ERRORS,
+			     "UDP packet was fragmented on write to %s (tried=%d,actual=%d)",
+			     print_sockaddr (&to_udp_addr),
+			     BLEN (&to_udp),
+			     size);
 		    }
 
+		  /* Log packet send */
 		  msg (D_PACKET_CONTENT, "UDP WRITE to %s: %s",
 		       print_sockaddr (&to_udp_addr), PROTO_DUMP (&to_udp));
 		}
 	      else
 		{
-		  msg (D_LINK_ERRORS, "UDP packet too large on write to %s (%d,%d)",
+		  msg (D_LINK_ERRORS, "UDP packet too large on write to %s (tried=%d,max=%d)",
 		       print_sockaddr (&to_udp_addr),
 		       to_udp.len,
 		       max_rw_size_udp);
+		}
+
+	      /*
+	       * The free_to_udp flag means that we should free the packet buffer
+	       * after send.  This flag is usually set when the TLS background
+	       * thread generated the packet buffer.
+	       */
+	      if (free_to_udp)
+		{
+		  free_to_udp = false;
+		  free_buf (&to_udp);
 		}
 	      to_udp = nullbuf;
 	    }
@@ -1184,9 +1227,21 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
   if (signal_received)
     msg (M_INFO, "Signal %d received, exiting", signal_received);
 
-  /* cleanup */
+  /*
+   *  Do Cleanup
+   */
+
+  if (free_to_udp)
+    free_buf (&to_udp);
+    
+#if defined(USE_CRYPTO) && defined(USE_SSL) && defined(USE_PTHREAD)
+  if (tls_multi)
+    tls_thread_close (ttd);
+#endif
+
   udp_socket_close (&udp_socket);
-  close (td);
+  if (td >= 0)
+    close (td);
   free_buf (&read_udp_buf);
   free_buf (&read_tun_buf);
 
@@ -1227,10 +1282,6 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
   /* pop our garbage collection level */
   gc_free_level (gc_level);
 
-  /* if we get called again due to SIGHUP, this tells us
-     that it's not the first time */
-  *one_time_init = true;
-
   /* return the signal that brought us here */
   {
     int s = signal_received;
@@ -1239,450 +1290,98 @@ openvpn (const struct options *options, struct sockaddr_in *remote_addr,
   }
 }
 
-#define streq(x, y) (!strcmp((x), (y)))
-
-#define OPTMIN(opt, min) if (opt > min) opt = min
-
-static inline int
-positive (int i)
-{
-  return i < 0 ? 0 : i;
-}
-
 int
 main (int argc, char *argv[])
 {
-  bool persist_config = false;
-  int persist_mode = 1;
-  int i;
-
-#ifdef USE_CRYPTO
-  bool askpass = false;
-  bool show_ciphers = false;
-  bool show_digests = false;
-#ifdef USE_SSL
-  bool show_tls_ciphers = false;
-#endif
-  bool genkey = false;
-#endif
-
   const int gc_level = gc_new_level ();
-
-  struct options options;
-  init_options (&options);
-
-  error_reset ();
+  bool first_time = true;
+  int sig;
 
 #ifdef PID_TEST
-  packet_id_interactive_test();
-  return 0;
+  packet_id_interactive_test();  /* test the sequence number code */
+  goto exit;
 #endif
 
-  /* usage message */
-  if (argc <= 1)
-    usage ();
+  error_reset ();                /* initialize error.c */
 
-  /* parse command line */
-  for (i = 1; i < argc; ++i)
-    {
-      char *p1 = argv[i];
-      char *p2 = NULL;
-      char *p3 = NULL;
-      if (i + 1 < argc)
-	{
-	  p2 = argv[i + 1];
-	  if (!strncmp (p2, "--", 2))
-	    p2 = NULL;
-	}
-      if (i + 2 < argc)
-	{
-	  p3 = argv[i + 2];
-	  if (!strncmp (p3, "--", 2))
-	    p3 = NULL;
-	}
-      if (streq (p1, "--help"))
-	{
-	  usage ();
-	}
-      else if (streq (p1, "--dev") && p2)
-	{
-	  ++i;
-	  options.dev = p2;
-	}
-      else if (streq (p1, "--ifconfig") && p2 && p3)
-	{
-	  options.ifconfig_local = p2;
-	  options.ifconfig_remote = p3;
-	  options.udp_mtu_defined = true;
-	  i += 2;
-	}
-      else if (streq (p1, "--local") && p2)
-	{
-	  ++i;
-	  options.local = p2;
-	}
-      else if (streq (p1, "--remote") && p2)
-	{
-	  ++i;
-	  options.remote = p2;
-	}
-      else if (streq (p1, "--ipchange") && p2)
-	{
-	  ++i;
-	  options.ipchange = comma_to_space(p2);
-	}
-      else if (streq (p1, "--float"))
-	{
-	  options.remote_float = true;
-	}
-      else if (streq (p1, "--gremlin"))
-	{
-	  options.gremlin = true;
-	}
-      else if (streq (p1, "--user") && p2)
-	{
-	  ++i;
-	  options.username = p2;
-	}
-      else if (streq (p1, "--chroot") && p2)
-	{
-	  ++i;
-	  options.chroot_dir = p2;
-	}
-      else if (streq (p1, "--up") && p2)
-	{
-	  ++i;
-	  options.up_script = p2;
-	}
-      else if (streq (p1, "--down") && p2)
-	{
-	  ++i;
-	  options.down_script = p2;
-	}
-      else if (streq (p1, "--daemon"))
-	{
-	  options.daemon = true;
-	}
+  do {
+    struct options options;
+    init_options (&options);
+
+    /*
+     * Parse command line options,
+     * and read configuration file.
+     */
+    parse_argv (&options, argc, argv);
+
+    /*
+     * OpenSSL info print mode?
+     */
+#ifdef USE_CRYPTO
+    if (options.show_ciphers || options.show_digests
+#ifdef USE_SSL
+	|| options.show_tls_ciphers
+#endif
+	)
+      {
+	if (first_time)
+	  init_ssl_lib ();
+	if (options.show_ciphers)
+	  show_available_ciphers ();
+	if (options.show_digests)
+	  show_available_digests ();
+#ifdef USE_SSL
+	if (options.show_tls_ciphers)
+	  show_available_tls_ciphers ();
+#endif
+	free_ssl_lib ();
+	goto exit;
+      }
+
+    /*
+     * Static pre-shared key generation mode?
+     */
+    if (options.genkey)
+      {
+	struct key key;
+	notnull (options.shared_secret_file,
+		 "shared secret output file (--secret)");
 #ifdef _POSIX_MEMLOCK
-      else if (streq (p1, "--mlock"))
-	{
-	  options.mlock = true;
-	  do_mlockall(false);
-	}
+	if (options.mlock)    /* should we disable paging? */
+	  do_mlockall(true);
 #endif
-      else if (streq (p1, "--verb") && p2)
-	{
-	  ++i;
-	  options.verbosity = positive (atoi (p2));
-	}
-      else if (streq (p1, "--udp-mtu") && p2)
-	{
-	  ++i;
-	  options.udp_mtu = positive (atoi (p2));
-	  options.udp_mtu_defined = true;
-	}
-      else if (streq (p1, "--tun-mtu") && p2)
-	{
-	  ++i;
-	  options.tun_mtu = positive (atoi (p2));
-	  options.tun_mtu_defined = true;
-	}
-      else if (streq (p1, "--tun-af-inet"))
-	{
-	  options.tun_af_inet = true;
-	}
-      else if (streq (p1, "--nice") && p2)
-	{
-	  ++i;
-	  options.nice = atoi (p2);
-	}
-      else if (streq (p1, "--shaper") && p2)
-	{
-	  ++i;
-	  options.shaper = atoi (p2);
-	  if (options.shaper < SHAPER_MIN || options.shaper > SHAPER_MAX)
-	    {
-	      msg (M_WARN, "bad --shaper value, must be between %d and %d",
-		   SHAPER_MIN, SHAPER_MAX);
-	      usage_small ();
-	    }
-	}
-      else if (streq (p1, "--port") && p2)
-	{
-	  ++i;
-	  options.local_port = options.remote_port = atoi (p2);
-	  if (options.local_port <= 0 || options.remote_port <= 0)
-	    {
-	      msg (M_WARN, "Bad port number: %s", p2);
-	      usage_small ();
-	    }
-	}
-      else if (streq (p1, "--lport") && p2)
-	{
-	  ++i;
-	  options.local_port = atoi (p2);
-	  if (options.local_port <= 0)
-	    {
-	      msg (M_WARN, "Bad local port number: %s", p2);
-	      usage_small ();
-	    }
-	}
-      else if (streq (p1, "--rport") && p2)
-	{
-	  ++i;
-	  options.remote_port = atoi (p2);
-	  if (options.remote_port <= 0)
-	    {
-	      msg (M_WARN, "Bad remote port number: %s", p2);
-	      usage_small ();
-	    }
-	}
-      else if (streq (p1, "--nobind"))
-	{
-	  options.bind_local = false;
-	}
-      else if (streq (p1, "--inactive") && p2)
-	{
-	  ++i;
-	  options.inactivity_timeout = positive (atoi (p2));
-	}
-      else if (streq (p1, "--ping") && p2)
-	{
-	  ++i;
-	  options.ping_send_timeout = positive (atoi (p2));
-	}
-      else if (streq (p1, "--ping-exit") && p2)
-	{
-	  ++i;
-	  options.ping_rec_timeout = positive (atoi (p2));
-	}
-#ifdef USE_LZO
-      else if (streq (p1, "--comp-lzo"))
-	{
-	  options.comp_lzo = true;
-	}
-      else if (streq (p1, "--comp-noadapt"))
-	{
-	  options.comp_lzo_adaptive = false;
-	}
-#endif /* USE_LZO */
-#ifdef USE_CRYPTO
-      else if (streq (p1, "--show-ciphers"))
-	{
-	  show_ciphers = true;
-	}
-      else if (streq (p1, "--show-digests"))
-	{
-	  show_digests = true;
-	}
-      else if (streq (p1, "--secret") && p2)
-	{
-	  ++i;
-	  options.shared_secret_file = p2;
-	}
-      else if (streq (p1, "--genkey"))
-	{
-	  genkey = true;
-	}
-      else if (streq (p1, "--auth") && p2)
-	{
-	  ++i;
-	  options.authname_defined = true;
-	  options.authname = p2;
-	  if (streq (options.authname, "none"))
-	    {
-	      options.authname_defined = false;
-	      options.authname = NULL;
-	    }
-	}
-      else if (streq (p1, "--auth"))
-	{
-	  options.authname_defined = true;
-	}
-      else if (streq (p1, "--cipher") && p2)
-	{
-	  ++i;
-	  options.ciphername_defined = true;
-	  options.ciphername = p2;
-	  if (streq (options.ciphername, "none"))
-	    {
-	      options.ciphername_defined = false;
-	      options.ciphername = NULL;
-	    }
-	}
-      else if (streq (p1, "--cipher"))
-	{
-	  options.ciphername_defined = true;
-	}
-      else if (streq (p1, "--no-replay"))
-	{
-	  options.packet_id = false;
-	}
-      else if (streq (p1, "--no-iv"))
-	{
-	  options.iv = false;
-	}
-      else if (streq (p1, "--test-crypto"))
-	{
-	  options.test_crypto = true;
-	}
-      else if (streq (p1, "--keysize") && p2)
-	{
-	  ++i;
-	  options.keysize = atoi (p2) / 8;
-	  if (options.keysize < 0 || options.keysize > MAX_CIPHER_KEY_LENGTH)
-	    {
-	      msg (M_WARN, "Bad keysize: %s", p2);
-	      usage_small ();
-	    }
-	}
-#ifdef USE_SSL
-      else if (streq (p1, "--show-tls"))
-	{
-	  show_tls_ciphers = true;
-	}
-      else if (streq (p1, "--tls-server"))
-	{
-	  options.tls_server = true;
-	}
-      else if (streq (p1, "--tls-client"))
-	{
-	  options.tls_client = true;
-	}
-      else if (streq (p1, "--ca") && p2)
-	{
-	  ++i;
-	  options.ca_file = p2;
-	}
-      else if (streq (p1, "--dh") && p2)
-	{
-	  ++i;
-	  options.dh_file = p2;
-	}
-      else if (streq (p1, "--cert") && p2)
-	{
-	  ++i;
-	  options.cert_file = p2;
-	}
-      else if (streq (p1, "--key") && p2)
-	{
-	  ++i;
-	  options.priv_key_file = p2;
-	}
-      else if (streq (p1, "--askpass"))
-	{
-	  askpass = true;
-	}
-      else if (streq (p1, "--tls-cipher") && p2)
-	{
-	  ++i;
-	  options.cipher_list = p2;
-	}
-      else if (streq (p1, "--tls-verify") && p2)
-	{
-	  ++i;
-	  options.tls_verify = comma_to_space(p2);
-	}
-      else if (streq (p1, "--tls_timeout") && p2)
-	{
-	  ++i;
-	  options.tls_timeout = positive (atoi (p2));
-	}
-      else if (streq (p1, "--reneg-bytes") && p2)
-	{
-	  ++i;
-	  options.renegotiate_bytes = positive (atoi (p2));
-	}
-      else if (streq (p1, "--reneg-pkts") && p2)
-	{
-	  ++i;
-	  options.renegotiate_packets = positive (atoi (p2));
-	}
-      else if (streq (p1, "--reneg-sec") && p2)
-	{
-	  ++i;
-	  options.renegotiate_seconds = positive (atoi (p2));
-	}
-      else if (streq (p1, "--hand-window") && p2)
-	{
-	  ++i;
-	  options.handshake_window = positive (atoi (p2));
-	}
-      else if (streq (p1, "--tran-window") && p2)
-	{
-	  ++i;
-	  options.transition_window = positive (atoi (p2));
-	}
-      else if (streq (p1, "--tls-auth") && p2)
-	{
-	  ++i;
-	  options.tls_auth_file = p2;
-	}
-      else if (streq (p1, "--sizeof"))
-	{
-	  printf("sizeof (struct tls_multi) = %d\n", sizeof(struct tls_multi));
-	  goto exit;
-	}
-
-#endif /* USE_SSL */
+	generate_key_random (&key, NULL);
+	write_key_file (&key, options.shared_secret_file);
+	CLEAR (key);
+	goto exit;
+      }
 #endif /* USE_CRYPTO */
-#if !defined(OLD_TUN_TAP) && defined(TUNSETPERSIST)
-      else if (streq (p1, "--rmtun"))
-	{
-	  persist_config = true;
-	  persist_mode = 0;
-	}
-      else if (streq (p1, "--mktun"))
-	{
-	  persist_config = true;
-	  persist_mode = 1;
-	}
-#endif
-      else
-	{
-	  msg (M_WARN, "Unrecognized option or missing parameter(s): %s", p1);
-	  usage_small ();
-	}
-    }
 
-#ifdef USE_CRYPTO
-  if (show_ciphers || show_digests
-#ifdef USE_SSL
-      || show_tls_ciphers
-#endif
-    )
-    {
-      init_ssl_lib ();
-      if (show_ciphers)
-	show_available_ciphers ();
-      if (show_digests)
-	show_available_digests ();
-#ifdef USE_SSL
-      if (show_tls_ciphers)
-	show_available_tls_ciphers ();
-#endif
-      free_ssl_lib ();
-      goto exit;
-    }
-  if (genkey)
-    {
-      struct key key;
-      notnull (options.shared_secret_file,
-	       "shared secret output file (--secret)");
-      generate_key_random (&key, NULL);
-      write_key_file (&key, options.shared_secret_file);
-      CLEAR (key);
-      goto exit;
-    }
-#endif
+    /*
+     * Persistent TUN/TAP device management mode?
+     */
 #if !defined(OLD_TUN_TAP) && defined(TUNSETPERSIST)
-  if (persist_config)
-    {
-      notnull (options.dev, "tun/tap device (--dev)");
-      tuncfg (options.dev, persist_mode);
-    }
-  else
+    if (options.persist_config)
+      {
+	/* sanity check on options for --mktun or --rmtun */
+	notnull (options.dev, "tun/tap device (--dev)");
+	if (options.remote || options.ifconfig_local || options.ifconfig_remote
+#ifdef USE_CRYPTO
+	    || options.shared_secret_file
+#ifdef USE_SSL
+	    || options.tls_server || options.tls_client
 #endif
+#endif
+	    )
+	  msg (M_FATAL, "Options --mktun or --rmtun should only be used together with --dev");
+	tuncfg (options.dev, options.persist_mode);
+	goto exit;
+      }
+#endif
+
+    /*
+     * Main OpenVPN block -- tunnel generation mode
+     */
     {
 #ifdef USE_CRYPTO
       if (options.test_crypto)
@@ -1691,11 +1390,11 @@ main (int argc, char *argv[])
 	}
       else
 #endif
-      notnull (options.dev, "tun/tap device (--dev)");
+	notnull (options.dev, "tun/tap device (--dev)");
 
       if (options.tun_mtu_defined && options.udp_mtu_defined)
 	{
-	  printf ("only one of --tun-mtu or --udp-mtu may be defined (note that --ifconfig implies --udp-mtu %d)\n", DEFAULT_UDP_MTU);
+	  msg (M_WARN, "only one of --tun-mtu or --udp-mtu may be defined (note that --ifconfig implies --udp-mtu %d)", DEFAULT_UDP_MTU);
 	  usage_small ();
 	}
 
@@ -1704,13 +1403,14 @@ main (int argc, char *argv[])
 
 #ifdef USE_CRYPTO
 
-      init_ssl_lib ();
+      if (first_time)
+	init_ssl_lib ();
 
 #ifdef USE_SSL
       if (options.tls_server + options.tls_client +
 	  (options.shared_secret_file != NULL) > 1)
 	{
-	  printf ("specify only one of --tls-server, --tls-client, or --secret\n");
+	  msg (M_WARN, "specify only one of --tls-server, --tls-client, or --secret");
 	  usage_small ();
 	}
       if (options.tls_server)
@@ -1722,7 +1422,7 @@ main (int argc, char *argv[])
 	  notnull (options.ca_file, "CA file (--ca)");
 	  notnull (options.cert_file, "certificate file (--cert)");
 	  notnull (options.priv_key_file, "private key file (--key)");
-	  if (askpass)
+	  if (first_time && options.askpass)
 	    pem_password_callback (NULL, 0, 0, NULL);
 	}
       else
@@ -1732,10 +1432,11 @@ main (int argc, char *argv[])
 	   * when in non-TLS mode.
 	   */
 
-          #define MUST_BE_UNDEF(parm) if (options.parm != def.parm) msg (M_FATAL, err, #parm);
+#define MUST_BE_UNDEF(parm) if (options.parm != def.parm) msg (M_FATAL, err, #parm);
 
 	  const char err[] = "Parameter %s can only be specified in TLS-mode, i.e. where --tls-server or --tls-client is also specified.";
 	  struct options def;
+
 	  init_options (&def);
 	  MUST_BE_UNDEF (ca_file);
 	  MUST_BE_UNDEF (dh_file);
@@ -1751,31 +1452,41 @@ main (int argc, char *argv[])
 	  MUST_BE_UNDEF (transition_window);
 	  MUST_BE_UNDEF (tls_auth_file);
 	}
-        #undef MUST_BE_UNDEF
-#endif
-#endif
+#undef MUST_BE_UNDEF
+#endif /* USE_CRYPTO */
+#endif /* USE_SSL */
 
       set_check_status (D_LINK_ERRORS, D_READ_WRITE);
       set_debug_level (options.verbosity);
 
       /* Become a daemon if requested */
-      become_daemon (options.daemon);
+      if (first_time)
+	become_daemon (options.daemon, options.cd_dir);
 
+      /* show all option settings */
       show_settings (&options);
 
       /* Do Work */
       {
-	bool one_time_init = false;
 	struct sockaddr_in remote_addr;
 	CLEAR (remote_addr);
-	while (openvpn (&options, &remote_addr, &one_time_init) == SIGHUP)
-	  msg (M_WARN, "SIGHUP received, restarting");
+	do {
+	  sig = openvpn (&options, &remote_addr, first_time);
+	  first_time = false;
+	  if (sig == SIGUSR1)
+	      msg (M_WARN, "SIGUSR1 received, restarting network connection");
+	  if (sig == SIGHUP)
+	    msg (M_WARN, "SIGHUP received, re-reading command line arguments and/or config file");
+	} while (sig == SIGUSR1);
       }
-
-#ifdef USE_CRYPTO
-      free_ssl_lib ();
-#endif
     }
+    gc_collect (gc_level);
+  } while (sig == SIGHUP);
+
+  thread_cleanup();
+#ifdef USE_CRYPTO
+  free_ssl_lib ();
+#endif
 
  exit:
   /* pop our garbage collection level */
@@ -1783,3 +1494,20 @@ main (int argc, char *argv[])
 
   return 0;
 }
+
+/*
+ * Basic threading test.
+ */
+#if defined(USE_PTHREAD) && defined(USE_CRYPTO)
+static void*
+test_crypto_thread (void *arg)
+{
+  struct sockaddr_in remote_addr;
+  const struct options *opt = (struct options*) arg;
+
+  set_nice (opt->nice_work);
+  CLEAR (remote_addr);
+  openvpn (opt, &remote_addr, false);
+  return NULL;
+}
+#endif

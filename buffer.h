@@ -26,8 +26,9 @@
 #ifndef BUFFER_H
 #define BUFFER_H
 
+#include <string.h>
 #include "basic.h"
-#include "string.h"
+#include "thread.h"
 
 struct buffer
 {
@@ -44,6 +45,7 @@ struct buffer
 #define BDEF(buf)  ((buf)->data != NULL)
 
 struct buffer alloc_buf (size_t size);
+struct buffer clone_buf (const struct buffer* buf);
 struct buffer alloc_buf_gc (size_t size);	/* allocate buffer with garbage collection */
 struct buffer clear_buf ();
 void free_buf (struct buffer *buf);
@@ -56,6 +58,14 @@ buf_init (struct buffer *buf, int offset)
   buf->len = 0;
   buf->offset = offset;
   return true;
+}
+
+static inline void
+buf_clear (struct buffer *buf)
+{
+  memset (buf->data, 0, buf->capacity);
+  buf->len = 0;
+  buf->offset = 0;
 }
 
 static inline void
@@ -252,8 +262,7 @@ buf_string_match (struct buffer *src, const void *match, int size)
 
 /*
  * Very basic garbage collection, mostly for routines that return
- * char ptrs to malloced strings.  Not multi-thread safe unless you
- * make _gc_level and _gc_stack thread-local.
+ * char ptrs to malloced strings.
  */
 
 struct gc_entry
@@ -262,41 +271,34 @@ struct gc_entry
   int level;
 };
 
-extern int gc_count;
+struct gc_thread
+{
+  int gc_count;
+  int gc_level;
+  struct gc_entry *gc_stack;
+};
 
-extern int _gc_level;
-extern struct gc_entry *_gc_stack;
+extern struct gc_thread _gc_thread[N_THREADS];
 
 void *gc_malloc (size_t size);
+void gc_collect (int level);
 
 void _gc_free (void *p);
 
 static inline int
 gc_new_level ()
 {
-  return ++_gc_level;
-}
-
-static inline void
-gc_collect (int level)
-{
-  struct gc_entry *e;
-  while (e = _gc_stack)
-    {
-      if (e->level < level)
-	break;
-      /*printf("GC FREE 0x%08x lev=%d\n", e, e->level); */
-      --gc_count;
-      _gc_stack = e->back;
-      _gc_free (e);
-    }
+  struct gc_thread* thread = &_gc_thread[thread_number()];
+  return ++thread->gc_level;
 }
 
 static inline void
 gc_free_level (int level)
 {
+  struct gc_thread* thread = &_gc_thread[thread_number()];
+
   gc_collect (level);
-  _gc_level = level - 1;
+  thread->gc_level = level - 1;
 }
 
 #if 0

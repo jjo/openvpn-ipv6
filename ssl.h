@@ -155,7 +155,6 @@ struct key_state
   time_t must_die;		/* this object is destroyed at this time */
 
   int initial_opcode;		/* our initial P_ opcode */
-  bool burst;			/* during hard reset used to control burst retransmit */
   struct session_id session_id_remote; /* peer's random session ID */
   struct sockaddr_in remote_addr;      /* peer's IP addr */
   struct packet_id packet_id;	       /* for data channel, to prevent replay attacks */
@@ -234,6 +233,9 @@ struct tls_session
   /* const options and config info */
   const struct tls_options *opt;
 
+  /* during hard reset used to control burst retransmit */
+  bool burst;
+
   /* authenticate control packets */
   struct crypto_options tls_auth;
   struct packet_id tls_auth_pid;
@@ -308,7 +310,7 @@ bool tls_multi_process (struct tls_multi *multi,
 			struct sockaddr_in *to_udp_addr,
 			struct udp_socket *to_udp_socket,
 			time_t * wakeup,
-			const time_t current);
+			time_t current);
 
 void tls_multi_free (struct tls_multi *multi, bool clear);
 
@@ -316,7 +318,7 @@ bool tls_pre_decrypt (struct tls_multi *multi,
 		      struct sockaddr_in *from,
 		      struct buffer *buf,
 		      struct crypto_options *opt,
-		      const time_t current);
+		      time_t current);
 
 void tls_pre_encrypt (struct tls_multi *multi,
 		      struct buffer *buf, struct crypto_options *opt);
@@ -331,6 +333,46 @@ int pem_password_callback (char *buf, int size, int rwflag, void *u);
 void tls_set_verify_command (const char *cmd);
 
 void tls_adjust_frame_parameters(struct frame *frame);
+
+/*
+ * TLS thread mode
+ */
+#ifdef USE_PTHREAD
+
+#define TTCMD_PROCESS 0
+#define TTCMD_EXIT    1
+
+struct tt_cmd
+{
+  int cmd;
+};
+
+struct tt_ret
+{
+  struct buffer to_udp;
+  struct sockaddr_in to_udp_addr;
+};
+
+struct thread_parms
+{
+  struct tls_multi *multi;
+  struct udp_socket *udp_socket;
+  int nice;
+  bool mlock;
+  int sd;
+};
+
+int tls_thread_create (struct tls_multi *multi,
+		       struct udp_socket *udp_socket,
+		       int nice, bool mlock);
+
+int tls_thread_process (int sd);
+
+void tls_thread_close (int sd);
+
+int tls_thread_rec_buf (int sd, struct tt_ret* ttr, bool do_check_status);
+
+#endif
 
 /*
  * protocol_dump() flags

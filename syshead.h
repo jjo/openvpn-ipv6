@@ -49,17 +49,21 @@
 
 #include <arpa/inet.h>
 
-#ifdef __linux__
+#ifdef USE_PTHREAD
+#include <pthread.h>
+#endif
+
+#ifdef TARGET_LINUX
  #include <linux/if.h>
-#endif /* __linux */
+#endif /* TARGET_LINUX */
 
 #ifndef OLD_TUN_TAP
- #ifdef __OpenBSD__
+ #ifdef TARGET_BSD
   #include <net/if_tun.h>
- #endif /* __OpenBSD__ */
- #ifdef __linux__
+ #endif /* TARGET_BSD */
+ #ifdef TARGET_LINUX
   #include <linux/if_tun.h>
- #endif /* __linux */
+ #endif /* TARGET_LINUX */
 #endif /* OLD_TUN_TAP */
 
 #ifdef _POSIX_MEMLOCK

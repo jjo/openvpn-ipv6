@@ -32,6 +32,10 @@
 /* use LZO library */
 #undef USE_LZO
 
+/* use pthread thread library to optimize latency */
+#undef USE_PTHREAD
+#undef _REENTRANT
+
 /* use old version of TUN/TAP driver */
 #undef OLD_TUN_TAP
 
@@ -43,3 +47,15 @@
 
 /* early versions of glibc don't define in_addr_t */
 #undef in_addr_t
+
+/* what system are we running on? */
+#undef TARGET_ALIAS
+
+/* are we running on linux? */
+#undef TARGET_LINUX
+
+/* are we running on solaris? */
+#undef TARGET_SOLARIS
+
+/* are we running on BSD? */
+#undef TARGET_BSD

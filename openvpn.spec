@@ -1,13 +1,13 @@
 Summary:	A Secure UDP Tunneling Daemon
 Name:		openvpn
-Version:	1.1.1
+Version:	1.1.1.6
 Release:	1
 URL:		http://sourceforge.net/projects/openvpn/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
 
 License:	GPL
 Group:		Networking/Tunnels
-Vendor:		James Yonan <jimyonan@users.sourceforge.net>
+Vendor:		James Yonan <jim@yonan.net>
 Packager:	bishop clark (LC957) <bishop@platypus.bc.ca>
 BuildRoot:	%{_tmppath}/%{name}-%(id -un)
 Requires:	tun
@@ -23,11 +23,10 @@ UDP port.
 
 %build
 ./autogen.sh
-%configure
+%configure --enable-pthread
 %__make
 
 %install
-# this package does not yet incorporate $(prefix) autoconf bits
 #makeinstall
 
 %__install -c -d -m 755 ${RPM_BUILD_ROOT}%{_mandir}/man8
@@ -42,6 +41,9 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root)
 %doc AUTHORS COPYING COPYRIGHT.GPL INSTALL NEWS PORTS README 
 %doc {client,server,tmp-ca}.{crt,key} dh1024.pem verify-cn
+%doc firewall.sh
+%doc {static,tls}-{home,office}.conf {home,office}.up
+%doc openvpn-{startup,shutdown}.sh
 %{_mandir}/man8/%{name}.8*
 %{_sbindir}/%{name}
 

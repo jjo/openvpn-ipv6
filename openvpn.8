@@ -15,6 +15,7 @@ openvpn \- secure IP tunnel daemon.
 .ti -4
 .B openvpn
 [\ \fB\-\-help\fR\ ]
+[\ \fB\-\-config\fR\ \fIfile\fR\ ]
 [\ \fB\-\-local\fR\ \fIhost\fR\ ]
 [\ \fB\-\-remote\fR\ \fIhost\fR\ ]
 [\ \fB\-\-float\fR\ ]
@@ -23,7 +24,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-lport\fR\ \fIport\fR\ ]
 [\ \fB\-\-rport\fR\ \fIport\fR\ ]
 [\ \fB\-\-nobind\fR\ ]
-[\ \fB\-\-dev\fR\ \fITUNx\ |\ TAPx\fR\ ]
+[\ \fB\-\-dev\fR\ \fItunX\ |\ tapX\fR\ ]
 [\ \fB\-\-ifconfig\fR\ \fIl\ r\fR\ ]
 [\ \fB\-\-udp\-mtu\fR\ \fIn\fR\ ]
 [\ \fB\-\-tun\-mtu\fR\ \fIn\fR\ ]
@@ -37,8 +38,11 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-down\fR\ \fIcmd\fR\ ]
 [\ \fB\-\-user\fR\ \fIuser\fR\ ]
 [\ \fB\-\-chroot\fR\ \fIdir\fR\ ]
+[\ \fB\-\-cd\fR\ \fIdir\fR\ ]
 [\ \fB\-\-daemon\fR\ ]
+[\ \fB\-\-writepid\fR\ \fIfile\fR\ ]
 [\ \fB\-\-nice\fR\ \fIn\fR\ ]
+[\ \fB\-\-nice\-work\fR\ \fIn\fR\ ]
 [\ \fB\-\-verb\fR\ \fIn\fR\ ]
 [\ \fB\-\-gremlin\fR\ ]
 [\ \fB\-\-comp\-lzo\fR\ ]
@@ -176,11 +180,12 @@ with the
 .B LZO
 real-time compression library; it can be built with the
 OpenSSL crypto library which will give support for static private key encryption;
-and it can be built with the OpenSSL SSL library which will give full support
-for certificates and TLS-based dynamic key exchange.  For more information, consult
+it can be built with the OpenSSL SSL library which will give full support
+for certificates and TLS-based dynamic key exchange; and it can be built
+with pthread support for improved latency in SSL/TLS mode.  For more information, consult
 the
 .B INSTALL
-file included with every distribution of OpenSSL.
+file included in the OpenVPN distribution.
 
 OpenVPN aims to offer many of the key features of IPSec but
 with a very lightweight footprint.
@@ -188,6 +193,91 @@ with a very lightweight footprint.
 .TP
 .B --help
 Show options.
+.TP
+.B --config file
+Load additional config options from
+.B file
+where each line corresponds to one command line option,
+but with the leading '--' removed.
+
+Double quotation characters ("") can be used
+to enclose single parameters containing whitespace,
+and "#" or ";" characters can be used to denote comments.
+
+Configuration files can be nested.
+
+For examples of configuration files,
+see the OpenVPN HOWTO at
+.I http://openvpn.sourceforge.net/howto.html
+
+Here is an example configuration file:
+.RS
+.ft 3
+.nf
+.sp
+#
+# Sample OpenVPN configuration file for
+# office using a pre-shared static key.
+#
+# '#' or ';' may be used to delimit comments.
+
+# Use a dynamic tun device.
+# For Linux 2.2 or non-Linux OSes,
+# you may want to use an explicit
+# unit number such as "tun1".
+# OpenVPN also supports virtual
+# ethernet "tap" devices.
+dev tun
+
+# 10.1.0.1 is our local VPN endpoint (office).
+# 10.1.0.2 is our remote VPN endpoint (home).
+ifconfig 10.1.0.1 10.1.0.2
+
+# Our up script will establish routes
+# once the VPN is alive.
+up ./office.up
+
+# Our pre-shared static key
+secret static.key
+
+# OpenVPN uses UDP port 5000 by default.
+# Each OpenVPN tunnel must use
+# a different port number which
+# should match on both peers.
+; port 5000
+
+# Downgrade UID to "nobody"
+# after initialization for
+# extra security.  Uncomment
+# this out if you don't plan
+# on sending any signals to
+# OpenVPN, such as for
+# DHCP resets.
+; user nobody
+
+# If you built OpenVPN with
+# LZO compression, uncomment
+# out the following line.
+; comp-lzo
+
+# Send a UDP ping to remote once
+# every 15 seconds to keep
+# stateful firewall connection
+# alive.  Uncomment this
+# out if you are using a stateful
+# firewall.
+; ping 15
+
+# Verbosity level.
+# 0 -- quiet except for fatal errors.
+# 1 -- mostly quiet.
+# 5 -- medium output, good for normal operation.
+# 8 -- verbose, good for troubleshooting
+verb 5
+.ft
+.LP
+.RE
+.fi
 .SS Tunnel Options:
 It should be noted that OpenVPN is a peer-to-peer application.  Each peer establishes
 a symmetrical UDP link with its partner.  If an OpenVPN session is started without
@@ -281,7 +371,7 @@ changes.
 
 Execute as:
 
-.B cmd ip-address port-number
+.B cmd ip_address port_number
 
 Commas (',') may be used to separate multiple args in
 .B cmd.
@@ -322,9 +412,9 @@ peers which will be initiating connections by using the
 .B --remote
 option.
 .TP
-.B --dev TUNx | TAPx
+.B --dev tunX | tapX
 tun/tap virtual network device (
-.B x
+.B X
 can be omitted for dynamic device in
 Linux 2.4.7+).  See examples section below
 for an example on setting up a TUN device.
@@ -561,7 +651,7 @@ UID change).
 
 Execute as:
 
-.B cmd tun-tap-dev tun-mtu udp-mtu ifconfig-local-ip ifconfig-remote-ip
+.B cmd tun_tap_dev tun_mtu udp_mtu ifconfig_local_ip ifconfig_remote_ip
 
 Typically,
 .B cmd
@@ -623,6 +713,22 @@ daemon might not be able to respond successfully to a
 signal, because in order to restart it would need to read protected
 key files such as private keys.
 .TP
+.B --cd dir
+Change directory to
+.B dir
+prior to reading any files such as
+configuration files, key files, scripts, etc.
+.B dir
+should be an absolute path, with a leading "/",
+and without any references
+to the current directory such as "." or "..".
+
+This option is useful when you are running
+OpenVPN in 
+.B --daemon
+mode, and you want to consolidate all of
+your OpenVPN control files in one location.
+.TP
 .B --chroot dir
 Chroot to
 .B dir
@@ -644,11 +750,38 @@ including special files such
 .B --daemon
 Become a daemon and write all messages to the syslog file (such as /var/log/messages).
 .TP
+.B --writepid file
+Write OpenVPN's main process ID to
+.B file.
+.TP
 .B --nice n
 Change process priority after initialization
-(greater than 0 is lower priority, less than zero is higher priority).
-Note that if you are running in TLS mode, TLS key exchanges can be CPU
-intensive, so use caution in raising OpenVPN's priority.
+(
+.B n
+greater than 0 is lower priority,
+.B n
+less than zero is higher priority).
+.TP
+.B --nice-work n
+Change priority of background TLS work thread.  The TLS thread
+feature is enabled when OpenVPN is built
+with pthread support, and you are running OpenVPN
+in TLS mode (i.e. with
+.B --tls-client
+or
+.B --tls-server
+specified).
+
+Using a TLS thread offloads the CPU-intensive process of SSL/TLS-based
+key exchange to a background thread so that it does not become
+a latency bottleneck in the tunnel packet forwarding process.
+
+The parameter
+.B n
+is interpreted exactly as with the
+.B --nice
+option above, but in relation to the work thread rather
+than the main thread.
 .TP
 .B --verb n
 Set output verbosity to
@@ -992,9 +1125,14 @@ can be over a public medium).
 Note that the
 .B openssl ca
 command reads the location of the certificate authority key from its
-configuration file such as /usr/share/ssl/openssl.cnf -- note also
+configuration file such as
+.B /usr/share/ssl/openssl.cnf
+-- note also
 that for certificate authority functions, you must set up the files
-index.txt (may be empty) and serial (initialize to
+.B index.txt
+(may be empty) and
+.B serial
+(initialize to
 .B 
 01
 ).
@@ -1236,7 +1374,11 @@ tun/tap device
 .SH SIGNALS
 .TP
 .B SIGHUP
-Causes OpenVPN to restart and attempt to reopen a network connection with
+Causes OpenVPN to restart and re-read its configuration file.
+.TP
+.B SIGUSR1
+Causes OpenVPN to restart (without re-reading its configuration file)
+and attempt to reopen a network connection with
 its most recently authenticated peer.  This signal is designed to be
 sent when the underlying parameters of the host's network interface change
 such as when the host is a DHCP client and is assigned a new IP address.
@@ -1244,14 +1386,17 @@ See
 .B --ipchange
 above for more information.
 .TP
+.B SIGUSR2
+Causes OpenVPN to display its current statistics (to the syslog
+file if
+.B --daemon
+is used, or stdout otherwise).
+.TP
 .B SIGINT, SIGTERM
 Causes OpenVPN to exit gracefully.
 .SH TUN/TAP DRIVER SETUP
 If you are running Linux 2.4.7 or higher, you probably have the TUN/TAP driver
 already installed.  If so, there are still a few things you need to do:
-
-Add to /etc/modules.conf:
-.B alias char-major-10-200 tun
 
 Make device:
 .B mknod /dev/net/tun c 10 200
@@ -1265,7 +1410,24 @@ TUN/TAP driver from
 and follow the installation instructions.
 .SH EXAMPLES
 Prior to running these examples, you should have OpenVPN installed on two
-machines with network connectivity between them.  If firewalls exist between
+machines with network connectivity between them.  If you have not
+yet installed OpenVPN, consult the INSTALL file included in the OpenVPN
+distribution.
+.SS TUN/TAP Setup:
+If you are using Linux 2.4 or higher, make the tun device node and load
+the tun module:
+.IP
+.B mknod /dev/net/tun c 10 200
+.LP
+.IP
+.B modprobe tun
+.LP
+If you have Linux 2.2 or earlier, you should obtain version 1.1 of the
+TUN/TAP driver from
+.I http://vtun.sourceforge.net/tun/
+and follow the installation instructions.
+.SS Firewall Setup:
+If firewalls exist between
 the two machines, they should be set to forward UDP port 5000
 in both directions.  If you do not have control over the firewalls
 between the two machines, you may still be able to use OpenVPN by adding
@@ -1277,6 +1439,14 @@ a UDP ping to its remote peer once every 15 seconds which will cause many
 stateful firewalls to forward packets in both directions
 without an explicit firewall rule).
 
+If you are using a Linux iptables-based firewall, you may need to enter
+the following command to allow incoming packets on the tun device:
+.IP
+.B iptables -A INPUT -i tun+ -j ACCEPT
+.LP
+See the firewalls section below for more information on configuring firewalls
+for use with OpenVPN.
+.SS VPN Address Setup:
 For purposes
 of our example, our two machines will be called
 .B may.kg
@@ -1331,7 +1501,7 @@ option used in the examples below requires that the
 .BR ifconfig (8)
 executable be accessible in the current
 .B PATH.
-.SS A simple tunnel without security:
+.SS Example 1: A simple tunnel without security
 .LP
 On may:
 .IP
@@ -1358,7 +1528,7 @@ option will produce verbose output, similar to the
 program.  Omit the
 .B --verb 8
 option to have OpenVPN run quietly.
-.SS A tunnel with static-key security (i.e. using a pre-shared secret):
+.SS Example 2: A tunnel with static-key security (i.e. using a pre-shared secret)
 First build a static key on may.
 .IP
 .B openvpn --genkey --secret key
@@ -1390,7 +1560,7 @@ On may:
 On june:
 .IP
 .B ping 10.4.0.1
-.SS A tunnel with full TLS-based security:
+.SS Example 3: A tunnel with full TLS-based security
 For this test, we will designate
 .B may
 as the TLS client and
@@ -1459,6 +1629,10 @@ On Linux, enable routing:
 .IP
 .B echo 1 > /proc/sys/net/ipv4/ip_forward
 .LP
+and enable tun packet forwarding through the firewall:
+.IP
+.B iptables -A FORWARD -i tun+ -j ACCEPT
+.LP
 On may:
 .IP
 .B route add -net 10.0.1.0 netmask 255.255.255.0 gw 10.4.0.2
@@ -1478,7 +1652,7 @@ option.
 .SH FIREWALLS
 OpenVPN's usage of a single UDP port makes it fairly firewall-friendly.
 You should add an entry to your firewall rules to allow incoming OpenVPN
-packets.  On Linux:
+packets.  On Linux 2.4+:
 .IP
 .B iptables -A INPUT -p udp -s 1.2.3.4 --dport 5000 -j ACCEPT
 .LP
@@ -1509,6 +1683,36 @@ seconds.  If
 is less than the stateful firewall connection timeout, you can
 maintain an OpenVPN connection indefinitely without explicit
 firewall rules.
+
+You should also add firewall rules to allow incoming IP traffic on
+tun or tap devices such as:
+.IP
+.B iptables -A INPUT -i tun+ -j ACCEPT
+.LP
+to allow input packets from tun devices,
+.IP
+.B iptables -A FORWARD -i tun+ -j ACCEPT
+.LP
+to allow input packets from tun devices to be forwarded to
+other hosts on the local network,
+.IP
+.B iptables -A INPUT -i tap+ -j ACCEPT
+.LP
+to allow input packets from tap devices, and
+.IP
+.B iptables -A FORWARD -i tap+ -j ACCEPT
+.LP
+to allow input packets from tap devices to be forwarded to
+other hosts on the local network.
+
+These rules are secure if you use packet authentication,
+since no incoming packets will arrive on a tun or tap
+virtual device
+unless they first pass an HMAC authentication test.
+.SH HOWTO
+For a more comprehensive guide to setting up OpenVPN
+in a production setting, see the OpenVPN HOWTO at
+.I http://openvpn.sourceforge.net/howto.html
 .SH PROTOCOL
 For a description of OpenVPN's underlying protocol,
 see the file ssl.h included in the OpenVPN source distribution or
