@@ -119,6 +119,14 @@ case "$1" in
 	  kill -USR1 `cat $pidf`
 	done
 	;;
+  condrestart)
+       if [ -f /var/lock/subsys/openvpn ] ; then
+               stop
+               # avoid race
+               sleep 3
+               start
+       fi
+       ;;
   status)
 	for pidf in `/bin/ls /var/run/openvpn/*.pid 2>/dev/null`; do
 	  kill -USR2 `cat $pidf`
@@ -126,7 +134,7 @@ case "$1" in
 	echo "Status written to /var/log/messages"
 	;;
   *)
-	echo "Usage: openvpn {start|stop|restart|reload|reopen|status}"
+	echo "Usage: openvpn {start|stop|restart|condrestart|reload|reopen|status}"
 	exit 1
 esac
 

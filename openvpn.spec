@@ -1,6 +1,6 @@
 Summary:	A Secure UDP Tunneling Daemon
 Name:		openvpn
-Version:	1.2.1.3
+Version:	1.2.1.4
 Release:	1
 URL:		http://sourceforge.net/projects/openvpn/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
@@ -52,6 +52,7 @@ case "`uname -r`" in
 	;;
 esac
 /sbin/chkconfig --add %{name}
+/sbin/service %{name} condrestart
 
 %preun
 service %{name} stop

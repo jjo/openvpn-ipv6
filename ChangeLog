@@ -1,7 +1,7 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.06.15 -- Version 1.2.1.3
+2002.06.18 -- Version 1.2.1.4
 
 * Added --dev-node option to allow explicit selection of
   tun/tap device node.
@@ -12,6 +12,8 @@ Copyright (C) 2002 James Yonan <jim@yonan.net>
   now doesn't run unless we have a remote
   IP address.  --ping-nopeer reverts to
   old behaviour.
+* Added condrestart to openvpn.init and
+  openvpn.spec (Bishop Clark).
 * All changes maintain protocol compatibility
   with OpenVPN versions since 1.1.0.
 
