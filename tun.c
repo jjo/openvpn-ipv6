@@ -249,10 +249,13 @@ open_null (struct tuntap *tt)
 
 static void
 open_tun_generic (const char *dev, const char *dev_node, const char *dev_name,
-		  bool ipv6, bool ipv6_explicitly_supported,
+		  bool ipv6, bool ipv6_explicitly_supported, bool dynamic,
 		  struct tuntap *tt)
 {
   char tunname[64];
+
+  char dynamic_name[64];
+  bool dynamic_opened = false;
 
   clear_tuntap (tt);
 
@@ -264,16 +267,58 @@ open_tun_generic (const char *dev, const char *dev_node, const char *dev_name,
     }
   else
     {
+      /*
+       * --dev-node specified, so open an explicit device node
+       */
       if (dev_node)
-	snprintf (tunname, sizeof (tunname), "%s", dev_node);
+	{
+	  snprintf (tunname, sizeof (tunname), "%s", dev_node);
+	}
       else
-	snprintf (tunname, sizeof (tunname), "/dev/%s", dev);
-      if ((tt->fd = open (tunname, O_RDWR)) < 0)
-	msg (M_ERR, "Cannot open tun/tap dev %s", tunname);
+	{
+	  /*
+	   * dynamic open is indicated by --dev specified without
+	   * explicit unit number.  Try opening /dev/[dev]n
+	   * where n = [0, 255].
+	   */
+	  if (dynamic && !has_digit(dev))
+	    {
+	      int i;
+	      for (i = 0; i < 256; ++i)
+		{
+		  snprintf (tunname, sizeof (tunname), "/dev/%s%d", dev, i);
+		  snprintf (dynamic_name, sizeof (dynamic_name), "%s%d", dev, i);
+		  if ((tt->fd = open (tunname, O_RDWR)) > 0)
+		    {
+		      dynamic_opened = true;
+		      break;
+		    }
+		  msg (D_READ_WRITE | M_ERRNO, "Tried opening %s (failed)", tunname);
+		}
+	      if (!dynamic_opened)
+		msg (M_FATAL, "Cannot allocate tun/tap dev dynamically");
+	    }
+	  /*
+	   * explicit unit number specified
+	   */
+	  else
+	    {
+	      snprintf (tunname, sizeof (tunname), "/dev/%s", dev);
+	    }
+	}
+
+      if (!dynamic_opened)
+	{
+	  if ((tt->fd = open (tunname, O_RDWR)) < 0)
+	    msg (M_ERR, "Cannot open tun/tap dev %s", tunname);
+	}
+
       set_nonblock (tt->fd);
-      set_cloexec (tt->fd);
+      set_cloexec (tt->fd); /* don't pass fd to scripts */
       msg (M_INFO, "tun/tap device %s opened", tunname);
-      strncpynt (tt->actual, dev, sizeof (tt->actual));
+
+      /* tt->actual is passed to up and down scripts and used as the ifconfig dev name */
+      strncpynt (tt->actual, (dynamic_opened ? dynamic_name : dev), sizeof (tt->actual));
 
       if (dev_name)
 	msg (M_WARN, "Cannot rename dev %s to %s", dev, dev_name);
@@ -381,6 +426,17 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node,
     }
 }
 
+#else
+
+void
+open_tun (const char *dev, const char *dev_type, const char *dev_node, const char *dev_name, bool ipv6,
+	  struct tuntap *tt)
+{
+  open_tun_generic (dev, dev_node, dev_name, ipv6, false, true, tt);
+}
+
+#endif /* HAVE_LINUX_IF_TUN_H */
+
 #ifdef TUNSETPERSIST
 
 void
@@ -396,17 +452,6 @@ tuncfg (const char *dev, const char *dev_type, const char *dev_node, const char 
 }
 
 #endif /* TUNSETPERSIST */
-
-#else
-
-void
-open_tun (const char *dev, const char *dev_type, const char *dev_node, const char *dev_name, bool ipv6,
-	  struct tuntap *tt)
-{
-  open_tun_generic (dev, dev_node, dev_name, ipv6, false, tt);
-}
-
-#endif /* HAVE_LINUX_IF_TUN_H */
 
 void
 close_tun (struct tuntap *tt)
@@ -630,7 +675,7 @@ void
 open_tun (const char *dev, const char *dev_type, const chart *dev_name,
 	  const char *dev_node, bool ipv6, struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, dev_name, ipv6, false, tt);
+  open_tun_generic (dev, dev_node, dev_name, ipv6, false, true, tt);
 }
 
 void
@@ -682,7 +727,7 @@ void
 open_tun (const char *dev, const char *dev_type, const char *dev_node,
 	  const char *dev_name, bool ipv6, struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, dev_name, ipv6, false, tt);
+  open_tun_generic (dev, dev_node, dev_name, ipv6, false, true, tt);
 
   if (tt->fd >= 0)
     {
@@ -718,7 +763,7 @@ void
 open_tun (const char *dev, const char *dev_type, const char *dev_node,
 	  const char *dev_name, bool ipv6, struct tuntap *tt)
 {
-  open_tun_generic (dev, dev_node, dev_name, ipv6, false, tt);
+  open_tun_generic (dev, dev_node, dev_name, ipv6, false, true, tt);
 }
 
 void

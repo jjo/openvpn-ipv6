@@ -58,7 +58,7 @@
 #define D_TLS_DEBUG          LOGLEV(8, 20, M_DEBUG)  /* show detailed info from TLS routines */
 #define D_CRYPTO_DEBUG       LOGLEV(8, 21, M_DEBUG)  /* show detailed info from crypto.c routines */
 #define D_COMP               LOGLEV(8, 22, M_DEBUG)  /* show compression info */
-#define D_READ_WRITE         LOGLEV(8, 23, M_DEBUG)  /* verbose account of all tun/UDP reads/writes */
+#define D_READ_WRITE         LOGLEV(8, 23, M_DEBUG)  /* verbose account of all tun/UDP reads/writes/opens */
 #define D_REL_DEBUG          LOGLEV(8, 24, M_DEBUG)  /* show detailed info from reliable routines */
 #define D_PACKET_CONTENT     LOGLEV(8, 25, M_DEBUG)  /* show before/after encryption packet content */
 #define D_GREMLIN_VERBOSE    LOGLEV(8, 26, M_DEBUG)  /* show verbose info from gremlin module */

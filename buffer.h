@@ -93,6 +93,19 @@ strncpynt (char *dest, const char *src, int maxlen)
     dest[maxlen - 1] = 0;
 }
 
+/* return true if string contains at least one numerical digit */
+static inline bool
+has_digit (const char* src)
+{
+  char c;
+  while ((c = *src++))
+    {
+      if (isdigit(c))
+	return true;
+    }
+  return false;
+}
+
 /*
  * printf append to a buffer with overflow check
  */
