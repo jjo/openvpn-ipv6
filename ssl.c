@@ -1626,8 +1626,16 @@ thread_func (void *arg)
   time_t current;
   bool fatal;
 
+#if 0
+  /*
+   * Under Linux, Posix threads appear to inherit mlockall state
+   * from parent.  This is good news, since mlockall will fail
+   * if we restart after having downgraded privileges with
+   * --user or group.
+   */
   if (parm.mlock) /* should we disable paging? */
     do_mlockall (true);  
+#endif
 
   /* change thread priority if requested */
   set_nice (parm.nice);

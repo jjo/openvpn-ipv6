@@ -1,10 +1,19 @@
 OpenVPN
 Copyright (C) 2002 James Yonan <jim@yonan.net>
 
-2002.06.14 -- Version 1.2.1.2
+2002.06.15 -- Version 1.2.1.3
 
-* Added --dev-node option to allow explicit
-  selection of tun/tap device node.
+* Added --dev-node option to allow explicit selection of
+  tun/tap device node.
+* Removed mlockall call from child thread, as it doesn't
+  appear to be necessary (child thread inherits mlockall
+  state from parent).
+* Timer for --ping-exit and --ping-restart
+  now doesn't run unless we have a remote
+  IP address.  --ping-nopeer reverts to
+  old behaviour.
+* All changes maintain protocol compatibility
+  with OpenVPN versions since 1.1.0.
 
 2002.06.12 -- Version 1.2.1
 

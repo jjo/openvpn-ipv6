@@ -91,6 +91,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-ping\fR\ \fIn\fR\ ]
 [\ \fB\-\-ping\-exit\fR\ \fIn\fR\ ]
 [\ \fB\-\-ping\-restart\fR\ \fIn\fR\ ]
+[\ \fB\-\-ping\-nopeer\fR\ ]
 [\ \fB\-\-persist\-tun\fR\ ]
 [\ \fB\-\-persist\-key\fR\ ]
 [\ \fB\-\-persist\-local\-ip\fR\ ]
@@ -702,6 +703,13 @@ Also note that
 and
 .B --ping-restart
 are mutually exclusive and cannot be used together.
+.TP
+.B --ping-nopeer
+Run the
+.B --ping-exit
+/
+.B --ping-restart
+timer even if we have no remote address.
 .TP
 .B --persist-tun
 Don't close and reopen tun/tap device or run up/down scripts

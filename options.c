@@ -75,6 +75,8 @@ static const char usage_message[] =
   "--inactive n    : Exit after n seconds of inactivity on tun/tap device.\n"
   "--ping-exit n   : Exit if n seconds pass without reception of remote ping.\n"
   "--ping-restart n: Restart if n seconds pass without reception of remote ping.\n"
+  "--ping-nopeer   : Run the --ping-exit/--ping-restart timer even if we have no\n"
+  "                  remote address.\n"
   "--ping n        : Ping remote once every n seconds over UDP port.\n"
   "--persist-tun   : Keep tun/tap device open across SIGUSR1 or --ping-restart.\n"
   "--persist-remote-ip : Keep remote IP address across SIGUSR1 or --ping-restart.\n"
@@ -290,6 +292,7 @@ show_settings (const struct options *o)
   SHOW_INT (ping_send_timeout);
   SHOW_INT (ping_rec_timeout);
   SHOW_INT (ping_rec_timeout_action);
+  SHOW_BOOL (ping_nopeer);
 
   SHOW_BOOL (persist_tun);
   SHOW_BOOL (persist_local_ip);
@@ -811,6 +814,10 @@ add_option (struct options *options, int i, char *p1, char *p2, char *p3,
 	ping_rec_err();
       options->ping_rec_timeout = positive (atoi (p2));
       options->ping_rec_timeout_action = PING_RESTART;
+    }
+  else if (streq (p1, "ping-nopeer"))
+    {
+      options->ping_nopeer = true;
     }
   else if (streq (p1, "persist-tun"))
     {

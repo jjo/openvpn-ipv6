@@ -775,7 +775,8 @@ openvpn (const struct options *options,
        * Should we exit or restart due to ping (or other authenticated packet)
        * not received in n seconds?
        */
-      if (options->ping_rec_timeout)
+      if (options->ping_rec_timeout &&
+	  (options->ping_nopeer || addr_defined (&udp_socket_addr->actual)))
 	{
 	  if (event_timeout_trigger (&ping_rec_interval, current)) 
 	    {
