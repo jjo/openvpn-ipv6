@@ -28,7 +28,7 @@
 .\" IP indented paragraph
 .\" TP hanging label
 openvpn
-.TH openvpn 8 "15 November 2004"
+.TH openvpn 8 "8 December 2004"
 .\"*********************************************************
 .SH NAME
 openvpn \- secure IP tunnel daemon.
@@ -170,9 +170,10 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-log\fR\ \fIfile\fR\ ]
 [\ \fB\-\-suppress-timestamps\fR\ ]
 [\ \fB\-\-lport\fR\ \fIport\fR\ ]
-[\ \fB\-\-management\fR\ \fIIP\ port\ [pw\-file]\fR\ ]
-[\ \fB\-\-management\-query\-passwords\fR\ ]
+[\ \fB\-\-management\-hold\fR\ ]
 [\ \fB\-\-management\-log\-cache\fR\ \fIn\fR\ ]
+[\ \fB\-\-management\-query\-passwords\fR\ ]
+[\ \fB\-\-management\fR\ \fIIP\ port\ [pw\-file]\fR\ ]
 [\ \fB\-\-max\-clients\fR\ \fIn\fR\ ]
 [\ \fB\-\-mktun\fR\ ]
 [\ \fB\-\-mlock\fR\ ]
@@ -2014,6 +2015,14 @@ for inputs which ordinarily would have been queried from the
 console.
 .\"*********************************************************
 .TP
+.B --management-hold
+Start OpenVPN in a hibernating state, until a client
+of the management interface explicitly starts it
+with the
+.B hold release
+command.
+.\"*********************************************************
+.TP
 .B --management-log-cache n
 Cache the most recent
 .B n
@@ -2035,6 +2044,13 @@ For more information and examples on how to build OpenVPN
 plug-in modules, see the README file in the
 .B plugin
 folder of the OpenVPN source distribution.
+
+If you are using an RPM install of OpenVPN, see
+/usr/share/openvpn/plugin.  The documentation is
+in
+.B doc
+and the actual plugin modules are in
+.B lib.
 
 Multiple plugin modules can be cascaded, and modules can be
 used in tandem with scripts.  The modules will be called by
@@ -2239,7 +2255,9 @@ is a comma-delimited ASCII file, formatted as
 
 If
 .B seconds
-= 0, file will be treated as read-only.  This is useful if
+= 0,
+.B file
+will be treated as read-only.  This is useful if
 you would like to treat
 .B file
 as a configuration file.
@@ -3539,6 +3557,19 @@ See the easy-rsa/build-key-server script for an example
 of how to generate a certificate with the
 .B nsCertType
 field set to "server".
+
+If the server certificate's nsCertType field is set
+to "server", then the clients can verify this with
+.B --ns-cert-type server.
+
+This is an important security precaution to protect against
+a man-in-the-middle attack where an authorized client
+attempts to connect to another client by impersonating the server.
+The attack is easily prevented by having clients verify
+the server certificate using any one of
+.B --ns-cert-type, --tls-remote,
+or
+.B --tls-verify.
 .\"*********************************************************
 .TP
 .B --crl-verify crl

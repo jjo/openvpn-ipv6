@@ -66,8 +66,8 @@ or organization, or residing on a different machine).
    that the md5sum or sha1sum signatures on the ca.crt
    files match (such as with the command: "md5sum ca.crt").
 2. Choose a name for your certificate such as your computer
-   name.  In our example we will use "deception".
-3. ./build-req deception
+   name.  In our example we will use "mycert".
+3. ./build-req mycert
 4. You can ignore most of the fields, but set
    "Common Name" to something unique such as your
    computer's host name.  Leave all password
@@ -78,25 +78,25 @@ or organization, or residing on a different machine).
    need to supply your password anytime the key is used.
    NOTE: if you are using a password, use ./build-req-pass
    instead of ./build-req
-5. Your key will be written to $KEY_DIR/deception.key
+5. Your key will be written to $KEY_DIR/mycert.key
 6. Your certificate signing request will be written to
-   to $KEY_DIR/deception.csr
-7. Email deception.csr to the individual or organization
+   to $KEY_DIR/mycert.csr
+7. Email mycert.csr to the individual or organization
    which controls the root certificate.  This can be
    done over an insecure channel.
 8. After the .csr file is signed by the root certificate
-   authority, you will receive a file deception.crt
-   (your certificate).  Place deception.crt in your
+   authority, you will receive a file mycert.crt
+   (your certificate).  Place mycert.crt in your
    KEY_DIR directory.
-9. The combined files of deception.crt, deception.key,
+9. The combined files of mycert.crt, mycert.key,
    and ca.crt can now be used to secure one end of
    an SSL/TLS connection.
 
 SIGN A CERTIFICATE SIGNING REQUEST
 
-1. ./sign-req deception
-2. deception.crt will be built in your KEY_DIR
-   directory using deception.csr and your root CA
+1. ./sign-req mycert
+2. mycert.crt will be built in your KEY_DIR
+   directory using mycert.csr and your root CA
    file as input.
 
 BUILD AND SIGN A CERTIFICATE SIGNING REQUEST
@@ -106,15 +106,48 @@ but it requires that the generated certificate and private
 key files be copied to the destination host over a
 secure channel.
 
-1. ./build-key deception (no password protection)
-2. OR ./build-key-pass deception (with password protection)
-3. OR ./build-key-server deception (with nsCertType=server)
-4. deception.crt and deception.key will be built in your
-   KEY_DIR directory, and deception.crt will be signed
+1. ./build-key mycert (no password protection)
+2. OR ./build-key-pass mycert (with password protection)
+3. OR ./build-key-server mycert (with nsCertType=server)
+4. mycert.crt and mycert.key will be built in your
+   KEY_DIR directory, and mycert.crt will be signed
    by your root CA.
+
+IMPORTANT
+
+To avoid a possible Man-in-the-Middle attack where an authorized
+client tries to connect to another client by impersonating the
+server, make sure to enforce some kind of server certificate
+verification by clients.  There are currently four different ways
+of accomplishing this, listed in the order of preference:
+
+(1) Build your server certificates with the build-key-server
+    script.  This will designate the certificate as a
+    server-only certificate by setting nsCertType=server.
+    Now add the following line to your client configuration:
+      
+    ns-cert-type server
+
+    This will block clients from connecting to any
+    server which lacks the nsCertType=server designation
+    in its certificate, even if the certificate has been
+    signed by the CA which is cited in the OpenVPN configuration
+    file (--ca directive).
+
+(2) Use the --tls-remote directive on the client to
+    accept/reject the server connection based on the common
+    name of the server certificate.
+
+(3) Use a --tls-verify script or plugin to accept/reject the
+    server connection based on a custom test of the server
+    certificate's embedded X509 subject details.
+
+(4) Sign server certificates with one CA and client certificates
+    with a different CA.  The client config "ca" directive should
+    reference the server-signing CA while the server config "ca"
+    directive should reference the client-signing CA.
 
 NOTES
 
 Show certificate fields:
   openssl x509 -in cert.crt -text
-

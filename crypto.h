@@ -42,11 +42,16 @@
 #include <openssl/hmac.h>
 #include <openssl/des.h>
 #include <openssl/md5.h>
+#include <openssl/md4.h>
 #include <openssl/sha.h>
 #include <openssl/err.h>
 
 #if CRYPTO_ENGINE
 #include <openssl/engine.h>
+#endif
+
+#if SSLEAY_VERSION_NUMBER >= 0x00907000L
+#include <openssl/des_old.h>
 #endif
 
 #include "basic.h"

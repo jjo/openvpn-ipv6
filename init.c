@@ -990,6 +990,22 @@ do_deferred_options (struct context *c, const unsigned int found)
 }
 
 /*
+ * Possible hold on initialization
+ */
+static bool
+do_hold (void)
+{
+#ifdef ENABLE_MANAGEMENT
+  if (management)
+    {
+      if (management_hold (management))
+	return true;
+    }
+#endif
+  return false;
+}
+
+/*
  * Sleep before restart.
  */
 static void
@@ -1026,11 +1042,26 @@ socket_restart_pause (const struct context *c)
     sec = 0;
 #endif
 
+  if (do_hold ())
+    sec = 0;
+
   if (sec)
     {
       msg (D_RESTART, "Restart pause, %d second(s)", sec);
       openvpn_sleep (sec);
     }
+}
+
+/*
+ * Do a possible pause on context_2 initialization.
+ */
+static void
+do_startup_pause (struct context *c)
+{
+  if (!c->first_time)
+    socket_restart_pause (c);
+  else
+    do_hold ();
 }
 
 /*
@@ -1463,6 +1494,15 @@ do_option_warnings (struct context *c)
     msg (M_WARN, "WARNING: You have disabled Replay Protection (--no-replay) which may make " PACKAGE_NAME " less secure");
   if (!o->use_iv)
     msg (M_WARN, "WARNING: You have disabled Crypto IVs (--no-iv) which may make " PACKAGE_NAME " less secure");
+
+#ifdef USE_SSL
+  if (o->tls_client
+      && !o->tls_verify
+      && !o->tls_remote
+      && !(o->ns_cert_type & NS_SSL_SERVER))
+    msg (M_WARN, "WARNING: No server certificate verification method has been enabled.  See http://openvpn.sourceforge.net/howto.html#mitm for more info.");
+#endif
+
 #endif
 }
 
@@ -2050,7 +2090,7 @@ init_management (struct context *c)
     management = management_init ();
 }
 
-void
+bool
 open_management (struct context *c)
 {
   /* initialize management layer */
@@ -2066,17 +2106,27 @@ open_management (struct context *c)
 			       c->options.management_query_passwords,
 			       c->options.management_log_history_cache,
 			       c->options.management_echo_buffer_size,
-			       c->options.management_state_buffer_size))
+			       c->options.management_state_buffer_size,
+			       c->options.management_hold))
 	    {
 	      management_set_state (management,
 				    OPENVPN_STATE_CONNECTING,
 				    NULL,
 				    (in_addr_t)0);
 	    }
+
+	  /* possible wait */
+	  do_hold ();
+	  if (IS_SIG (c))
+	    {
+	      msg (M_WARN, "Signal received from management interface, exiting");
+	      return false;
+	    }
 	}
       else
 	close_management ();
     }
+  return true;
 }
 
 void
@@ -2140,9 +2190,13 @@ init_instance (struct context *c, const struct env_set *env, unsigned int flags)
   if (c->first_time && options->mlock)
     do_mlockall (true);
 
-  /* possible sleep if restart */
-  if ((c->mode == CM_P2P || c->mode == CM_TOP) && !c->first_time)
-    socket_restart_pause (c);
+  /* possible sleep or management hold if restart */
+  if (c->mode == CM_P2P || c->mode == CM_TOP)
+    {
+      do_startup_pause (c);
+      if (IS_SIG (c))
+	goto sig;
+    }
 
   /* initialize context level 2 --verb/--mute parms */
   init_verb_mute (c, IVM_LEVEL_2);
@@ -2282,10 +2336,14 @@ init_instance (struct context *c, const struct env_set *env, unsigned int flags)
 
   /* Check for signals */
   if (IS_SIG (c))
-    {
-      c->sig->signal_text = "init_instance";
-      close_context (c, -1, flags);
-    }
+    goto sig;
+
+  return;
+
+ sig:
+  c->sig->signal_text = "init_instance";
+  close_context (c, -1, flags);
+  return;
 }
 
 /*

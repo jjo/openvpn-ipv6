@@ -273,6 +273,8 @@ static const char usage_message[] =
   "                  or 'stdin' to prompt from console.\n"
   "--management-query-passwords : Query management channel for private key\n"
   "                  and auth-user-pass passwords.\n"
+  "--management-hold : Start " PACKAGE_NAME " in a hibernating state, until a client\n"
+  "                    of the management interface explicitly starts it.\n"
   "--management-log-cache n : Cache n lines of log file history for usage\n"
   "                  by the management channel.\n"
 #endif
@@ -1045,6 +1047,7 @@ show_settings (const struct options *o)
   SHOW_INT (management_log_history_cache);
   SHOW_INT (management_echo_buffer_size);
   SHOW_BOOL (management_query_passwords);
+  SHOW_BOOL (management_hold);
 #endif
 #ifdef ENABLE_PLUGIN
   if (o->plugin_list)
@@ -2444,6 +2447,11 @@ add_option (struct options *options,
     {
       VERIFY_PERMISSION (OPT_P_GENERAL);
       options->management_query_passwords = true;
+    }
+  else if (streq (p[0], "management-hold"))
+    {
+      VERIFY_PERMISSION (OPT_P_GENERAL);
+      options->management_hold = true;
     }
   else if (streq (p[0], "management-log-cache") && p[1])
     {

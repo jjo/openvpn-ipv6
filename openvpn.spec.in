@@ -1,25 +1,60 @@
-Summary:	A Secure UDP Tunneling Daemon
+# OpenVPN spec file, used to drive rpmbuild
+
+# OPTIONS
+#
+# Disable LZO
+#   rpmbuild -tb [openvpn.x.tar.gz] --define 'without_lzo 1'
+#
+# Disable PAM plugin
+#   rpmbuild -tb [openvpn.x.tar.gz] --define 'without_pam 1'
+#
+# Use this on RH9 and RHEL3
+#   rpmbuild -tb [openvpn.x.tar.gz] --define 'with_kerberos 1'
+
+Summary:	OpenVPN is a robust and highly flexible VPN daemon by James Yonan.
 Name:           @PACKAGE@
 Version:        @VERSION@
 Release:	1
-URL:		http://sourceforge.net/projects/openvpn/
+URL:		http://openvpn.sourceforge.net/
 Source0:	http://prdownloads.sourceforge.net/openvpn/%{name}-%{version}.tar.gz
 
 License:	GPL
 Group:		Networking/Tunnels
 Vendor:		James Yonan <jim@yonan.net>
-Packager:	bishop clark (LC957) <bishop@platypus.bc.ca>
+Packager:	James Yonan <jim@yonan.net>
 BuildRoot:	%{_tmppath}/%{name}-%(id -un)
 
-%{!?_without_lzo:BuildRequires: lzo-devel}
-%{!?_without_lzo:Requires:   	lzo}
+#
+# Include dependencies manually
+#
+
+AutoReq: 0
+
+BuildRequires: openssl-devel >= 0.9.6
+Requires:      openssl       >= 0.9.6
+
+%{!?without_lzo:BuildRequires: lzo-devel >= 1.07}
+%{!?without_lzo:Requires:      lzo       >= 1.07}
+
+%{!?without_pam:BuildRequires: pam-devel}
+%{!?without_pam:Requires:      pam}
+
+#
+# Description
+#
 
 %description
-OpenVPN is a robust and highly flexible tunneling application that
-uses all of the encryption, authentication, and certification features
-of the OpenSSL library to securely tunnel IP networks over a single
-UDP port. It can use the Marcus Franz Xaver Johannes Oberhumer's LZO
-library for compression.
+OpenVPN is a robust and highly flexible VPN daemon by James Yonan.
+OpenVPN supports SSL/TLS security,
+ethernet bridging,
+TCP or UDP tunnel transport through proxies or NAT,
+support for dynamic IP addresses and DHCP,
+scalability to hundreds or thousands of users,
+and portability to most major OS platforms.
+
+#
+# Define vendor type
+#
 
 %if "%{_vendor}" == "suse" || "%{_vendor}" == "pc"
 %define VENDOR SuSE
@@ -27,23 +62,59 @@ library for compression.
 %define VENDOR %_vendor
 %endif
 
+#
+# Should we build the auth-pam module?
+#
+
+%define build_auth_pam 1
+%{?without_pam:%define build_auth_pam 0}
+
+#
+# Other definitions
+#
+
 %define debug_package %{nil}
+
+#
+# Build OpenVPN binary
+#
 
 %prep
 %setup -q
 
 %build
-%configure %{?_without_lzo:--disable-lzo}
+%configure --disable-dependency-tracking %{?without_lzo:--disable-lzo} %{?with_kerberos:--with-ssl-headers=/usr/kerberos/include}
 %__make
+%__strip %{name}
+
+# Build down-root plugin
+pushd plugin/down-root
+%__make
+popd
+
+# Build auth-pam plugin
+%if %{build_auth_pam}
+pushd plugin/auth-pam
+%__make
+popd
+%endif
+
+#
+# Installation section
+#
 
 %install
 [ %{buildroot} != "/" ] && rm -rf %{buildroot}
 
+# Install man page
 %__install -c -d -m 755 %{buildroot}%{_mandir}/man8
 %__install -c -m 755 %{name}.8 %{buildroot}%{_mandir}/man8
+
+# Install binary
 %__install -c -d -m 755 %{buildroot}%{_sbindir}
 %__install -c -m 755 %{name} %{buildroot}%{_sbindir}
 
+# Install init script
 %if "%{VENDOR}" == "SuSE"
 %__install -c -d -m 755 %{buildroot}/etc/init.d
 %__install -c -m 755 suse/%{name}.init %{buildroot}/etc/init.d/%{name}
@@ -52,13 +123,43 @@ library for compression.
 %__install -c -m 755 sample-scripts/%{name}.init %{buildroot}/etc/rc.d/init.d/%{name}
 %endif
 
+# Install /etc/openvpn
 %__install -c -d -m 755 %{buildroot}/etc/%{name}
 
+#
+# Build /usr/share/openvpn
+#
+
 %__mkdir_p %{buildroot}%{_datadir}/%{name}
-%__cp -pr contrib easy-rsa sample-{config-file,key,script}s %{buildroot}%{_datadir}/%{name}
+%__cp -pr contrib easy-rsa sample-{config-file,key,script}s management %{buildroot}%{_datadir}/%{name}
+
+#
+# Install the plugins
+#
+
+%__mkdir_p %{buildroot}%{_datadir}/%{name}/plugin/lib
+%__mkdir_p %{buildroot}%{_datadir}/%{name}/plugin/doc
+
+# Install down-root
+%__install -c -m 755 plugin/down-root/openvpn-down-root.so %{buildroot}%{_datadir}/%{name}/plugin/lib
+%__cp -p plugin/down-root/README %{buildroot}%{_datadir}/%{name}/plugin/doc/down-root.txt
+
+# Install auth-pam
+%if %{build_auth_pam}
+%__install -c -m 755 plugin/auth-pam/openvpn-auth-pam.so %{buildroot}%{_datadir}/%{name}/plugin/lib
+%__cp -p plugin/auth-pam/README %{buildroot}%{_datadir}/%{name}/plugin/doc/auth-pam.txt
+%endif
+
+#
+# Clean section
+#
 
 %clean
 [ %{buildroot} != "/" ] && rm -rf %{buildroot}
+
+#
+# On Linux 2.4, make the device node
+#
 
 %post
 case "`uname -r`" in
@@ -67,6 +168,11 @@ case "`uname -r`" in
 	/bin/mknod /dev/net/tun c 10 200 >/dev/null 2>&1
 	;;
 esac
+
+#
+# Handle the init script
+#
+
 /sbin/chkconfig --add %{name}
 %if "%{VENDOR}" == "SuSE"
 /etc/init.d/openvpn restart
@@ -84,6 +190,10 @@ then
 	/sbin/chkconfig --del %{name}
 fi
 
+#
+# Files section
+#
+
 %files
 %defattr(-,root,root)
 %doc AUTHORS COPYING COPYRIGHT.GPL INSTALL NEWS PORTS README 
@@ -98,6 +208,12 @@ fi
 %endif
 
 %changelog
+
+* Fri Dec 10 2004 James Yonan
+- Added AutoReq: 0 for manual dependencies
+
+* Fri Dec 10 2004 James Yonan
+- Packaged the plugins
 
 * Sun Nov 7 2004 Umberto Nicoletti
 - SuSE support

@@ -177,6 +177,10 @@ struct man_persist {
 
   struct log_history *echo; /* saved --echo strings */
   struct log_history *state;
+
+  bool hold_release;
+
+  const char *special_state_msg;
 };
 
 struct man_settings {
@@ -189,6 +193,7 @@ struct man_settings {
   int echo_buffer_size;
   int state_buffer_size;
   bool server;
+  bool hold;
 };
 
 /* up_query modes */
@@ -252,7 +257,8 @@ bool management_open (struct management *man,
 		      const bool query_passwords,
 		      const int log_history_cache,
 		      const int echo_buffer_size,
-		      const int state_buffer_size);
+		      const int state_buffer_size,
+		      const bool hold);
 
 
 void management_close (struct management *man);
@@ -273,7 +279,9 @@ void management_set_callback (struct management *man,
 
 void management_clear_callback (struct management *man);
 
-bool management_query_user_pass (struct management *man, struct user_pass *up, const char *type, bool password_only);
+bool management_query_user_pass (struct management *man, struct user_pass *up, const char *type, const bool password_only);
+
+bool management_hold (struct management *man);
 
 void management_event_loop_n_seconds (struct management *man, int sec);
 

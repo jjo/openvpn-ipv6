@@ -114,6 +114,39 @@ COMMAND -- help
 
 Print a summary of commands.
 
+COMMAND -- hold
+---------------
+
+The hold command can be used to manipulate the hold flag,
+or release OpenVPN from a hold state.
+
+If the hold flag is set on initial startup or
+restart, OpenVPN will hibernate prior to initializing
+the tunnel until the management interface receives
+a "hold release" command.
+
+The --management-hold directive of OpenVPN can be used
+to start OpenVPN with the hold flag set.
+
+The hold flag setting is persistent and will not
+be reset by restarts.
+
+OpenVPN will indicate that it is in a hold state by
+sending a real-time notification to the management
+client:
+
+  >HOLD:Waiting for hold release
+
+Command examples:
+
+  hold         -- show current hold flag, 0=off, 1=on.
+  hold on      -- turn on hold flag so that future restarts
+                  will hold.
+  hold off     -- turn off hold flag so that future restarts will
+                  not hold.
+  hold release -- leave hold state and start OpenVPN, but
+                  do not alter the current hold flag setting.
+
 COMMAND -- kill
 ---------------
 
@@ -185,8 +218,9 @@ COMMAND -- password and username
   The password command is used to pass passwords to OpenVPN.
 
   If OpenVPN is run with the --management-query-passwords
-  directive, it will query the management interface for RSA private
-  key passwords and the --auth-user-pass username/password.
+  directive, it will query the management interface for RSA
+  private key passwords and the --auth-user-pass
+  username/password.
 
   When OpenVPN needs a password from the management interface,
   it will produce a real-time ">PASSWORD:" message.
@@ -334,8 +368,8 @@ OUTPUT FORMAT
     the last line will be "END".
 
 (3) Real-time messages will be in the form ">[source]:[text]",
-    where source is "ECHO", "FATAL", "INFO", "LOG", "PASSWORD",
-    or "STATE".
+    where source is "ECHO", "FATAL", "HOLD", "INFO", "LOG",
+    "PASSWORD", or "STATE".
 
 REAL-TIME MESSAGE FORMAT
 ------------------------
@@ -353,6 +387,10 @@ ECHO     -- Echo messages as controlled by the "echo" command.
 
 FATAL    -- A fatal error which is output to the log file just
             prior to OpenVPN exiting.
+
+HOLD     -- Used to indicate that OpenVPN is in a holding state
+            and will not start until it receives a
+            "hold release" command.
 
 INFO     -- Informational messages such as the welcome message.
 

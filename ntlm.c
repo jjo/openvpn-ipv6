@@ -29,8 +29,6 @@
 
 #if NTLM
 
-#include <openssl/des.h>
-#include <openssl/md4.h>
 #include "common.h"
 #include "buffer.h"
 #include "misc.h"
@@ -39,6 +37,8 @@
 #include "proxy.h"
 #include "ntlm.h"
 #include "base64.h"
+#include "crypto.h"
+
 #include "memdbg.h"
 
 static void

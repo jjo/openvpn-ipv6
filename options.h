@@ -263,6 +263,7 @@ struct options
   int management_echo_buffer_size;
   int management_state_buffer_size;
   bool management_query_passwords;
+  bool management_hold;
 #endif
 
 #ifdef ENABLE_PLUGIN

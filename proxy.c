@@ -392,7 +392,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
               chomp (buf);
               msg (D_PROXY, "HTTP proxy returned: '%s'", buf);
 
-              snprintf (get, sizeof get, "%%*s NTLM %%%ds", sizeof (buf2) - 1);
+              openvpn_snprintf (get, sizeof get, "%%*s NTLM %%%ds", sizeof (buf2) - 1);
               nparms = sscanf (buf, get, buf2);
               buf2[127] = 0; // we only need the beginning - ensure it's null terminated.
 

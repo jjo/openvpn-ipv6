@@ -77,6 +77,23 @@ status_open (const char *filename,
 	{
 	  switch (so->flags)
 	    {
+#ifdef _MSC_VER
+            case STATUS_OUTPUT_WRITE:
+              so->fd = open (filename,
+                             O_CREAT | O_TRUNC | O_WRONLY,
+			     _S_IREAD | _S_IWRITE);
+              break;
+            case STATUS_OUTPUT_READ:
+              so->fd = open (filename,
+                             O_RDONLY,
+			     _S_IREAD | _S_IWRITE);
+              break;
+            case STATUS_OUTPUT_READ|STATUS_OUTPUT_WRITE:
+              so->fd = open (filename,
+                             O_CREAT | O_RDWR,
+			     _S_IREAD | _S_IWRITE);
+              break;
+#else
 	    case STATUS_OUTPUT_WRITE:
 	      so->fd = open (filename,
 			     O_CREAT | O_TRUNC | O_WRONLY,
@@ -92,6 +109,7 @@ status_open (const char *filename,
 			     O_CREAT | O_RDWR,
 			     S_IRUSR | S_IWUSR);
 	      break;
+#endif
 	    default:
 	      ASSERT (0);
 	    }

@@ -53,11 +53,6 @@ struct signame {
   const char *lower;
 };
 
-int parse_signal (const char *signame);
-const char *signal_name (const int sig, const bool upper);
-const char *signal_description (const int signum, const char *sigtext);
-void throw_signal (const int signum);
-
 static const struct signame signames[] = {
   { SIGINT,  "SIGINT",  "sigint"},
   { SIGTERM, "SIGTERM", "sigterm" },

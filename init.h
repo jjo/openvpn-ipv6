@@ -104,7 +104,7 @@ void initialization_sequence_completed (struct context *c, const bool errors);
 #ifdef ENABLE_MANAGEMENT
 
 void init_management (struct context *c);
-void open_management (struct context *c);
+bool open_management (struct context *c);
 void close_management (void);
 
 void management_show_net_callback (void *arg, const int msglevel);

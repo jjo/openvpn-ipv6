@@ -3,6 +3,27 @@ Copyright (C) 2002-2004 James Yonan <jim@yonan.net>
 
 $Id$
 
+2004.12.12 -- Version 2.0-rc2
+
+* Amplified warnings in documentation about possible
+  man-in-the-middle attack when clients do not properly
+  verify server certificate.  Changes to easy-rsa README,
+  FAQ, HOWTO, man page, and sample client config file.
+* Added a warning message if --tls-client or --client
+  is used without also specifying one of either
+  --ns-cert-type, --tls-remote, or --tls-verify.
+* status_open() fixes for MSVC builds (Blaine Fleming).
+* Fix attempt of "ntlm.c:55: error: `des_cblock' undeclared"
+  compiler error which has been reported on some platforms.
+* The openvpn.spec file for rpmbuild has several
+  new build-time options.  See comments in the file.
+* Plugins are now built and packaged in the RPM and
+  will be saved in /usr/share/openvpn/plugin/lib.
+* Added --management-hold directive to start OpenVPN
+  in a hibernating state until released by the
+  management interface.  Also added "hold" command
+  to the management interface.
+ 	
 2004.12.07 -- Version 2.0-rc1
 
 * openvpn.spec workaround for SuSE confusion regarding

@@ -55,24 +55,26 @@ man_help ()
 {
   msg (M_CLIENT, "Management Interface for %s", title_string);
   msg (M_CLIENT, "Commands:");
-  msg (M_CLIENT, "echo [on|off] [N|all] : Like log, but only show messages in echo buffer.");
-  msg (M_CLIENT, "exit|quit        : Close management session.");
-  msg (M_CLIENT, "help             : Print this message.");
-  msg (M_CLIENT, "kill cn          : Kill the client instance(s) having common name cn.");
-  msg (M_CLIENT, "kill IP:port     : Kill the client instance connecting from IP:port.");
-  msg (M_CLIENT, "log [on|off] [N|all] : Turn on/off realtime log display");
-  msg (M_CLIENT, "                   + show last N lines or 'all' for entire history.");
-  msg (M_CLIENT, "mute [n]         : Set log mute level to n, or show level if n is absent.");
-  msg (M_CLIENT, "net              : (Windows only) Show network info and routing table.");
-  msg (M_CLIENT, "password type p  : Enter password p for a queried OpenVPN password.");
-  msg (M_CLIENT, "signal s         : Send signal s to daemon,");
-  msg (M_CLIENT, "                   s = SIGHUP|SIGTERM|SIGUSR1|SIGUSR2.");
+  msg (M_CLIENT, "echo [on|off] [N|all]  : Like log, but only show messages in echo buffer.");
+  msg (M_CLIENT, "exit|quit              : Close management session.");
+  msg (M_CLIENT, "help                   : Print this message.");
+  msg (M_CLIENT, "hold [on|off|release]  : Set/show hold flag to on/off state, or"); 
+  msg (M_CLIENT, "                         release current hold and start tunnel."); 
+  msg (M_CLIENT, "kill cn                : Kill the client instance(s) having common name cn.");
+  msg (M_CLIENT, "kill IP:port           : Kill the client instance connecting from IP:port.");
+  msg (M_CLIENT, "log [on|off] [N|all]   : Turn on/off realtime log display");
+  msg (M_CLIENT, "                         + show last N lines or 'all' for entire history.");
+  msg (M_CLIENT, "mute [n]               : Set log mute level to n, or show level if n is absent.");
+  msg (M_CLIENT, "net                    : (Windows only) Show network info and routing table.");
+  msg (M_CLIENT, "password type p        : Enter password p for a queried OpenVPN password.");
+  msg (M_CLIENT, "signal s               : Send signal s to daemon,");
+  msg (M_CLIENT, "                         s = SIGHUP|SIGTERM|SIGUSR1|SIGUSR2.");
   msg (M_CLIENT, "state [on|off] [N|all] : Like log, but show state history.");
-  msg (M_CLIENT, "status [n]       : Show current daemon status info using format #n.");
-  msg (M_CLIENT, "test n           : Produce n lines of output for testing/debugging.");
-  msg (M_CLIENT, "username type u  : Enter username u for a queried OpenVPN username.");
-  msg (M_CLIENT, "verb [n]         : Set log verbosity level to n, or show if n is absent.");
-  msg (M_CLIENT, "version          : Show current version number.");
+  msg (M_CLIENT, "status [n]             : Show current daemon status info using format #n.");
+  msg (M_CLIENT, "test n                 : Produce n lines of output for testing/debugging.");
+  msg (M_CLIENT, "username type u        : Enter username u for a queried OpenVPN username.");
+  msg (M_CLIENT, "verb [n]               : Set log verbosity level to n, or show if n is absent.");
+  msg (M_CLIENT, "version                : Show current version number.");
   msg (M_CLIENT, "END");
 }
 
@@ -111,6 +113,8 @@ man_welcome (struct management *man)
 {
   msg (M_CLIENT, ">INFO:OpenVPN Management Interface Version %d -- type 'help' for more info",
        MANAGEMENT_VERSION);
+  if (man->persist.special_state_msg)
+    msg (M_CLIENT, "%s", man->persist.special_state_msg);
 }
 
 static inline bool
@@ -238,7 +242,7 @@ virtual_output_callback_func (void *arg, const unsigned int flags, const char *s
 }
 
 static void
-man_signal (struct management *man, struct status_output *so, const char *name)
+man_signal (struct management *man, const char *name)
 {
   const int sig = parse_signal (name);
   if (sig >= 0)
@@ -266,7 +270,7 @@ man_status (struct management *man, const int version, struct status_output *so)
 }
 
 static void
-man_kill (struct management *man, struct status_output *so, const char *victim)
+man_kill (struct management *man, const char *victim)
 {
   struct gc_arena gc = gc_new ();
 
@@ -393,7 +397,7 @@ man_history (struct management *man,
 }
 
 static void
-man_log (struct management *man, struct status_output *so, const char *parm)
+man_log (struct management *man, const char *parm)
 {
   man_history (man,
 	       parm,
@@ -404,7 +408,7 @@ man_log (struct management *man, struct status_output *so, const char *parm)
 }
 
 static void
-man_echo (struct management *man, struct status_output *so, const char *parm)
+man_echo (struct management *man, const char *parm)
 {
   man_history (man,
 	       parm,
@@ -415,7 +419,7 @@ man_echo (struct management *man, struct status_output *so, const char *parm)
 }
 
 static void
-man_state (struct management *man, struct status_output *so, const char *parm)
+man_state (struct management *man, const char *parm)
 {
   man_history (man,
 	       parm,
@@ -507,6 +511,35 @@ man_net (struct management *man)
     }
 }
 
+static void
+man_hold (struct management *man, const char *cmd)
+{
+  if (cmd)
+    {
+      if (streq (cmd, "on"))
+	{
+	  man->settings.hold = true;
+	  msg (M_CLIENT, "SUCCESS: hold flag set to ON");
+	}
+      else if (streq (cmd, "off"))
+	{
+	  man->settings.hold = false;
+	  msg (M_CLIENT, "SUCCESS: hold flag set to OFF");
+	}
+      else if (streq (cmd, "release"))
+	{
+	  man->persist.hold_release = true;
+	  msg (M_CLIENT, "SUCCESS: hold release succeeded");
+	}
+      else
+	{
+	  msg (M_CLIENT, "ERROR: bad hold command parameter");
+	}
+    }
+  else
+    msg (M_CLIENT, "SUCCESS: hold=%d", (int) man->settings.hold);
+}
+
 #define MN_AT_LEAST (1<<0)
 
 static bool
@@ -553,7 +586,7 @@ man_dispatch_command (struct management *man, struct status_output *so, const ch
   else if (streq (p[0], "signal"))
     {
       if (man_need (man, p, 1, 0))
-	man_signal (man, so, p[1]);
+	man_signal (man, p[1]);
     }
   else if (streq (p[0], "status"))
     {
@@ -565,7 +598,7 @@ man_dispatch_command (struct management *man, struct status_output *so, const ch
   else if (streq (p[0], "kill"))
     {
       if (man_need (man, p, 1, 0))
-	man_kill (man, so, p[1]);
+	man_kill (man, p[1]);
     }
   else if (streq (p[0], "verb"))
     {
@@ -597,14 +630,14 @@ man_dispatch_command (struct management *man, struct status_output *so, const ch
     {
       if (!p[1])
 	{
-	  man_state (man, so, "1");
+	  man_state (man, "1");
 	}
       else
 	{
 	  if (p[1])
-	    man_state (man, so, p[1]);
+	    man_state (man, p[1]);
 	  if (p[2])
-	    man_state (man, so, p[2]);
+	    man_state (man, p[2]);
 	}
     }
   else if (streq (p[0], "log"))
@@ -612,9 +645,9 @@ man_dispatch_command (struct management *man, struct status_output *so, const ch
       if (man_need (man, p, 1, MN_AT_LEAST))
 	{
 	  if (p[1])
-	    man_log (man, so, p[1]);
+	    man_log (man, p[1]);
 	  if (p[2])
-	    man_log (man, so, p[2]);
+	    man_log (man, p[2]);
 	}
     }
   else if (streq (p[0], "echo"))
@@ -622,9 +655,9 @@ man_dispatch_command (struct management *man, struct status_output *so, const ch
       if (man_need (man, p, 1, MN_AT_LEAST))
 	{
 	  if (p[1])
-	    man_echo (man, so, p[1]);
+	    man_echo (man, p[1]);
 	  if (p[2])
-	    man_echo (man, so, p[2]);
+	    man_echo (man, p[2]);
 	}
     }
   else if (streq (p[0], "username"))
@@ -640,6 +673,10 @@ man_dispatch_command (struct management *man, struct status_output *so, const ch
   else if (streq (p[0], "net"))
     {
       man_net (man);
+    }
+  else if (streq (p[0], "hold"))
+    {
+      man_hold (man, p[1]);
     }
 #if 1
   else if (streq (p[0], "test"))
@@ -1036,7 +1073,8 @@ man_settings_init (struct man_settings *ms,
 		   const bool query_passwords,
 		   const int log_history_cache,
 		   const int echo_buffer_size,
-		   const int state_buffer_size)
+		   const int state_buffer_size,
+		   const bool hold)
 {
   if (!ms->defined)
     {
@@ -1059,6 +1097,11 @@ man_settings_init (struct man_settings *ms,
        * passwords?
        */
       ms->up_query_passwords = query_passwords;
+
+      /*
+       * Should OpenVPN hibernate on startup?
+       */
+      ms->hold = hold;
 
       /*
        * Initialize socket address
@@ -1179,7 +1222,8 @@ management_open (struct management *man,
 		 const bool query_passwords,
 		 const int log_history_cache,
 		 const int echo_buffer_size,
-		 const int state_buffer_size)
+		 const int state_buffer_size,
+		 const bool hold)
 {
   bool ret = false;
 
@@ -1195,7 +1239,8 @@ management_open (struct management *man,
 		     query_passwords,
 		     log_history_cache,
 		     echo_buffer_size,
-		     state_buffer_size);
+		     state_buffer_size,
+		     hold);
 
   /*
    * The log is initially sized to MANAGEMENT_LOG_HISTORY_INITIAL_SIZE,
@@ -1242,6 +1287,7 @@ void
 management_clear_callback (struct management *man)
 {
   man->persist.standalone_disabled = false;
+  man->persist.hold_release = false;
   CLEAR (man->persist.callback);
   man_output_list_push (man, NULL); // flush output queue
 }
@@ -1566,7 +1612,8 @@ man_standalone_event_loop (struct management *man, volatile int *signal_received
   return status;
 }
 
-#define MWCC_LOG (1<<0)
+#define MWCC_PASSWORD_WAIT (1<<0)
+#define MWCC_HOLD_WAIT     (1<<1)
 
 /*
  * Block until client connects
@@ -1580,8 +1627,10 @@ man_wait_for_client_connection (struct management *man,
   ASSERT (man_standalone_ok (man));
   if (man->connection.state == MS_LISTEN)
     {
-      if (flags & MWCC_LOG)
-	msg (D_MANAGEMENT, "Need password(s) from management interface, blocking...");
+      if (flags & MWCC_PASSWORD_WAIT)
+	msg (D_MANAGEMENT, "Need password(s) from management interface, waiting...");
+      if (flags & MWCC_HOLD_WAIT)
+	msg (D_MANAGEMENT, "Need hold release from management interface, waiting...");
       do {
 	man_standalone_event_loop (man, signal_received, expire);
 	if (signal_received && *signal_received)
@@ -1637,61 +1686,112 @@ bool
 management_query_user_pass (struct management *man,
 			    struct user_pass *up,
 			    const char *type,
-			    bool password_only)
+			    const bool password_only)
 {
-  volatile int signal_received = 0;
-  const bool standalone_disabled_save = man->persist.standalone_disabled;
-  bool ret = true;
+  struct gc_arena gc = gc_new ();
+  bool ret = false;
 
-  if (!man_standalone_ok (man))
-    return false;
-
-  man->persist.standalone_disabled = false; /* This is so M_CLIENT messages will be correctly passed through msg() */
-
-  CLEAR (man->connection.up_query);
-
-  man_wait_for_client_connection (man, &signal_received, 0, MWCC_LOG);
-  if (signal_received)
-    ret = false;
-
-  if (ret)
+  if (man_standalone_ok (man))
     {
-      msg (M_CLIENT, ">PASSWORD:Need '%s' %s",
-	   type,
-	   password_only ? "password" : "username/password");
+      volatile int signal_received = 0;
+      const bool standalone_disabled_save = man->persist.standalone_disabled;
+      struct buffer alert_msg = alloc_buf_gc (128, &gc);
 
-      /* tell command line parser which info we need */
-      man->connection.up_query_mode = password_only ? UP_QUERY_PASS : UP_QUERY_USER_PASS;
-      man->connection.up_query_type = type;
+      ret = true;
+      man->persist.standalone_disabled = false; /* This is so M_CLIENT messages will be correctly passed through msg() */
+      man->persist.special_state_msg = NULL;
 
-      /* run command processing event loop until we get our username/password */
-      do
+      CLEAR (man->connection.up_query);
+
+      buf_printf (&alert_msg, ">PASSWORD:Need '%s' %s",
+		  type,
+		  password_only ? "password" : "username/password");
+
+      man_wait_for_client_connection (man, &signal_received, 0, MWCC_PASSWORD_WAIT);
+      if (signal_received)
+	ret = false;
+
+      if (ret)
 	{
-	  man_standalone_event_loop (man, &signal_received, 0);
-	  if (signal_received)
+	  man->persist.special_state_msg = BSTR (&alert_msg);
+	  msg (M_CLIENT, "%s", man->persist.special_state_msg);
+
+	  /* tell command line parser which info we need */
+	  man->connection.up_query_mode = password_only ? UP_QUERY_PASS : UP_QUERY_USER_PASS;
+	  man->connection.up_query_type = type;
+
+	  /* run command processing event loop until we get our username/password */
+	  do
 	    {
-	      ret = false;
-	      break;
-	    }
-	} while (!man->connection.up_query.defined);
+	      man_standalone_event_loop (man, &signal_received, 0);
+	      if (signal_received)
+		{
+		  ret = false;
+		  break;
+		}
+	    } while (!man->connection.up_query.defined);
+	}
+
+      /* revert state */
+      man->connection.up_query_mode = UP_QUERY_DISABLED;
+      man->connection.up_query_type = NULL;
+      man->persist.standalone_disabled = standalone_disabled_save;
+      man->persist.special_state_msg = NULL;
+
+      /*
+       * Transfer u/p to return object, zero any record
+       * we hold in the management object.
+       */
+      if (ret)
+	{
+	  man->connection.up_query.nocache = up->nocache; /* preserve caller's nocache setting */
+	  *up = man->connection.up_query;
+	}
+      CLEAR (man->connection.up_query);
     }
 
-  /* revert state */
-  man->connection.up_query_mode = UP_QUERY_DISABLED;
-  man->connection.up_query_type = NULL;
-  man->persist.standalone_disabled = standalone_disabled_save;
-
-  /*
-   * Transfer u/p to return object, zero any record
-   * we hold in the management object.
-   */
-  if (ret)
-    {
-      man->connection.up_query.nocache = up->nocache; /* preserve caller's nocache setting */
-      *up = man->connection.up_query;
-    }
-  CLEAR (man->connection.up_query);
+  gc_free (&gc);
   return ret;
+}
+
+/*
+ * If the hold flag is enabled, hibernate until a management client releases the hold.
+ * Return true if the caller should not sleep for an additional time interval.
+ */
+bool
+management_hold (struct management *man)
+{
+  if (man->settings.hold && !man->persist.hold_release && man_standalone_ok (man))
+    {
+      volatile int signal_received = 0;
+      const bool standalone_disabled_save = man->persist.standalone_disabled;
+
+      man->persist.standalone_disabled = false; /* This is so M_CLIENT messages will be correctly passed through msg() */
+      man->persist.special_state_msg = NULL;
+
+      man_wait_for_client_connection (man, &signal_received, 0, MWCC_HOLD_WAIT);
+
+      if (!signal_received)
+	{
+	  man->persist.special_state_msg = ">HOLD:Waiting for hold release";
+	  msg (M_CLIENT, "%s", man->persist.special_state_msg);
+
+	  /* run command processing event loop until we get our username/password */
+	  do
+	    {
+	      man_standalone_event_loop (man, &signal_received, 0);
+	      if (signal_received)
+		break;
+	    } while (!man->persist.hold_release);
+	}
+
+      /* revert state */
+      man->persist.standalone_disabled = standalone_disabled_save;
+      man->persist.special_state_msg = NULL;
+
+      return true;
+    }
+  return false;
 }
 
 /*
