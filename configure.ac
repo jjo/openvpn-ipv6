@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [1.4.1.8], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [1.4.1.9], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -145,6 +145,8 @@ case "$target" in
 	CPPFLAGS="$CPPFLAGS -no-cpp-precomp"
 	;;
 *mingw*)
+	AC_MSG_RESULT([WARNING: configure support for mingw is incomplete])
+	AC_MSG_RESULT([WARNING: use makefile.w32 instead])
 	OPENVPN_ADD_LIBS(-lgdi32)
 	OPENVPN_ADD_LIBS(-lwsock32)
 	;;

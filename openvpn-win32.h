@@ -31,7 +31,7 @@
 #include <windows.h>
 #include <winsock.h>
 
-#define sleep _sleep
+#define sleep(x) Sleep((x)*1000)
 
 #define SIGHUP 1
 #define SIGUSR1 10
