@@ -2,10 +2,12 @@ OpenVPN -- A Secure Tunneling Daemon
 
 Copyright (C) 2002 by James Yonan <jim@yonan.net>
 
-Distribution methods:
+OpenVPN license:
 
     Source code is distributed under GPL license.
     See COPYRIGHT.GPL file.
+
+Special exception for linking OpenVPN with OpenSSL:
 
     In addition, as a special exception, James Yonan gives
     permission to link the code of this program with the OpenSSL
@@ -16,3 +18,11 @@ Distribution methods:
     this file, you may extend this exception to your version of the
     file, but you are not obligated to do so.  If you do not wish to
     do so, delete this exception statement from your version.
+
+Special exception for linking OpenVPN with both OpenSSL and LZO:
+
+  Hereby I grant a special exception to the OpenVPN project 
+  (http://openvpn.sourceforge.net) to link the LZO library with 
+  the OpenSSL library (http://www.openssl.org).
+ 
+  Markus F.X.J. Oberhumer
