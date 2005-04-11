@@ -17,7 +17,7 @@ OpenVPN trademark
 OpenVPN license:
 ----------------
 
-  OpenVPN is distributed under GPL license (see Below).
+  OpenVPN is distributed under the GPL license version 2 (see Below).
 
   Special exception for linking OpenVPN with OpenSSL:
 
@@ -207,7 +207,7 @@ GNU Public License (GPL)
 ------------------------
 
   OpenVPN, LZO, and the TAP-Win32 distributions are
-  licensed under the GPL (see COPYRIGHT.GPL).
+  licensed under the GPL version 2 (see COPYRIGHT.GPL).
 
   In the Windows binary distribution of OpenVPN, the
   GPL is reproduced below.
