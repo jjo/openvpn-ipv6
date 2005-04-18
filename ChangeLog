@@ -3,6 +3,10 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.04.17 -- Version 2.0
+
+* Fixed minor options string typo in options.c.
+
 2005.04.10 -- Version 2.0-rc21
 
 * Change license description from "GPL Version 2 or (at your
