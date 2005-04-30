@@ -103,6 +103,8 @@ typedef void *openvpn_plugin_handle_t;
 
 /*
  * FUNCTION: openvpn_plugin_open_v1
+ *
+ * REQUIRED: YES
  * 
  * Called on initial plug-in load.  OpenVPN will preserve plug-in state
  * across SIGUSR1 restarts but not across SIGHUP restarts.  A SIGHUP reset
@@ -140,6 +142,8 @@ OPENVPN_PLUGIN_DEF openvpn_plugin_handle_t OPENVPN_PLUGIN_FUNC(openvpn_plugin_op
  *
  * Called to perform the work of a given script type.
  *
+ * REQUIRED: YES
+ * 
  * ARGUMENTS
  *
  * handle : the openvpn_plugin_handle_t value which was returned by
@@ -166,6 +170,8 @@ OPENVPN_PLUGIN_DEF int OPENVPN_PLUGIN_FUNC(openvpn_plugin_func_v1)
 /*
  * FUNCTION: openvpn_plugin_close_v1
  *
+ * REQUIRED: YES
+ * 
  * ARGUMENTS
  *
  * handle : the openvpn_plugin_handle_t value which was returned by
@@ -174,4 +180,21 @@ OPENVPN_PLUGIN_DEF int OPENVPN_PLUGIN_FUNC(openvpn_plugin_func_v1)
  * Called immediately prior to plug-in unload.
  */
 OPENVPN_PLUGIN_DEF void OPENVPN_PLUGIN_FUNC(openvpn_plugin_close_v1)
+     (openvpn_plugin_handle_t handle);
+
+/*
+ * FUNCTION: openvpn_plugin_abort_v1
+ *
+ * REQUIRED: NO
+ * 
+ * ARGUMENTS
+ *
+ * handle : the openvpn_plugin_handle_t value which was returned by
+ *          openvpn_plugin_open_v1.
+ *
+ * Called when OpenVPN is in the process of aborting due to a fatal error.
+ * Will only be called on an open context returned by a prior successful
+ * openvpn_plugin_open_v1 callback.
+ */
+OPENVPN_PLUGIN_DEF void OPENVPN_PLUGIN_FUNC(openvpn_plugin_abort_v1)
      (openvpn_plugin_handle_t handle);

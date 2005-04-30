@@ -228,6 +228,8 @@ static const char usage_message[] =
   "--daemon [name] : Become a daemon after initialization.\n"
   "                  The optional 'name' parameter will be passed\n"
   "                  as the program name to the system logger.\n"
+  "--syslog [name] : Output to syslog, but do not become a daemon.\n"
+  "                  See --daemon above for a description of the 'name' parm.\n"
   "--inetd [name] ['wait'|'nowait'] : Run as an inetd or xinetd server.\n"
   "                  See --daemon above for a description of the 'name' parm.\n"
   "--log file      : Output log to file which is created/truncated on open.\n"
@@ -2894,6 +2896,13 @@ add_option (struct options *options,
     {
       VERIFY_PERMISSION (OPT_P_GENERAL);
       options->up_restart = true;
+    }
+  else if (streq (p[0], "syslog"))
+    {
+      VERIFY_PERMISSION (OPT_P_GENERAL);
+      if (p[1])
+       ++i;
+      open_syslog (p[1], false);
     }
   else if (streq (p[0], "daemon"))
     {

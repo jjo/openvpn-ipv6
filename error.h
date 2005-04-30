@@ -214,7 +214,7 @@ HANDLE get_orig_stderr (void);
 #endif
 
 /* exit program */
-void openvpn_exit (int status);
+void openvpn_exit (const int status);
 
 /*
  * Check the return status of read/write routines.

@@ -387,7 +387,7 @@ void
 out_of_memory (void)
 {
   fprintf (stderr, PACKAGE_NAME ": Out of Memory\n");
-  openvpn_exit (OPENVPN_EXIT_STATUS_ERROR);
+  exit (1);
 }
 
 void
@@ -655,19 +655,25 @@ msg_thread_uninit (void)
  */
 
 void
-openvpn_exit (int status)
+openvpn_exit (const int status)
 {
+#ifdef ENABLE_PLUGIN
+  void plugin_abort (void);
+#endif
+
 #ifdef WIN32
   uninit_win32 ();
 #endif
 
   close_syslog ();
 
+#ifdef ENABLE_PLUGIN
+  plugin_abort ();
+#endif
+
 #ifdef ABORT_ON_ERROR
   if (status == OPENVPN_EXIT_STATUS_ERROR)
-    {
-      abort ();
-    }
+    abort ();
 #endif
 
   if (status == OPENVPN_EXIT_STATUS_GOOD)

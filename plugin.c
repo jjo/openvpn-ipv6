@@ -39,6 +39,11 @@
 
 #include "memdbg.h"
 
+#define PLUGIN_SYMBOL_REQUIRED (1<<0)
+
+/* used only for program aborts */
+static struct plugin_list *static_plugin_list = NULL; /* GLOBAL */
+
 static void
 plugin_show_string_array (int msglevel, const char *name, const char *array[])
 {
@@ -149,21 +154,21 @@ plugin_option_list_print (const struct plugin_option_list *list, int msglevel)
 #if defined(USE_LIBDL)
 
 static void
-libdl_resolve_symbol (void *handle, void **dest, const char *symbol, const char *plugin_name)
+libdl_resolve_symbol (void *handle, void **dest, const char *symbol, const char *plugin_name, const unsigned int flags)
 {
   *dest = dlsym (handle, symbol);
-  if (!*dest)
-    msg (M_FATAL, "PLUGIN: could not find symbol '%s' in plugin shared object %s: %s", symbol, plugin_name, dlerror());
+  if ((flags & PLUGIN_SYMBOL_REQUIRED) && !*dest)
+    msg (M_FATAL, "PLUGIN: could not find required symbol '%s' in plugin shared object %s: %s", symbol, plugin_name, dlerror());
 }
 
 #elif defined(USE_LOAD_LIBRARY)
 
 static void
-dll_resolve_symbol (HMODULE module, void **dest, const char *symbol, const char *plugin_name)
+dll_resolve_symbol (HMODULE module, void **dest, const char *symbol, const char *plugin_name, const unsigned int flags)
 {
   *dest = GetProcAddress (module, symbol);
-  if (!*dest)
-    msg (M_FATAL, "PLUGIN: could not find symbol '%s' in plugin DLL %s", symbol, plugin_name);
+  if ((flags & PLUGIN_SYMBOL_REQUIRED) && !*dest)
+    msg (M_FATAL, "PLUGIN: could not find required symbol '%s' in plugin DLL %s", symbol, plugin_name);
 }
 
 #endif
@@ -180,16 +185,18 @@ plugin_init_item (struct plugin *p, const struct plugin_option *o, const char **
   p->handle = dlopen (p->so_pathname, RTLD_NOW);
   if (!p->handle)
     msg (M_ERR, "PLUGIN_INIT: could not load plugin shared object %s: %s", p->so_pathname, dlerror());
-  libdl_resolve_symbol (p->handle, (void*)&p->open,  "openvpn_plugin_open_v1", p->so_pathname);
-  libdl_resolve_symbol (p->handle, (void*)&p->func,  "openvpn_plugin_func_v1", p->so_pathname);
-  libdl_resolve_symbol (p->handle, (void*)&p->close, "openvpn_plugin_close_v1", p->so_pathname);
+  libdl_resolve_symbol (p->handle, (void*)&p->open,  "openvpn_plugin_open_v1", p->so_pathname, PLUGIN_SYMBOL_REQUIRED);
+  libdl_resolve_symbol (p->handle, (void*)&p->func,  "openvpn_plugin_func_v1", p->so_pathname, PLUGIN_SYMBOL_REQUIRED);
+  libdl_resolve_symbol (p->handle, (void*)&p->close, "openvpn_plugin_close_v1", p->so_pathname, PLUGIN_SYMBOL_REQUIRED);
+  libdl_resolve_symbol (p->handle, (void*)&p->abort, "openvpn_plugin_abort_v1", p->so_pathname, 0);
 #elif defined(USE_LOAD_LIBRARY)
   p->module = LoadLibrary (p->so_pathname);
   if (!p->module)
     msg (M_ERR, "PLUGIN_INIT: could not load plugin DLL: %s", p->so_pathname);
-  dll_resolve_symbol (p->module, (void*)&p->open,  "openvpn_plugin_open_v1", p->so_pathname);
-  dll_resolve_symbol (p->module, (void*)&p->func,  "openvpn_plugin_func_v1", p->so_pathname);
-  dll_resolve_symbol (p->module, (void*)&p->close, "openvpn_plugin_close_v1", p->so_pathname);
+  dll_resolve_symbol (p->module, (void*)&p->open,  "openvpn_plugin_open_v1", p->so_pathname, PLUGIN_SYMBOL_REQUIRED);
+  dll_resolve_symbol (p->module, (void*)&p->func,  "openvpn_plugin_func_v1", p->so_pathname, PLUGIN_SYMBOL_REQUIRED);
+  dll_resolve_symbol (p->module, (void*)&p->close, "openvpn_plugin_close_v1", p->so_pathname, PLUGIN_SYMBOL_REQUIRED);
+  dll_resolve_symbol (p->module, (void*)&p->close, "openvpn_plugin_abort_v1", p->so_pathname, 0);
 #endif
 
   dmsg (D_PLUGIN_DEBUG, "PLUGIN_INIT: PRE");
@@ -271,6 +278,16 @@ plugin_close_item (const struct plugin *p)
 #endif
 }
 
+static void
+plugin_abort_item (const struct plugin *p)
+{
+  /*
+   * Call the plugin abort function
+   */
+  if (p->abort)
+    (*p->abort)(p->plugin_handle);
+}
+
 struct plugin_list *
 plugin_list_open (const struct plugin_option_list *list, const struct env_set *es)
 {
@@ -280,13 +297,15 @@ plugin_list_open (const struct plugin_option_list *list, const struct env_set *e
   const char **envp;
 
   ALLOC_OBJ_CLEAR (pl, struct plugin_list);
+  static_plugin_list = pl;
 
   envp = make_env_array (es, &gc);
 
   for (i = 0; i < list->n; ++i)
-    plugin_init_item (&pl->plugins[i], &list->plugins[i], envp);
-
-  pl->n = list->n;
+    {
+      plugin_init_item (&pl->plugins[i], &list->plugins[i], envp);
+      pl->n = i + 1;
+    }
 
   gc_free (&gc);
   return pl;
@@ -328,6 +347,7 @@ plugin_call (const struct plugin_list *pl, const int type, const char *args, str
 void
 plugin_list_close (struct plugin_list *pl)
 {
+  static_plugin_list = NULL;
   if (pl)
     {
       int i;
@@ -335,6 +355,20 @@ plugin_list_close (struct plugin_list *pl)
       for (i = 0; i < pl->n; ++i)
 	plugin_close_item (&pl->plugins[i]);
       free (pl);
+    }
+}
+
+void
+plugin_abort (void)
+{
+  struct plugin_list *pl = static_plugin_list;
+  static_plugin_list = NULL;
+  if (pl)
+    {
+      int i;
+
+      for (i = 0; i < pl->n; ++i)
+	plugin_abort_item (&pl->plugins[i]);
     }
 }
 

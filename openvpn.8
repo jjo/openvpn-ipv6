@@ -245,6 +245,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-socks\-proxy\fR\ \fIserver\ [port]\fR\ ]
 [\ \fB\-\-status\fR\ \fIfile\ [n]\fR\ ]
 [\ \fB\-\-status\-version\fR\ \fIn\fR\ ]
+[\ \fB\-\-syslog\fR\ \fI[progname]\fR\ ]
 [\ \fB\-\-tap\-sleep\fR\ \fIn\fR\ ]
 [\ \fB\-\-tcp\-queue\-limit\fR\ \fIn\fR\ ]
 [\ \fB\-\-test\-crypto\fR\ ]
@@ -1778,6 +1779,15 @@ has correctly initialized and entered the packet forwarding event loop.
 In OpenVPN, the vast majority of errors which occur after initialization are non-fatal.
 .\"*********************************************************
 .TP
+.B --syslog [progname]
+Direct log output to system logger, but do not become a daemon.
+See
+.B --daemon
+directive above for description of
+.B progname
+parameter.
+.\"*********************************************************
+.TP
 .B --passtos
 Set the TOS field of the tunnel packet to what the payload's TOS is.
 .\"*********************************************************
@@ -2765,7 +2775,10 @@ are part of the legal set of pushable options.
 .B --auth-user-pass [up]
 Authenticate with server using username/password.
 .B up
-is a file containing username/password on 2 lines.
+is a file containing username/password on 2 lines (Note: OpenVPN
+will only read passwords from a file if it has been built
+with the --enable-password-save configure option, or on Windows
+by defining ENABLE_PASSWORD_SAVE in config-win32.h).
 
 If
 .B up
@@ -3546,9 +3559,11 @@ handshake.  It is not used to encrypt or authenticate any tunnel data.
 .\"*********************************************************
 .TP
 .B --askpass [file]
-Get certificate password from console before we daemonize (if
+Get certificate password from console or
 .B file
-is omitted).  For the extremely
+before we daemonize.
+
+For the extremely
 security conscious, it is possible to protect your private key with
 a password.  Of course this means that every time the OpenVPN
 daemon is started you must be there to type the password.  The
@@ -3561,11 +3576,16 @@ option when you use the
 .B openssl
 command line tool to manage certificates and private keys.
 
-Read the password from the first line of
-.B file,
-if specified.  Keep in mind that storing your password in a file
+If
+.B file
+is specified, read the password from the first line of
+.B file.
+Keep in mind that storing your password in a file
 to a certain extent invalidates the extra security provided by
-using an encrypted key.
+using an encrypted key (Note: OpenVPN
+will only read passwords from a file if it has been built
+with the --enable-password-save configure option, or on Windows
+by defining ENABLE_PASSWORD_SAVE in config-win32.h).
 .\"*********************************************************
 .TP
 .B --auth-nocache
@@ -3591,13 +3611,29 @@ Execute shell command
 .B cmd
 to verify the X509 name of a
 pending TLS connection that has otherwise passed all other
-tests of certification.
+tests of certification (except for revocation via
+.B --crl-verify
+directive; the revocation test occurs after the
+.B --tls-verify
+test).
+
 .B cmd
 should return 0 to allow the TLS handshake to proceed, or 1 to fail.
 .B cmd
 is executed as
 
 .B cmd certificate_depth X509_NAME_oneline
+
+This feature is useful if the peer you want to trust has a certificate
+which was signed by a certificate authority who also signed many
+other certificates, where you don't necessarily want to trust all of them,
+but rather be selective about which
+peer certificate you will accept.  This feature allows you to write a script
+which will test the X509 name on a certificate and decide whether or
+not it should be accepted.  For a simple perl script which will test
+the common name field on the certificate, see the file
+.B verify-cn
+in the OpenVPN distribution.
 
 See the "Environmental Variables" section below for
 additional parameters passed as environmental variables.
@@ -3609,16 +3645,6 @@ case all OpenVPN-generated arguments will be appended
 to
 .B cmd
 to build a command line which will be passed to the script.
-
-This feature is useful if the peer you want to trust has a certificate
-which was signed by a certificate authority who also signed a zillion
-other certificates.  In this case you want to be selective about which
-peer certificate you accept.  This feature allows you to write a script
-which will test the X509 name on a certificate and decide whether or
-not it should be accepted.  For a simple perl script which will test
-the common name field on the certificate, see the file
-.B verify-cn
-in the OpenVPN distribution.
 .\"*********************************************************
 .TP
 .B --tls-remote name
@@ -4946,7 +4972,7 @@ archives, or browse the CVS repository.
 .SH BUGS
 Report all bugs to the OpenVPN users list <openvpn-users@lists.sourceforge.net>.
 To subscribe to the list or see the archives, go to
-.I http://sourceforge.net/mail/?group_id=48978
+.I http://openvpn.net/mail.html
 .\"*********************************************************
 .SH "SEE ALSO"
 .BR dhcpcd (8),

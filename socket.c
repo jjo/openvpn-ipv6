@@ -93,7 +93,7 @@ getaddr (unsigned int flags,
   if (status != OIA_IP) /* parse as IP address failed? */
     {
       const int fail_wait_interval = 5; /* seconds */
-      int resolve_retries = resolve_retry_seconds / fail_wait_interval;
+      int resolve_retries = (flags & GETADDR_TRY_ONCE) ? 1 : (resolve_retry_seconds / fail_wait_interval);
       struct hostent *h;
       const char *fmt;
       int level = 0;
@@ -763,7 +763,14 @@ resolve_remote (struct link_socket *sock,
 	      int retry = 0;
 	      bool status = false;
 
-	      if (phase == 1)
+	      if (remote_list_len (sock->remote_list) > 1 && sock->resolve_retry_seconds == RESOLV_RETRY_INFINITE)
+		{
+		  flags = GETADDR_RESOLVE;
+		  if (phase == 2)
+		    flags |= (GETADDR_TRY_ONCE | GETADDR_FATAL);
+		  retry = 0;
+		}
+	      else if (phase == 1)
 		{
 		  if (sock->resolve_retry_seconds)
 		    {

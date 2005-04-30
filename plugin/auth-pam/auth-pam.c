@@ -158,7 +158,10 @@ recv_control (int fd)
   if (size == sizeof (c))
     return c;
   else
-    return -1;
+    {
+      /*fprintf (stderr, "AUTH-PAM: DEBUG recv_control.read=%d\n", (int)size);*/
+      return -1;
+    }
 }
 
 static int
@@ -442,6 +445,20 @@ openvpn_plugin_close_v1 (openvpn_plugin_handle_t handle)
   free (context);
 }
 
+OPENVPN_EXPORT void
+openvpn_plugin_abort_v1 (openvpn_plugin_handle_t handle)
+{
+  struct auth_pam_context *context = (struct auth_pam_context *) handle;
+
+  /* tell background process to exit */
+  if (context->foreground_fd >= 0)
+    {
+      send_control (context->foreground_fd, COMMAND_EXIT);
+      close (context->foreground_fd);
+      context->foreground_fd = -1;
+    }
+}
+
 /*
  * PAM conversation function
  */
@@ -679,7 +696,7 @@ pam_server (int fd, const char *service, int verb, const struct name_value_list 
 
 	case -1:
 	  fprintf (stderr, "AUTH-PAM: BACKGROUND: read error on command channel\n");
-	  break;
+	  goto done;
 
 	default:
 	  fprintf (stderr, "AUTH-PAM: BACKGROUND: unknown command code: code=%d, exiting\n",

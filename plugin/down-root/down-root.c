@@ -399,6 +399,20 @@ openvpn_plugin_close_v1 (openvpn_plugin_handle_t handle)
   free_context (context);
 }
 
+OPENVPN_EXPORT void
+openvpn_plugin_abort_v1 (openvpn_plugin_handle_t handle)
+{
+  struct down_root_context *context = (struct down_root_context *) handle;
+
+  if (context->foreground_fd >= 0)
+    {
+      /* tell background process to exit */
+      send_control (context->foreground_fd, COMMAND_EXIT);
+      close (context->foreground_fd);
+      context->foreground_fd = -1;
+    }
+}
+
 /*
  * Background process -- runs with privilege.
  */
@@ -486,7 +500,7 @@ down_root_server (const int fd, char *command, const char *argv[], const char *e
 
 	case -1:
 	  fprintf (stderr, "DOWN-ROOT: BACKGROUND: read error on command channel\n");
-	  break;
+	  goto done;
 
 	default:
 	  fprintf (stderr, "DOWN-ROOT: BACKGROUND: unknown command code: code=%d, exiting\n",

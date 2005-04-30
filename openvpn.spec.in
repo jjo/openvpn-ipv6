@@ -8,6 +8,9 @@
 # Disable PAM plugin
 #   rpmbuild -tb [openvpn.x.tar.gz] --define 'without_pam 1'
 #
+# Allow passwords to be read from files
+#   rpmbuild -tb [openvpn.x.tar.gz] --define 'with_password_save 1'
+#
 # Use this on RH9 and RHEL3
 #   rpmbuild -tb [openvpn.x.tar.gz] --define 'with_kerberos 1'
 
@@ -88,7 +91,7 @@ and portability to most major OS platforms.
 %setup -q
 
 %build
-%configure --disable-dependency-tracking %{?without_lzo:--disable-lzo} %{?with_kerberos:--with-ssl-headers=/usr/kerberos/include}
+%configure --disable-dependency-tracking %{?with_password_save:--enable-password-save} %{?without_lzo:--disable-lzo} %{?with_kerberos:--with-ssl-headers=/usr/kerberos/include}
 %__make
 %__strip %{name}
 
