@@ -135,6 +135,7 @@ openvpn \- secure IP tunnel daemon.
 [\ \fB\-\-duplicate\-cn\fR\ ]
 [\ \fB\-\-echo\fR\ \fI[parms...]\fR\ ]
 [\ \fB\-\-engine\fR\ \fI[engine\-name]\fR\ ]
+[\ \fB\-\-explicit\-exit\-notify\fR\ \fI[n]\fR\ ]
 [\ \fB\-\-fast\-io\fR\ ]
 [\ \fB\-\-float\fR\ ]
 [\ \fB\-\-fragment\fR\ \fImax\fR\ ]
@@ -2790,6 +2791,17 @@ The server configuration must specify an
 script to verify the username/password provided by
 the client.
 .\"*********************************************************
+.TP
+.B --explicit-exit-notify [n]
+In UDP client mode or point-to-point mode, send server/peer an exit notification
+if tunnel is restarted or OpenVPN process is exited.  In client mode, on
+exit/restart, this
+option will tell the server to immediately close its client instance object
+rather than waiting for a timeout.  The
+.B n
+parameter (default=1) controls the maximum number of retries that the client
+will attempt to resend the exit notification message.
+.\"*********************************************************
 .SS Data Channel Encryption Options:
 These options are meaningful for both Static & TLS-negotiated key modes
 (must be compatible between peers).
@@ -4160,7 +4172,9 @@ Alphanumeric, underbar ('_'), dash ('-'), dot ('.'), and at
 ('@').
 
 .B --auth-user-pass username:
-Same as Common Name.
+Same as Common Name, with one exception: starting with OpenVPN 2.0.1,
+the username is passed to the OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY plugin in its raw form,
+without string remapping.
 
 .B --auth-user-pass password:
 Any "printable" character except CR or LF.  

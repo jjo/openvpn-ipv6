@@ -36,12 +36,17 @@ AutoReq: 0
 BuildRequires: openssl-devel >= 0.9.6
 Requires:      openssl       >= 0.9.6
 
+%if "%{_vendor}" == "Mandrakesoft"
+%{!?without_lzo:BuildRequires: liblzo1-devel >= 1.07}
+%{!?without_lzo:Requires:      liblzo1       >= 1.07}
+%else
 %if "%{_vendor}" == "MandrakeSoft"
 %{!?without_lzo:BuildRequires: liblzo1-devel >= 1.07}
 %{!?without_lzo:Requires:      liblzo1       >= 1.07}
 %else
 %{!?without_lzo:BuildRequires: lzo-devel >= 1.07}
 %{!?without_lzo:Requires:      lzo       >= 1.07}
+%endif
 %endif
 
 %{!?without_pam:BuildRequires: pam-devel}

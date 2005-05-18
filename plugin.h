@@ -58,7 +58,7 @@ struct plugin {
   openvpn_plugin_open_v1 open;
   openvpn_plugin_func_v1 func;
   openvpn_plugin_close_v1 close;
-  openvpn_plugin_close_v1 abort;
+  openvpn_plugin_abort_v1 abort;
 
   openvpn_plugin_handle_t plugin_handle;
 };

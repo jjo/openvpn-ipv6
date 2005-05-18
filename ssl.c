@@ -2334,7 +2334,7 @@ verify_user_pass_script (struct tls_session *session, const struct user_pass *up
 }
 
 static bool
-verify_user_pass_plugin (struct tls_session *session, const struct user_pass *up)
+verify_user_pass_plugin (struct tls_session *session, const struct user_pass *up, const char *raw_username)
 {
   int retval;
   bool ret = false;
@@ -2343,7 +2343,7 @@ verify_user_pass_plugin (struct tls_session *session, const struct user_pass *up
   if (strlen (up->username))
     {
       /* set username/password in private env space */
-      setenv_str (session->opt->es, "username", up->username);
+      setenv_str (session->opt->es, "username", raw_username);
       setenv_str (session->opt->es, "password", up->password);
 
       /* setenv incoming cert common name for script */
@@ -2359,6 +2359,7 @@ verify_user_pass_plugin (struct tls_session *session, const struct user_pass *up
 	ret = true;
 
       setenv_del (session->opt->es, "password");
+      setenv_str (session->opt->es, "username", up->username);
     }
   else
     {
@@ -2583,6 +2584,7 @@ key_method_2_read (struct buffer *buf, struct tls_multi *multi, struct tls_sessi
     {
       bool s1 = true;
       bool s2 = true;
+      char *raw_username;
 
       /* get username/password from plaintext buffer */
       ALLOC_OBJ_CLEAR_GC (up, struct user_pass, &gc);
@@ -2594,13 +2596,18 @@ key_method_2_read (struct buffer *buf, struct tls_multi *multi, struct tls_sessi
 	  goto error;
 	}
 
+      /* preserve raw username before string_mod remapping, for plugins */
+      ALLOC_ARRAY_CLEAR_GC (raw_username, char, USER_PASS_LEN, &gc);
+      strcpy (raw_username, up->username);
+      string_mod (raw_username, CC_PRINT, CC_CRLF, '_');
+
       /* enforce character class restrictions in username/password */
       string_mod (up->username, COMMON_NAME_CHAR_CLASS, 0, '_');
       string_mod (up->password, CC_PRINT, CC_CRLF, '_');
 
       /* call plugin(s) and/or script */
       if (plugin_defined (session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY))
-	s1 = verify_user_pass_plugin (session, up);
+	s1 = verify_user_pass_plugin (session, up, raw_username);
       if (session->opt->auth_user_pass_verify_script)
 	s2 = verify_user_pass_script (session, up);
       

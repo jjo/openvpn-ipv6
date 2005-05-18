@@ -172,9 +172,6 @@ static const char usage_message[] =
   "                  remote address.\n"
   "--ping n        : Ping remote once every n seconds over TCP/UDP port.\n"
   "--fast-io       : (experimental) Optimize TUN/TAP/UDP writes.\n"
-#ifdef ENABLE_OCC
-  "--explicit-exit-notify n : (experimental) on exit, send exit signal to remote.\n"
-#endif
   "--remap-usr1 s  : On SIGUSR1 signals, remap signal (s='SIGHUP' or 'SIGTERM').\n"
   "--persist-tun   : Keep tun/tap device open across SIGUSR1 or --ping-restart.\n"
   "--persist-remote-ip : Keep remote IP address across SIGUSR1 or --ping-restart.\n"
@@ -347,6 +344,10 @@ static const char usage_message[] =
   "--pull           : Accept certain config file options from the peer as if they\n"
   "                  were part of the local config file.  Must be specified\n"
   "                  when connecting to a '--mode server' remote host.\n"
+#endif
+#ifdef ENABLE_OCC
+  "--explicit-exit-notify [n] : On exit/restart, send exit signal to\n"
+  "                  server/remote. n = # of retries, default=1.\n"
 #endif
 #ifdef USE_CRYPTO
   "\n"
@@ -3393,11 +3394,18 @@ add_option (struct options *options,
       options->ping_timer_remote = true;
     }
 #ifdef ENABLE_OCC
-  else if (streq (p[0], "explicit-exit-notify") && p[1])
+  else if (streq (p[0], "explicit-exit-notify"))
     {
-      ++i;
       VERIFY_PERMISSION (OPT_P_EXPLICIT_NOTIFY);
-      options->explicit_exit_notification = positive_atoi (p[1]);
+      if (p[1])
+	{
+	  ++i;
+	  options->explicit_exit_notification = positive_atoi (p[1]);
+	}
+      else
+	{
+	  options->explicit_exit_notification = 1;
+	}
     }
 #endif
   else if (streq (p[0], "persist-tun"))
