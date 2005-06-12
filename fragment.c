@@ -309,7 +309,10 @@ fragment_outgoing (struct fragment_master *f, struct buffer *buf,
   const char *errmsg = NULL;
   if (buf->len > 0)
     {
-      ASSERT (!f->outgoing.len);
+      /* The outgoing buffer should be empty so we can put new data in it */
+      if (f->outgoing.len)
+	msg (D_FRAG_ERRORS, "FRAG: outgoing buffer is not empty, len=[%d,%d]",
+	     buf->len, f->outgoing.len);
       if (buf->len > PAYLOAD_SIZE_DYNAMIC(frame)) /* should we fragment? */
 	{
 	  /*

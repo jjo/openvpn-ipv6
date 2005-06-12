@@ -52,6 +52,7 @@ struct ifconfig_pool
   in_addr_t base;
   int size;
   int type;
+  bool duplicate_cn;
   struct ifconfig_pool_entry *list;
 };
 
@@ -63,7 +64,7 @@ struct ifconfig_pool_persist
 
 typedef int ifconfig_pool_handle;
 
-struct ifconfig_pool *ifconfig_pool_init (int type, in_addr_t start, in_addr_t end);
+struct ifconfig_pool *ifconfig_pool_init (int type, in_addr_t start, in_addr_t end, const bool duplicate_cn);
 
 void ifconfig_pool_free (struct ifconfig_pool *pool);
 

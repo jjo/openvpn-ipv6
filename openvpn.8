@@ -2494,9 +2494,7 @@ Note that the return value of
 is significant.  If
 .B script
 returns a non-zero error status, it will cause the client
-to be disconnected without the
-.B --client-disconnect
-script being called.
+to be disconnected.
 .\"*********************************************************
 .TP
 .B --client-disconnect
@@ -2508,6 +2506,14 @@ unless the
 script and plugins (if defined)
 were previously called on this instance with
 successful (0) status returns.
+
+The exception to this rule is if the
+.B --client-disconnect
+script or plugins are cascaded, and at least one client-connect
+function succeeded, then ALL of the client-disconnect functions for
+scripts and plugins will be called on client instance object deletion,
+even in cases where some of the related client-connect functions returned
+an error status.
 .B 
 .\"*********************************************************
 .TP
@@ -4233,7 +4239,24 @@ scripts.
 .B config
 Name of first
 .B --config
-file.  Set on program initiation and reset on SIGHUP.
+file.
+Set on program initiation and reset on SIGHUP.
+.\"*********************************************************
+.TP
+.B daemon
+Set to "1" if the
+.B --daemon
+directive is specified, or "0" otherwise.
+Set on program initiation and reset on SIGHUP.
+.\"*********************************************************
+.TP
+.B daemon_log_redirect
+Set to "1" if the
+.B --log
+or
+.B --log-append
+directives are specified, or "0" otherwise.
+Set on program initiation and reset on SIGHUP.
 .\"*********************************************************
 .TP
 .B dev

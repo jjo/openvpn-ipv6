@@ -50,6 +50,8 @@
 #define CF_INIT_TLS_MULTI           (1<<1)
 #define CF_INIT_TLS_AUTH_STANDALONE (1<<2)
 
+static void do_init_first_time (struct context *c);
+
 void
 context_clear (struct context *c)
 {
@@ -356,6 +358,8 @@ possibly_become_daemon (const struct options *options, const bool first_time)
       ASSERT (!options->inetd);
       if (daemon (options->cd_dir != NULL, options->log) < 0)
 	msg (M_ERR, "daemon() failed");
+      if (options->log)
+	set_std_files_to_null (true);
       ret = true;
     }
   return ret;
@@ -993,11 +997,16 @@ do_deferred_options (struct context *c, const unsigned int found)
  * Possible hold on initialization
  */
 static bool
-do_hold (void)
+do_hold (struct context *c)
 {
 #ifdef ENABLE_MANAGEMENT
   if (management)
     {
+      /* if c is defined, daemonize before hold */
+      if (c && c->options.daemon && management_would_hold (management))
+	do_init_first_time (c);
+
+      /* block until management hold is released */
       if (management_hold (management))
 	return true;
     }
@@ -1009,7 +1018,7 @@ do_hold (void)
  * Sleep before restart.
  */
 static void
-socket_restart_pause (const struct context *c)
+socket_restart_pause (struct context *c)
 {
   bool proxy = false;
   int sec = 2;
@@ -1042,7 +1051,7 @@ socket_restart_pause (const struct context *c)
     sec = 0;
 #endif
 
-  if (do_hold ())
+  if (do_hold (NULL))
     sec = 0;
 
   if (sec)
@@ -1061,7 +1070,7 @@ do_startup_pause (struct context *c)
   if (!c->first_time)
     socket_restart_pause (c);
   else
-    do_hold ();
+    do_hold (NULL);
 }
 
 /*
@@ -1751,7 +1760,7 @@ do_compute_occ_strings (struct context *c)
 static void
 do_init_first_time (struct context *c)
 {
-  if (c->first_time)
+  if (c->first_time && !c->c2.did_we_daemonize)
     {
       /* get user and/or group that we want to setuid/setgid to */
       c->c2.uid_gid_specified =
@@ -2141,7 +2150,7 @@ open_management (struct context *c)
 	    }
 
 	  /* possible wait */
-	  do_hold ();
+	  do_hold (c);
 	  if (IS_SIG (c))
 	    {
 	      msg (M_WARN, "Signal received from management interface, exiting");

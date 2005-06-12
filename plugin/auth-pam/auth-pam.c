@@ -43,7 +43,7 @@
 #include "openvpn-plugin.h"
 #include "pamdl.h"
 
-#define DEBUG(verb) ((verb) >= 7)
+#define DEBUG(verb) ((verb) >= 4) // JYFIXME (should be 7)
 
 /* Command codes for foreground -> background communication */
 #define COMMAND_VERIFY 0
@@ -199,6 +199,33 @@ send_string (int fd, const char *string)
     return (int) size;
   else
     return -1;
+}
+
+/*
+ * Daemonize if "daemon" env var is true.
+ * Preserve stderr across daemonization if
+ * "daemon_log_redirect" env var is true.
+ */
+static void
+daemonize (const char *envp[])
+{
+  const char *daemon_string = get_env ("daemon", envp);
+  if (daemon_string && daemon_string[0] == '1')
+    {
+      const char *log_redirect = get_env ("daemon_log_redirect", envp);
+      int fd = -1;
+      if (log_redirect && log_redirect[0] == '1')
+	fd = dup (2);
+      if (daemon (0, 0) < 0)
+	{
+	  fprintf (stderr, "AUTH-PAM: daemonization failed\n");
+	}
+      else if (fd >= 3)
+	{
+	  dup2 (fd, 2);
+	  close (fd);
+	}
+    }
 }
 
 /*
@@ -372,6 +399,9 @@ openvpn_plugin_open_v1 (unsigned int *type_mask, const char *argv[], const char 
 
       /* Ignore most signals (the parent will receive them) */
       set_signals ();
+
+      /* Daemonize if --daemon option is set. */
+      daemonize (envp);
 
       /* execute the event loop */
       pam_server (fd[1], argv[1], context->verb, &name_value_list);

@@ -95,6 +95,17 @@ typedef void *openvpn_plugin_handle_t;
  * function (such as tls-verify or auth-user-pass-verify), then
  * every module and script must return success (0) in order for
  * the connection to be authenticated.
+ *
+ * Notes:
+ *
+ * Plugins which use a privilege-separation model (by forking in
+ * their initialization function before the main OpenVPN process
+ * downgrades root privileges and/or executes a chroot) must
+ * daemonize after a fork if the "daemon" environmental variable is
+ * set.  In addition, if the "daemon_log_redirect" variable is set,
+ * the plugin should preserve stdout/stderr across the daemon()
+ * syscall.  See the daemonize() function in plugin/auth-pam/auth-pam.c
+ * for an example.
  */
 
 /*

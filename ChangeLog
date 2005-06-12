@@ -3,6 +3,34 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.05.xx -- Version 2.0.1-rc3
+
+* Fixed a bug which caused standard file handles to not be closed
+  after daemonization when --plugin and --daemon are used together,
+  and if the plugin initialization function forks (as does auth-pam
+  and down-root) (Simon Perreault).
+* Added client-side up/down scripts in contrib/pull-resolv-conf
+  for accepting server-pushed "dhcp-option DOMAIN" and "dhcp-option DNS"
+  on Linux/Unix systems (Jesse Adelman).
+* Fixed bug where if client-connect scripts/plugins were cascaded,
+  and one (but not all) of them returned an error status, there might
+  be cases where for an individual script/plugin, client-connect was
+  called but not client-disconnect.  The goal of this fix is to
+  ensure that if client-connect is called on a given client instance,
+  then client-disconnect will definitely be called.  A potential
+  complication of this fix is that when client-connect functions are
+  cascaded, it's possible that the client-disconnect function would
+  be called in cases where the related client-connect function returned
+  an error status.  This fix should not alter OpenVPN behavior when
+  scripts/plugins are not cascaded.
+* Changed the hard-to-reproduce "Assertion failed at fragment.c:312"
+  fatal error to a warning: "FRAG: outgoing buffer is not empty".
+  Need more info on how to reproduce this one.
+* When --duplicate-cn is used, the --ifconfig-pool allocation
+  algorithm will now allocate the first available IP address.
+* When --daemon and --management-hold are used together,
+  OpenVPN will daemonize before it enters the management hold state.
+
 2005.05.16 -- Version 2.0.1-rc2
 
 * Modified vendor test in openvpn.spec file to match against

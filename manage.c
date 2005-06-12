@@ -1771,13 +1771,22 @@ management_query_user_pass (struct management *man,
 }
 
 /*
+ * Return true if management_hold() would block
+ */
+bool
+management_would_hold (struct management *man)
+{
+  return man->settings.hold && !man->persist.hold_release && man_standalone_ok (man);
+}
+
+/*
  * If the hold flag is enabled, hibernate until a management client releases the hold.
  * Return true if the caller should not sleep for an additional time interval.
  */
 bool
 management_hold (struct management *man)
 {
-  if (man->settings.hold && !man->persist.hold_release && man_standalone_ok (man))
+  if (management_would_hold (man))
     {
       volatile int signal_received = 0;
       const bool standalone_disabled_save = man->persist.standalone_disabled;

@@ -139,6 +139,33 @@ send_control (int fd, int code)
 }
 
 /*
+ * Daemonize if "daemon" env var is true.
+ * Preserve stderr across daemonization if
+ * "daemon_log_redirect" env var is true.
+ */
+static void
+daemonize (const char *envp[])
+{
+  const char *daemon_string = get_env ("daemon", envp);
+  if (daemon_string && daemon_string[0] == '1')
+    {
+      const char *log_redirect = get_env ("daemon_log_redirect", envp);
+      int fd = -1;
+      if (log_redirect && log_redirect[0] == '1')
+	fd = dup (2);
+      if (daemon (0, 0) < 0)
+	{
+	  fprintf (stderr, "DOWN-ROOT: daemonization failed\n");
+	}
+      else if (fd >= 3)
+	{
+	  dup2 (fd, 2);
+	  close (fd);
+	}
+    }
+}
+
+/*
  * Close most of parent's fds.
  * Keep stdin/stdout/stderr, plus one
  * other fd which is presumed to be
@@ -347,6 +374,9 @@ openvpn_plugin_func_v1 (openvpn_plugin_handle_t handle, const int type, const ch
 
 	  /* Ignore most signals (the parent will receive them) */
 	  set_signals ();
+
+	  /* Daemonize if --daemon option is set. */
+	  daemonize (envp);
 
 	  /* execute the event loop */
 	  down_root_server (fd[1], context->command, argv, envp, context->verb);

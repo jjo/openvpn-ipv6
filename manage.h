@@ -281,6 +281,7 @@ void management_clear_callback (struct management *man);
 
 bool management_query_user_pass (struct management *man, struct user_pass *up, const char *type, const bool password_only);
 
+bool management_would_hold (struct management *man);
 bool management_hold (struct management *man);
 
 void management_event_loop_n_seconds (struct management *man, int sec);

@@ -622,6 +622,8 @@ setenv_settings (struct env_set *es, const struct options *o)
   setenv_str (es, "local", o->local);
   setenv_int (es, "local_port", o->local_port);
   setenv_int (es, "verb", o->verbosity);
+  setenv_int (es, "daemon", o->daemon);
+  setenv_int (es, "daemon_log_redirect", o->log);
 
   if (o->remote_list)
     {

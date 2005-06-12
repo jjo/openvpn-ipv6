@@ -314,7 +314,7 @@ plugin_list_open (const struct plugin_option_list *list, const struct env_set *e
 int
 plugin_call (const struct plugin_list *pl, const int type, const char *args, struct env_set *es)
 {
-  int ret = 0;
+  int count = 0;
 
   if (plugin_defined (pl, type))
     {
@@ -329,11 +329,8 @@ plugin_call (const struct plugin_list *pl, const int type, const char *args, str
 
       for (i = 0; i < pl->n; ++i)
 	{
-	  if (plugin_call_item (&pl->plugins[i], type, args, envp)) /* if any one plugin in the chain fails, return failure */
-	    {
-	      ret = 1;
-	      break;
-	    }
+	  if (!plugin_call_item (&pl->plugins[i], type, args, envp))
+	    ++count;
 	}
 
       mutex_unlock_static (L_PLUGIN);
@@ -341,7 +338,7 @@ plugin_call (const struct plugin_list *pl, const int type, const char *args, str
       gc_free (&gc);
     }
 
-  return ret;
+  return count == pl->n ? 0 : 1; /* if any one plugin in the chain failed, return failure (1) */
 }
 
 void

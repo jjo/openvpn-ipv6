@@ -59,7 +59,6 @@ static int
 ifconfig_pool_find (struct ifconfig_pool *pool, const char *common_name)
 {
   int i;
-  int n = 0;
   time_t earliest_release = 0;
   int previous_usage = -1;
   int new_usage = -1;
@@ -69,6 +68,15 @@ ifconfig_pool_find (struct ifconfig_pool *pool, const char *common_name)
       struct ifconfig_pool_entry *ipe = &pool->list[i];
       if (!ipe->in_use)
 	{
+	  /*
+	   * If duplicate_cn mode, take first available IP address
+	   */
+	  if (pool->duplicate_cn)
+	    {
+	      new_usage = i;
+	      break;
+	    }
+
 	  /*
 	   * Keep track of the unused IP address entry which
 	   * was released earliest.
@@ -89,7 +97,6 @@ ifconfig_pool_find (struct ifconfig_pool *pool, const char *common_name)
 	      && !strcmp (common_name, ipe->common_name))
 	    previous_usage = i;
 
-	  ++n;
 	}
     }
 
@@ -104,15 +111,16 @@ ifconfig_pool_find (struct ifconfig_pool *pool, const char *common_name)
 
 
 struct ifconfig_pool *
-ifconfig_pool_init (int type, in_addr_t start, in_addr_t end)
+ifconfig_pool_init (int type, in_addr_t start, in_addr_t end, const bool duplicate_cn)
 {
   struct gc_arena gc = gc_new ();
   struct ifconfig_pool *pool = NULL;
 
   ASSERT (start <= end && end - start < IFCONFIG_POOL_MAX);
-  ALLOC_OBJ (pool, struct ifconfig_pool);
+  ALLOC_OBJ_CLEAR (pool, struct ifconfig_pool);
 
   pool->type = type;
+  pool->duplicate_cn = duplicate_cn;
 
   switch (type)
     {
