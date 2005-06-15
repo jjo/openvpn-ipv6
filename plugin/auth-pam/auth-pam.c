@@ -43,7 +43,7 @@
 #include "openvpn-plugin.h"
 #include "pamdl.h"
 
-#define DEBUG(verb) ((verb) >= 4) // JYFIXME (should be 7)
+#define DEBUG(verb) ((verb) >= 7)
 
 /* Command codes for foreground -> background communication */
 #define COMMAND_VERIFY 0

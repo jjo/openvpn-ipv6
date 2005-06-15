@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [2.0.1_rc3], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [2.0.1_rc4], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -461,21 +461,29 @@ dnl check for LZO library
 dnl
 
 if test "$LZO" = "yes"; then
+   LZO_H=""
    AC_CHECKING([for LZO Library and Header files])
-   AC_CHECK_HEADER(lzo1x.h, 
-        [AC_CHECK_LIB(lzo, lzo1x_1_15_compress,
-	    [
-	       OPENVPN_ADD_LIBS(-llzo)
-	       AC_DEFINE(USE_LZO, 1, [Use LZO compression library])
-	    ],
-	    [AC_MSG_ERROR([LZO headers were found but LZO library was not found.])]
-	)],
-	[
-          AC_MSG_RESULT([LZO library and headers not found.])
-	  AC_MSG_RESULT([LZO library available from http://www.oberhumer.com/opensource/lzo/])
-	  AC_MSG_ERROR([Or try ./configure --disable-lzo])
-	]
+   AC_CHECK_HEADER(lzo/lzo1x.h, 
+        [ LZO_H="2" ],
+	[ AC_CHECK_HEADER(lzo1x.h, [ LZO_H="1" ])]
    )
+
+   if test -n "$LZO_H"; then
+     AC_CHECK_LIB(lzo, lzo1x_1_15_compress,
+       [
+         OPENVPN_ADD_LIBS(-llzo)
+	 AC_DEFINE(USE_LZO, 1, [Use LZO compression library])
+	 if test "$LZO_H" = "2"; then
+	   AC_DEFINE(LZO_HEADER_DIR, 1, [Use lzo/ directory prefix for LZO header files (for LZO 2.0)])
+         fi
+       ],
+       [AC_MSG_ERROR([LZO headers were found but LZO library was not found])]
+     )
+   else
+     AC_MSG_RESULT([LZO headers were not found])
+     AC_MSG_RESULT([LZO library available from http://www.oberhumer.com/opensource/lzo/])
+     AC_MSG_ERROR([Or try ./configure --disable-lzo])
+   fi
 fi
 
 dnl

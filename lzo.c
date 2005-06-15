@@ -135,7 +135,7 @@ lzo_compress (struct buffer *buf, struct buffer work,
 	      struct lzo_compress_workspace *lzowork,
 	      const struct frame* frame)
 {
-  int zlen = 0;
+  lzo_uint zlen = 0;
   int err;
   bool compressed = false;
 
@@ -191,7 +191,7 @@ lzo_decompress (struct buffer *buf, struct buffer work,
 		struct lzo_compress_workspace *lzowork,
 		const struct frame* frame)
 {
-  int zlen = EXPANDED_SIZE (frame);
+  lzo_uint zlen = EXPANDED_SIZE (frame);
   uint8_t c;		/* flag indicating whether or not our peer compressed */
   int err;
 
