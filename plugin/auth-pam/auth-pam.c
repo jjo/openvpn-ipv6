@@ -27,6 +27,13 @@
  * privilege model.
  */
 
+#if DLOPEN_PAM
+#include <dlfcn.h>
+#include "pamdl.h"
+#else
+#include <security/pam_appl.h>
+#endif
+
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -37,11 +44,9 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <dlfcn.h>
 #include <syslog.h>
 
 #include "openvpn-plugin.h"
-#include "pamdl.h"
 
 #define DEBUG(verb) ((verb) >= 7)
 
@@ -646,7 +651,9 @@ pam_server (int fd, const char *service, int verb, const struct name_value_list 
 {
   struct user_pass up;
   int command;
+#if DLOPEN_PAM
   static const char pam_so[] = "libpam.so";
+#endif
 
   /*
    * Do initialization
@@ -654,6 +661,7 @@ pam_server (int fd, const char *service, int verb, const struct name_value_list 
   if (DEBUG (verb))
     fprintf (stderr, "AUTH-PAM: BACKGROUND: INIT service='%s'\n", service);
 
+#if DLOPEN_PAM
   /*
    * Load PAM shared object
    */
@@ -663,6 +671,7 @@ pam_server (int fd, const char *service, int verb, const struct name_value_list 
       send_control (fd, RESPONSE_INIT_FAILED);
       goto done;
     }
+#endif
 
   /*
    * Tell foreground that we initialized successfully
@@ -736,7 +745,9 @@ pam_server (int fd, const char *service, int verb, const struct name_value_list 
     }
  done:
 
+#if DLOPEN_PAM
   dlclose_pam ();
+#endif
   if (DEBUG (verb))
     fprintf (stderr, "AUTH-PAM: BACKGROUND: EXIT\n");
 

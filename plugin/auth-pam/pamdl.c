@@ -1,3 +1,4 @@
+#if DLOPEN_PAM
 /*
  * If you want to dynamically load libpam using dlopen() or something,
  * then dlopen( ' this shared object ' ); It takes care of exporting
@@ -177,3 +178,4 @@ int pam_chauthtok(pam_handle_t *pamh, int flags)
     RESOLVE_PAM_FUNCTION(pam_chauthtok, int, (pam_handle_t *, int), PAM_ABORT);
     return real_pam_chauthtok(pamh, flags);
 }
+#endif

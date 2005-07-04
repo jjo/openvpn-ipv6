@@ -577,7 +577,11 @@ initialization_sequence_completed (struct context *c, const unsigned int flags)
 
   /* Test if errors */
   if (flags & ISC_ERRORS)
+#ifdef WIN32
+    msg (M_INFO, "%s With Errors ( see http://openvpn.net/faq.html#dhcpclientserv )", message);
+#else
     msg (M_INFO, "%s With Errors", message);
+#endif
   else
     msg (M_INFO, "%s", message);
 
