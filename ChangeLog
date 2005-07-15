@@ -3,6 +3,13 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.07.15 -- Version 2.0.1-rc6
+
+* Commented out "user nobody" and "group nobody" in sample
+  client/server config files.
+* Allow '@' character to be used in --client-config-dir
+  file names.
+
 2005.07.04 -- Version 2.0.1-rc5
 
 * Windows version will log a for-further-info URL when
