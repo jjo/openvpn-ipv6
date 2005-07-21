@@ -4189,7 +4189,8 @@ isprint() function to return true.
 
 .B --client-config-dir filename as derived from common name or username:
 Alphanumeric, underbar ('_'), dash ('-'), and dot ('.') except for "." or 
-".." as standalone strings.
+".." as standalone strings.  As of 2.0.1-rc6, the at ('@') character has
+been added as well for compatibility with the common name character class.
 
 .B Environmental variable names:
 Alphanumeric or underbar ('_').

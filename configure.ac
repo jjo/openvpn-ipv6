@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [2.0.1_rc6], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [2.0.1_rc7], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -264,9 +264,13 @@ AC_CHECK_HEADERS(sys/time.h sys/socket.h sys/ioctl.h sys/stat.h dnl
 		 netinet/in.h netinet/in_systm.h netinet/ip.h dnl
 		 netinet/if_ether.h netinet/tcp.h resolv.h arpa/inet.h dnl
 		 netdb.h sys/uio.h linux/if_tun.h linux/sockios.h dnl
-		 linux/types.h linux/errqueue.h dnl
-                 sys/poll.h sys/epoll.h
+		 linux/types.h sys/poll.h sys/epoll.h dnl
 )
+AC_CHECK_HEADERS(linux/errqueue.h,,,
+	[#ifdef HAVE_LINUX_TYPES_H
+	 # include <linux/types.h>
+	 #endif
+	])
 AC_CACHE_SAVE
 
 dnl check that in_addr_t is defined
@@ -463,22 +467,29 @@ dnl
 if test "$LZO" = "yes"; then
    LZO_H=""
    AC_CHECKING([for LZO Library and Header files])
-   AC_CHECK_HEADER(lzo/lzo1x.h, 
-        [ LZO_H="2" ],
-	[ AC_CHECK_HEADER(lzo1x.h, [ LZO_H="1" ])]
+   AC_CHECK_HEADER(lzo/lzo1x.h,
+	[ LZO_H="2"
+	  lzolibs="lzo2 lzo"
+	  AC_DEFINE(LZO_HEADER_DIR, 1, [Use lzo/ directory prefix for LZO header files (for LZO 2.0)])
+	],
+	[ AC_CHECK_HEADER(lzo1x.h, [ LZO_H="1" ; lzolibs=lzo ]) ]
    )
 
    if test -n "$LZO_H"; then
-     AC_CHECK_LIB(lzo, lzo1x_1_15_compress,
-       [
-         OPENVPN_ADD_LIBS(-llzo)
-	 AC_DEFINE(USE_LZO, 1, [Use LZO compression library])
-	 if test "$LZO_H" = "2"; then
-	   AC_DEFINE(LZO_HEADER_DIR, 1, [Use lzo/ directory prefix for LZO header files (for LZO 2.0)])
-         fi
-       ],
-       [AC_MSG_ERROR([LZO headers were found but LZO library was not found])]
-     )
+     havelzolib=0
+     for i in $lzolibs ; do
+	if test $havelzolib = 1 ; then break ; fi
+	AC_CHECK_LIB($i, lzo1x_1_15_compress,
+          [
+	    OPENVPN_ADD_LIBS(-l$i)
+	    AC_DEFINE(USE_LZO, 1, [Use LZO compression library])
+	    havelzolib=1
+	  ]
+        )
+     done
+     if test $havelzolib = 0 ; then
+       AC_MSG_ERROR([LZO headers were found but LZO library was not found])
+     fi
    else
      AC_MSG_RESULT([LZO headers were not found])
      AC_MSG_RESULT([LZO library available from http://www.oberhumer.com/opensource/lzo/])
