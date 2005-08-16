@@ -54,6 +54,7 @@ man_help ()
 {
   msg (M_CLIENT, "Management Interface for %s", title_string);
   msg (M_CLIENT, "Commands:");
+  msg (M_CLIENT, "auth-retry t           : Auth failure retry mode (none,interact,nointeract).");
   msg (M_CLIENT, "echo [on|off] [N|all]  : Like log, but only show messages in echo buffer.");
   msg (M_CLIENT, "exit|quit              : Close management session.");
   msg (M_CLIENT, "help                   : Print this message.");
@@ -169,7 +170,7 @@ man_output_list_push (struct management *man, const char *str)
   if (management_connected (man))
     {
       if (str)
-	output_list_push (man->connection.out, str);
+	output_list_push (man->connection.out, (const unsigned char *) str);
       man_update_io_state (man);
       if (!man->persist.standalone_disabled)
 	man_output_standalone (man, NULL);
@@ -181,7 +182,7 @@ man_prompt (struct management *man)
 {
   if (man_password_needed (man))
     man_output_list_push (man, "ENTER PASSWORD:");
-#if 0 // should we use prompt?
+#if 0 /* should we use prompt? */
   else
     man_output_list_push (man, PACKAGE_NAME ">");
 #endif
@@ -294,7 +295,7 @@ man_kill (struct management *man, const char *victim)
       char p2[128];
       int n_killed;
 
-      buf_set_read (&buf, victim, strlen (victim) + 1);
+      buf_set_read (&buf, (uint8_t*) victim, strlen (victim) + 1);
       buf_parse (&buf, ':', p1, sizeof (p1));
       buf_parse (&buf, ':', p2, sizeof (p2));
 
@@ -639,6 +640,22 @@ man_dispatch_command (struct management *man, struct status_output *so, const ch
       else
 	msg (M_CLIENT, "SUCCESS: mute=%d", get_mute_cutoff ());
     }
+  else if (streq (p[0], "auth-retry"))
+    {
+#if P2MP
+      if (p[1])
+	{
+	  if (auth_retry_set (M_CLIENT, p[1]))
+	    msg (M_CLIENT, "SUCCESS: auth-retry parameter changed");
+	  else
+	    msg (M_CLIENT, "ERROR: bad auth-retry parameter");
+	}
+      else
+	msg (M_CLIENT, "SUCCESS: auth-retry=%s", auth_retry_print ());	
+#else
+      msg (M_CLIENT, "ERROR: auth-retry feature is unavailable");
+#endif
+    }
   else if (streq (p[0], "state"))
     {
       if (!p[1])
@@ -880,7 +897,7 @@ man_process_command (struct management *man, const char *line)
 	msg (D_MANAGEMENT_DEBUG, "MANAGEMENT: CMD '%s'", line);
 
 #if 0
-      // DEBUGGING -- print args
+      /* DEBUGGING -- print args */
       {
 	int i;
 	for (i = 0; i < nparms; ++i)
@@ -948,7 +965,7 @@ man_read (struct management *man)
 	const unsigned char *line;
 	while ((line = command_line_get (man->connection.in)))
 	  {
-	    man_process_command (man, line);
+	    man_process_command (man, (char *) line);
 	    if (man->connection.halt)
 	      break;
 	    command_line_next (man->connection.in);
@@ -1305,7 +1322,7 @@ management_clear_callback (struct management *man)
   man->persist.standalone_disabled = false;
   man->persist.hold_release = false;
   CLEAR (man->persist.callback);
-  man_output_list_push (man, NULL); // flush output queue
+  man_output_list_push (man, NULL); /* flush output queue */
 }
 
 void
@@ -1482,11 +1499,11 @@ management_io (struct management *man)
 	      if (net_events & FD_WRITE)
 		{
 		  int status;
-		  //dmsg (M_INFO, "FD_WRITE set");
+		  /* dmsg (M_INFO, "FD_WRITE set"); */
 		  status = man_write (man);
 		  if (status < 0 && WSAGetLastError() == WSAEWOULDBLOCK)
 		    {
-		      //dmsg (M_INFO, "FD_WRITE cleared");
+		      /* dmsg (M_INFO, "FD_WRITE cleared"); */
 		      net_event_win32_clear_selected_events (&man->connection.ne32, FD_WRITE);
 		    }
 		}
@@ -1547,7 +1564,7 @@ management_io (struct management *man)
 
 #endif
 
-const inline bool
+inline bool
 man_standalone_ok (const struct management *man)
 {
   return !man->settings.management_over_tunnel && man->connection.state != MS_INITIAL;
@@ -1874,7 +1891,7 @@ command_line_get (struct command_line *cl)
     {
       buf_copy_excess (&cl->residual, &cl->buf, i);
       buf_chomp (&cl->buf);
-      ret = BSTR (&cl->buf);
+      ret = (const unsigned char *) BSTR (&cl->buf);
     }
   return ret;
 }
@@ -1948,7 +1965,7 @@ output_list_push (struct output_list *ol, const unsigned char *str)
 	  ASSERT (!ol->head);
 	  ol->head = e;
 	}
-      e->buf = string_alloc_buf (str, NULL);
+      e->buf = string_alloc_buf ((const char *) str, NULL);
       ol->tail = e;
     }
 }

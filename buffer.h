@@ -32,7 +32,7 @@
  * Define verify_align function, otherwise
  * it will be a noop.
  */
-//#define VERIFY_ALIGNMENT
+/* #define VERIFY_ALIGNMENT */
 
 /*
  * Keep track of source file/line of buf_init calls

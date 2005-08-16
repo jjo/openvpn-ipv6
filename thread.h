@@ -163,7 +163,7 @@ void openvpn_thread_join (openvpn_thread_t id);
 
 typedef int openvpn_thread_t;
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || PEDANTIC
 
 #define MUTEX_DEFINE(lock) int eat_semicolon
 #define MUTEX_PTR_DEFINE(lock) int eat_semicolon

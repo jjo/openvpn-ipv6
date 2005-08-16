@@ -25,7 +25,7 @@
 #ifndef SHAPER_H
 #define SHAPER_H
 
-//#define SHAPER_DEBUG
+/*#define SHAPER_DEBUG*/
 
 #ifdef HAVE_GETTIMEOFDAY
 

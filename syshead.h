@@ -272,6 +272,22 @@
 #endif
 
 /*
+ * Pedantic mode is meant to accomplish lint-style program checking,
+ * not to build a working executable.
+ */
+#ifdef __STRICT_ANSI__
+# define PEDANTIC 1
+# undef HAVE_CPP_VARARG_MACRO_GCC
+# undef HAVE_CPP_VARARG_MACRO_ISO
+# undef EMPTY_ARRAY_SIZE
+# define EMPTY_ARRAY_SIZE 1
+# undef inline
+# define inline
+#else
+# define PEDANTIC 0
+#endif
+
+/*
  * Do we have the capability to support the --passtos option?
  */
 #if defined(IPPROTO_IP) && defined(IP_TOS) && defined(HAVE_SETSOCKOPT)
@@ -386,7 +402,7 @@ socket_defined (const socket_descriptor_t sd)
 /*
  * Pthread support is currently experimental (and quite unfinished).
  */
-#if 1 // JYFIXME -- if defined, disable pthread
+#if 1 /* JYFIXME -- if defined, disable pthread */
 #undef USE_PTHREAD
 #endif
 

@@ -334,6 +334,7 @@ static const char usage_message[] =
   "--learn-address cmd : Run script cmd to validate client virtual addresses.\n"
   "--connect-freq n s : Allow a maximum of n new connections per s seconds.\n"
   "--max-clients n : Allow a maximum of n simultaneously connected clients.\n"
+  "--max-routes-per-client n : Allow a maximum of n internal routes per client.\n"
 #endif
   "\n"
   "Client options (when connecting to a multi-client server):\n"
@@ -344,6 +345,8 @@ static const char usage_message[] =
   "--pull           : Accept certain config file options from the peer as if they\n"
   "                  were part of the local config file.  Must be specified\n"
   "                  when connecting to a '--mode server' remote host.\n"
+  "--auth-retry t  : How to handle auth failures.  Set t to\n"
+  "                  none (default), interact, or nointeract.\n"
 #endif
 #ifdef ENABLE_OCC
   "--explicit-exit-notify [n] : On exit/restart, send exit signal to\n"
@@ -572,6 +575,7 @@ init_options (struct options *o)
   o->n_bcast_buf = 256;
   o->tcp_queue_limit = 64;
   o->max_clients = 1024;
+  o->max_routes_per_client = 256;
   o->ifconfig_pool_persist_refresh_freq = 600;
 #endif
 #if P2MP
@@ -808,7 +812,7 @@ show_p2mp_parms (const struct options *o)
   SHOW_INT (cf_max);
   SHOW_INT (cf_per);
   SHOW_INT (max_clients);
-
+  SHOW_INT (max_routes_per_client);
   SHOW_BOOL (client_cert_not_required);
   SHOW_BOOL (username_as_common_name)
   SHOW_STR (auth_user_pass_verify_script);
@@ -1933,7 +1937,7 @@ options_cmp_equal (char *actual, const char *expected)
 void
 options_warning (char *actual, const char *expected)
 {
-  return options_warning_safe (actual, expected, strlen (actual) + 1);
+  options_warning_safe (actual, expected, strlen (actual) + 1);
 }
 
 static const char *
@@ -2079,7 +2083,7 @@ const char *
 options_string_version (const char* s, struct gc_arena *gc)
 {
   struct buffer out = alloc_buf_gc (4, gc);
-  strncpynt (BPTR (&out), s, 3);
+  strncpynt ((char *) BPTR (&out), s, 3);
   return BSTR (&out);
 }
 
@@ -2113,6 +2117,58 @@ foreign_option (struct options *o, char *argv[], int len, struct env_set *es)
     }
 }
 
+#if P2MP
+
+/*
+ * Manage auth-retry variable
+ */
+
+static int global_auth_retry; /* GLOBAL */
+
+int
+auth_retry_get (void)
+{
+  return global_auth_retry;
+}
+
+bool
+auth_retry_set (const int msglevel, const char *option)
+{
+  if (streq (option, "interact"))
+    global_auth_retry = AR_INTERACT;
+  else if (streq (option, "nointeract"))
+    global_auth_retry = AR_NOINTERACT;
+  else if (streq (option, "none"))
+    global_auth_retry = AR_NONE;
+  else
+    {
+      msg (msglevel, "--auth-retry method must be 'interact', 'nointeract', or 'none'");
+      return false;
+    }
+  return true;
+}
+
+const char *
+auth_retry_print (void)
+{
+  switch (global_auth_retry)
+    {
+    case AR_NONE:
+      return "none";
+    case AR_NOINTERACT:
+      return "nointeract";
+    case AR_INTERACT:
+      return "interact";
+    default:
+      return "???";
+    }
+}
+
+#endif
+
+/*
+ * Print the help message.
+ */
 static void
 usage (void)
 {
@@ -2287,7 +2343,7 @@ parse_line (const char *line,
 	    }
 	  if (state == STATE_DONE)
 	    {
-	      //ASSERT (parm_len > 0);
+	      /* ASSERT (parm_len > 0); */
 	      p[ret] = gc_malloc (parm_len + 1, true, gc);
 	      memcpy (p[ret], parm, parm_len);
 	      p[ret][parm_len] = '\0';
@@ -3682,6 +3738,12 @@ add_option (struct options *options,
 	}
       options->max_clients = max_clients;
     }
+  else if (streq (p[0], "max-routes-per-client") && p[1])
+    {
+      i += 1;
+      VERIFY_PERMISSION (OPT_P_INHERIT);
+      options->max_routes_per_client = max_int (atoi (p[1]), 1);
+    }
   else if (streq (p[0], "client-cert-not-required"))
     {
       VERIFY_PERMISSION (OPT_P_GENERAL);
@@ -3852,7 +3914,12 @@ add_option (struct options *options,
       else
 	options->auth_user_pass_file = "stdin";
     }
-
+  else if (streq (p[0], "auth-retry") && p[1])
+    {
+      ++i;
+      VERIFY_PERMISSION (OPT_P_GENERAL);
+      auth_retry_set (msglevel, p[1]);
+    }
 #endif
 #ifdef WIN32
   else if (streq (p[0], "route-method") && p[1])

@@ -431,7 +431,7 @@ ifconfig_pool_test (in_addr_t start, in_addr_t end)
 {
   struct gc_arena gc = gc_new ();
   struct ifconfig_pool *p = ifconfig_pool_init (IFCONFIG_POOL_30NET, start, end); 
-  //struct ifconfig_pool *p = ifconfig_pool_init (IFCONFIG_POOL_INDIV, start, end);
+  /*struct ifconfig_pool *p = ifconfig_pool_init (IFCONFIG_POOL_INDIV, start, end);*/
   ifconfig_pool_handle array[256];
   int i;
 

@@ -1007,7 +1007,7 @@ event_set_init_simple (int *maxevents, unsigned int flags)
 #ifdef WIN32
   ret = we_init (maxevents, flags);
 #elif POLL && SELECT
-#if 0 // Define to 1 if EVENT_METHOD_US_TIMEOUT should cause select to be favored over poll
+#if 0 /* Define to 1 if EVENT_METHOD_US_TIMEOUT should cause select to be favored over poll */
   if (flags & EVENT_METHOD_US_TIMEOUT)
     ret = se_init (maxevents, flags); 
 #endif

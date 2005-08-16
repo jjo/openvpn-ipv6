@@ -97,7 +97,7 @@ static char *ms_error_text(DWORD ms_err)
 	FORMAT_MESSAGE_FROM_SYSTEM |
 	FORMAT_MESSAGE_IGNORE_INSERTS,
 	NULL, ms_err,
-	MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+	MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), /* Default language */
 	(LPTSTR) &lpMsgBuf, 0, NULL);
     if (lpMsgBuf) {
 	char *p;

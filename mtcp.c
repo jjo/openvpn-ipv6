@@ -217,6 +217,7 @@ multi_tcp_dereference_instance (struct multi_tcp *mtcp, struct multi_instance *m
   struct link_socket *ls = mi->context.c2.link_socket;
   if (ls && mi->socket_set_called)
     event_del (mtcp->es, socket_event_handle (ls));
+  mtcp->n_esr = 0;
 }
 
 static inline void

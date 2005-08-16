@@ -25,7 +25,7 @@ dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.50)
 
-AC_INIT([OpenVPN], [2.0.1_rc7], [openvpn-users@lists.sourceforge.net], [openvpn])
+AC_INIT([OpenVPN], [2.0.1], [openvpn-users@lists.sourceforge.net], [openvpn])
 AM_CONFIG_HEADER(config.h)
 AC_CONFIG_SRCDIR(syshead.h)
 
@@ -122,6 +122,12 @@ AC_ARG_ENABLE(strict,
    [  --enable-strict         Enable strict compiler warnings (debugging option)],
    [STRICT="$enableval"],
    [STRICT="no"]
+)
+
+AC_ARG_ENABLE(pedantic,
+   [  --enable-pedantic       Enable pedantic compiler warnings, will not generate a working executable (debugging option)],
+   [PEDANTIC="$enableval"],
+   [PEDANTIC="no"]
 )
 
 AC_ARG_ENABLE(profiling,
@@ -605,6 +611,11 @@ fi
 dnl enable strict compiler warnings
 if test "$STRICT" = "yes"; then
    CFLAGS="$CFLAGS -Wall -Wpointer-arith -Wsign-compare -Wno-unused-parameter -Wno-unused-function"
+fi
+
+dnl enable pedantic compiler warnings
+if test "$PEDANTIC" = "yes"; then
+   CFLAGS="$CFLAGS -ansi -pedantic"
 fi
 
 dnl enable profiling

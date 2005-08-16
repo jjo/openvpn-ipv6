@@ -291,7 +291,7 @@ check_send_occ_msg_dowork (struct context *c)
 	dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_LOAD min_int(%d-%d-%d-%d,%d) size=%d",
 	     c->c2.occ_mtu_load_size,
 	     OCC_STRING_SIZE,
-	     sizeof (uint8_t),
+	      (int) sizeof (uint8_t),
 	     EXTRA_FRAME (&c->c2.frame),
 	     MAX_RW_SIZE_TUN (&c->c2.frame),
 	     BLEN (&c->c2.buf));
@@ -346,11 +346,11 @@ process_received_occ_msg (struct context *c)
       dmsg (D_PACKET_CONTENT, "RECEIVED OCC_REPLY");
       if (c->options.occ && !TLS_MODE (c) && c->c2.options_string_remote)
 	{
-	  if (!options_cmp_equal_safe (BPTR (&c->c2.buf),
+	  if (!options_cmp_equal_safe ((char *) BPTR (&c->c2.buf),
 				       c->c2.options_string_remote,
 				       c->c2.buf.len))
 	    {
-	      options_warning_safe (BPTR (&c->c2.buf),
+	      options_warning_safe ((char *) BPTR (&c->c2.buf),
 				    c->c2.options_string_remote,
 				    c->c2.buf.len);
 	    }

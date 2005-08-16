@@ -155,7 +155,9 @@ popd
 
 for pi in auth-pam down-root; do
   %__mv -f plugin/$pi/README plugin/README.$pi
-  %__install -c -m 755 plugin/$pi/openvpn-$pi.so %{buildroot}%{_datadir}/openvpn/plugin/lib/openvpn-$pi.so
+  if [ -e plugin/$pi/openvpn-$pi.so ]; then
+    %__install -c -m 755 plugin/$pi/openvpn-$pi.so %{buildroot}%{_datadir}/openvpn/plugin/lib/openvpn-$pi.so
+  fi
 done
 
 %__mv -f plugin/README plugin/README.plugins
@@ -221,6 +223,9 @@ fi
 %doc contrib/ easy-rsa/ management/ sample-*/ plugin/README.*
 
 %changelog
+
+* Mon Aug 2 2005 James Yonan
+- Fixed build problem with --define 'without_pam 1'
 
 * Mon Apr 4 2005 James Yonan
 - Moved some files from /usr/share/openvpn to %doc for compatibility

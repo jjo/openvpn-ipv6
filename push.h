@@ -42,7 +42,7 @@ int process_incoming_push_msg (struct context *c,
 			       const struct buffer *buffer,
 			       bool honor_received_options,
 			       unsigned int permission_mask,
-			       int *option_types_found);
+			       unsigned int *option_types_found);
 
 bool send_push_request (struct context *c);
 

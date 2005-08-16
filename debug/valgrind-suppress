@@ -287,3 +287,24 @@
    Memcheck:Cond
    fun:lzo1x_1_15_compress
 }
+
+{
+   test48
+   Memcheck:Value4
+   fun:DES_set_key_unchecked
+}
+
+{
+   test49
+   Memcheck:Value4
+   fun:DES_encrypt2
+}
+
+{
+   test50
+   Memcheck:Leak
+   fun:malloc
+   fun:_IO_getdelim
+   fun:getline
+   fun:getpass
+}

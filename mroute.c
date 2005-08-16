@@ -290,7 +290,7 @@ mroute_helper_init (int ageable_ttl_secs)
 {
   struct mroute_helper *mh;
   ALLOC_OBJ_CLEAR (mh, struct mroute_helper);
-  //mutex_init (&mh->mutex);
+  /*mutex_init (&mh->mutex);*/
   mh->ageable_ttl_secs = ageable_ttl_secs;
   return mh;
 }
@@ -356,7 +356,7 @@ mroute_helper_del_iroute (struct mroute_helper *mh, const struct iroute *ir)
 void
 mroute_helper_free (struct mroute_helper *mh)
 {
-  //mutex_destroy (&mh->mutex);
+  /*mutex_destroy (&mh->mutex);*/
   free (mh);
 }
 

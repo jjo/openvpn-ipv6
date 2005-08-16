@@ -611,14 +611,14 @@ schedule_test (void)
     {
       ALLOC_OBJ_CLEAR (array[i], struct schedule_entry);
       tv_randomize (&array[i]->tv);
-      //schedule_print (s);
-      //schedule_verify (s);
+      /*schedule_print (s);*/
+      /*schedule_verify (s);*/
       schedule_add_modify (s, array[i]);
     }
 
   schedule_randomize_array (array, n);
 
-  //schedule_print (s);
+  /*schedule_print (s);*/
   schedule_verify (s);
 
   for (j = 1; j <= n_mod; ++j)
@@ -628,23 +628,23 @@ schedule_test (void)
       for (i = 0; i < n; ++i)
 	{
 	  e = schedule_find_earliest_wakeup (s);
-	  //printf ("BEFORE %s\n", tv_string (&e->tv, &gc));
+	  /*printf ("BEFORE %s\n", tv_string (&e->tv, &gc));*/
 	  tv_randomize (&e->tv);
-	  //printf ("AFTER %s\n", tv_string (&e->tv, &gc));
+	  /*printf ("AFTER %s\n", tv_string (&e->tv, &gc));*/
 	  schedule_add_modify (s, e);
-	  //schedule_verify (s);
-	  //schedule_print (s);
+	  /*schedule_verify (s);*/
+	  /*schedule_print (s);*/
 	}
       schedule_verify (s);
-      //schedule_print (s);
+      /*schedule_print (s);*/
     }
 
-  //printf ("INS=%d\n", z.ins);
+  /*printf ("INS=%d\n", z.ins);*/
 
   while ((e = schedule_find_earliest_wakeup (s)))
     {
       schedule_remove_node (s, e);
-      //schedule_verify (s);
+      /*schedule_verify (s);*/
     }
   schedule_verify (s);
 

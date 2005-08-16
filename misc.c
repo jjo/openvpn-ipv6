@@ -899,7 +899,7 @@ setenv_str_ex (struct env_set *es,
     {
 #if defined(WIN32)
       {
-	//msg (M_INFO, "SetEnvironmentVariable '%s' '%s'", name_tmp, val_tmp ? val_tmp : "NULL");
+	/*msg (M_INFO, "SetEnvironmentVariable '%s' '%s'", name_tmp, val_tmp ? val_tmp : "NULL");*/
 	if (!SetEnvironmentVariable (name_tmp, val_tmp))
 	  msg (M_WARN | M_ERRNO, "SetEnvironmentVariable failed, name='%s', value='%s'",
 	       name_tmp,
@@ -912,7 +912,7 @@ setenv_str_ex (struct env_set *es,
 
 	mutex_lock_static (L_PUTENV);
 	status = putenv (str);
-	//msg (M_INFO, "PUTENV '%s'", str);
+	/*msg (M_INFO, "PUTENV '%s'", str);*/
 	if (!status)
 	  manage_env (str);
 	mutex_unlock_static (L_PUTENV);
@@ -1261,12 +1261,13 @@ get_user_pass (struct user_pass *up,
 }
 
 void
-purge_user_pass (struct user_pass *up)
+purge_user_pass (struct user_pass *up, const bool force)
 {
-  if (up->nocache)
+  const bool nocache = up->nocache;
+  if (nocache || force)
     {
       CLEAR (*up);
-      up->nocache = true;
+      up->nocache = nocache;
     }
 }
 

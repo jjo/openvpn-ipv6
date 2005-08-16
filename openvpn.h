@@ -427,7 +427,7 @@ struct context
   bool first_time;
 
   /* used by multi-client code to lock the context */
-  //MUTEX_DEFINE (mutex);
+  /*MUTEX_DEFINE (mutex);*/
 
   /* context modes */
 # define CM_P2P            0 /* standalone point-to-point session or client */

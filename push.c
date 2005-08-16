@@ -51,7 +51,19 @@ receive_auth_failed (struct context *c, const struct buffer *buffer)
   msg (M_VERB0, "AUTH: Received AUTH_FAILED control message");
   if (c->options.pull)
     {
-      c->sig->signal_received = SIGTERM; /* SOFT-SIGTERM -- Auth failure error */
+      switch (auth_retry_get ())
+	{
+	case AR_NONE:
+	  c->sig->signal_received = SIGTERM; /* SOFT-SIGTERM -- Auth failure error */
+	  break;
+	case AR_INTERACT:
+	  ssl_purge_auth ();
+	case AR_NOINTERACT:
+	  c->sig->signal_received = SIGUSR1; /* SOFT-SIGUSR1 -- Auth failure error */
+	  break;
+	default:
+	  ASSERT (0);
+	}
       c->sig->signal_text = "auth-failure";
 #ifdef ENABLE_MANAGEMENT
       if (management)
@@ -178,7 +190,7 @@ process_incoming_push_msg (struct context *c,
 			   const struct buffer *buffer,
 			   bool honor_received_options,
 			   unsigned int permission_mask,
-			   int *option_types_found)
+			   unsigned int *option_types_found)
 {
   int ret = PUSH_MSG_ERROR;
   struct buffer buf = *buffer;
@@ -247,8 +259,8 @@ remove_iroutes_from_push_route_list (struct options *o)
       ALLOC_OBJ_CLEAR_GC (pl, struct push_list, &gc);
       ALLOC_ARRAY_CLEAR_GC (line, char, MAX_PUSH_LIST_LEN, &gc);
 
-      buf_set_read (&in, o->push_list->options, strlen (o->push_list->options));
-      buf_set_write (&out, pl->options, sizeof (pl->options));
+      buf_set_read (&in, (const uint8_t*) o->push_list->options, strlen (o->push_list->options));
+      buf_set_write (&out, (uint8_t*) pl->options, sizeof (pl->options));
 
       /* cycle through the push list */
       while (buf_parse (&in, ',', line, MAX_PUSH_LIST_LEN))

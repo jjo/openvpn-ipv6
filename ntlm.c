@@ -58,14 +58,14 @@ create_des_keys(const unsigned char *hash, unsigned char *key)
 static void
 gen_md4_hash (const char* data, int data_len, char *result)
 {
-  // result is 16 byte md4 hash
+  /* result is 16 byte md4 hash */
 
   MD4_CTX c;
   char md[16];
 
   MD4_Init (&c);
   MD4_Update (&c, data, data_len);
-  MD4_Final (md, &c);
+  MD4_Final ((unsigned char *)md, &c);
 
   memcpy (result, md, 16);
 }
@@ -73,7 +73,7 @@ gen_md4_hash (const char* data, int data_len, char *result)
 static int
 unicodize (char *dst, const char *src)
 {
-  // not really unicode...
+  /* not really unicode... */
   int i = 0;
   do
     {
@@ -105,8 +105,8 @@ ntlm_phase_1 (const struct http_proxy_info *p, struct gc_arena *gc)
 const char *
 ntlm_phase_3 (const struct http_proxy_info *p, const char *phase_2, struct gc_arena *gc)
 {
-  char pwbuf[sizeof (p->up.password) * 2]; // for unicode password
-  char buf2[128]; // decoded reply from proxy
+  char pwbuf[sizeof (p->up.password) * 2]; /* for unicode password */
+  char buf2[128]; /* decoded reply from proxy */
   char phase3[146];
 
   char md4_hash[21];
@@ -123,64 +123,64 @@ ntlm_phase_3 (const struct http_proxy_info *p, const char *phase_2, struct gc_ar
   ASSERT (strlen (p->up.username) > 0);
   ASSERT (strlen (p->up.password) > 0);
 
-  // fill 1st 16 bytes with md4 hash, disregard terminating null
+  /* fill 1st 16 bytes with md4 hash, disregard terminating null */
   gen_md4_hash (pwbuf, unicodize (pwbuf, p->up.password) - 2, md4_hash);
 
-  //pad to 21 bytes
+  /* pad to 21 bytes */
   memset (md4_hash + 16, 0, 5);
 
   ret_val = base64_decode( phase_2, (void *)buf2);
   /* we can be sure that phase_2 is less than 128
    * therefore buf2 needs to be (3/4 * 128) */
 
-  // extract the challenge from bytes 24-31
+  /* extract the challenge from bytes 24-31 */
   for (i=0; i<8; i++)
   {
     challenge[i] = buf2[i+24];
   }
 
-  create_des_keys (md4_hash, key1);
+  create_des_keys ((unsigned char *)md4_hash, key1);
   des_set_key_unchecked ((des_cblock *)key1, sched1);
   des_ecb_encrypt ((des_cblock *)challenge, (des_cblock *)response, sched1, DES_ENCRYPT);
 
-  create_des_keys (&(md4_hash[7]), key2);
+  create_des_keys ((unsigned char *)&(md4_hash[7]), key2);
   des_set_key_unchecked ((des_cblock *)key2, sched2);
   des_ecb_encrypt ((des_cblock *)challenge, (des_cblock *)&(response[8]), sched2, DES_ENCRYPT);
 
-  create_des_keys (&(md4_hash[14]), key3);
+  create_des_keys ((unsigned char *)&(md4_hash[14]), key3);
   des_set_key_unchecked ((des_cblock *)key3, sched3);
   des_ecb_encrypt ((des_cblock *)challenge, (des_cblock *)&(response[16]), sched3, DES_ENCRYPT);
 
-  //clear reply
+  /* clear reply */
   memset (phase3, 0, sizeof (phase3));
 
   strcpy (phase3, "NTLMSSP\0");
-  phase3[8] = 3; // type 3
+  phase3[8] = 3; /* type 3 */
 
   buflen = 0x58 + strlen (p->up.username);
   if (buflen > (int) sizeof (phase3))
     buflen = sizeof (phase3);
 
-  phase3[0x10] = buflen; // lm not used
-  phase3[0x20] = buflen; // default domain (i.e. proxy's domain)
-  phase3[0x30] = buflen; // no workstation name supplied
-  phase3[0x38] = buflen; // no session key
+  phase3[0x10] = buflen; /* lm not used */
+  phase3[0x20] = buflen; /* default domain (i.e. proxy's domain) */
+  phase3[0x30] = buflen; /* no workstation name supplied */
+  phase3[0x38] = buflen; /* no session key */
 
-  phase3[0x14] = 24; // ntlm response is 24 bytes long
+  phase3[0x14] = 24; /* ntlm response is 24 bytes long */
   phase3[0x16] = phase3[0x14];
-  phase3[0x18] = 0x40; // ntlm offset
+  phase3[0x18] = 0x40; /* ntlm offset */
   memcpy (&(phase3[0x40]), response, 24);
 
 
-  phase3[0x24] = strlen (p->up.username); // username in ascii
+  phase3[0x24] = strlen (p->up.username); /* username in ascii */
   phase3[0x26] = phase3[0x24];
   phase3[0x28] = 0x58;
   strncpy (&(phase3[0x58]), p->up.username, sizeof (phase3) - 0x58);
 
-  phase3[0x3c] = 0x02; // negotiate oem
-  phase3[0x3d] = 0x02; // negotiate ntlm
+  phase3[0x3c] = 0x02; /* negotiate oem */
+  phase3[0x3d] = 0x02; /* negotiate ntlm */
 
-  return (make_base64_string2 (phase3, buflen, gc));
+  return ((const char *)make_base64_string2 ((unsigned char *)phase3, buflen, gc));
 }
 
 #else

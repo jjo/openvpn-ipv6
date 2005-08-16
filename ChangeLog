@@ -3,6 +3,49 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.08.16 -- Version 2.0.1
+
+* Security Fix -- DoS attack against server when run with "verb 0" and
+  without "tls-auth".  If a client connection to the server fails
+  certificate verification, the OpenSSL error queue is not properly
+  flushed, which can result in another unrelated client instance on the
+  server seeing the error and responding to it, resulting in disconnection
+  of the unrelated client (CAN-2005-2531).
+* Security Fix -- DoS attack against server by authenticated client.
+  This bug presents a potential DoS attack vector against the server
+  which can only be initiated by a connected and authenticated client.
+  If the client sends a packet which fails to decrypt on the server,
+  the OpenSSL error queue is not properly flushed, which can result in
+  another unrelated client instance on the server seeing the error and
+  responding to it, resulting in disconnection of the unrelated client
+  (CAN-2005-2532).
+* Security Fix -- DoS attack against server by authenticated client.
+  A malicious client in "dev tap" ethernet bridging mode could
+  theoretically flood the server with packets appearing to come from
+  hundreds of thousands of different MAC addresses, causing the OpenVPN
+  process to deplete system virtual memory as it expands its internal
+  routing table.  A --max-routes-per-client directive has been added
+  (default=256) to limit the maximum number of routes in OpenVPN's
+  internal routing table which can be associated with a given client
+  (CAN-2005-2533).
+* Security Fix -- DoS attack against server by authenticated client.
+  If two or more client machines try to connect to the server at the
+  same time via TCP, using the same client certificate, and when
+  --duplicate-cn is not enabled on the server, a race condition can
+  crash the server with "Assertion failed at mtcp.c:411"
+  (CAN-2005-2534).
+* Fixed server bug where under certain circumstances, the client instance
+  object deletion function would try to delete iroutes which had never been
+  added in the first place, triggering "Assertion failed at mroute.c:349".
+* Added --auth-retry option to prevent auth errors from being fatal
+  on the client side, and to permit username/password requeries in case
+  of error.  Also controllable via new "auth-retry" management interface
+  command.  See man page for more info.
+* Added easy-rsa 2.0 scripts to the tarball in easy-rsa/2.0
+* Fixed bug in openvpn.spec where rpmbuild --define 'without_pam 1'
+  would fail to build.
+* Implement "make check" to perform loopback tests (Matthias Andree).
+
 2005.07.21 -- Version 2.0.1-rc7
 
 * Support LZO 2.01 which renamed its library to lzo2 (Matthias Andree).

@@ -276,7 +276,7 @@ pem_password_callback (char *buf, int size, int rwflag, void *u)
       /* prompt for password even if --askpass wasn't specified */
       pem_password_setup (NULL);
       strncpynt (buf, passbuf.password, size);
-      purge_user_pass (&passbuf);
+      purge_user_pass (&passbuf, false);
 
       return strlen (buf);
     }
@@ -306,6 +306,18 @@ ssl_set_auth_nocache (void)
 {
   passbuf.nocache = true;
   auth_user_pass.nocache = true;
+}
+
+/*
+ * Forget private key password AND auth-user-pass username/password.
+ */
+void
+ssl_purge_auth (void)
+{
+#if 1 /* JYFIXME -- todo: bad private key should trigger a signal, then this code can be included */
+  purge_user_pass (&passbuf, true);
+#endif
+  purge_user_pass (&auth_user_pass, true);
 }
 
 /*
@@ -347,7 +359,7 @@ extract_x509_field (const char *x509, const char *field_name, char *out, int siz
       struct buffer component_buf;
       char field_name_buf[64];
       char field_value_buf[256];
-      buf_set_read (&component_buf, field_buf, strlen (field_buf));
+      buf_set_read (&component_buf, (const uint8_t *) field_buf, strlen (field_buf));
       buf_parse (&component_buf, '=', field_name_buf, sizeof (field_name_buf));
       buf_parse (&component_buf, '=', field_value_buf, sizeof (field_value_buf));
       if (!strcmp (field_name_buf, field_name))
@@ -626,6 +638,7 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
   return 1;			/* Accept connection */
 
  err:
+  ERR_clear_error ();
   return 0;                     /* Reject connection */
 }
 
@@ -729,10 +742,12 @@ info_callback (INFO_CALLBACK_SSL_CONST SSL * s, int where, int ret)
 SSL_CTX *
 init_ssl (const struct options *options)
 {
-  SSL_CTX *ctx;
+  SSL_CTX *ctx = NULL;
   DH *dh;
   BIO *bio;
   bool using_cert_file = false;
+
+  ERR_clear_error ();
 
   if (options->tls_server)
     {
@@ -795,7 +810,11 @@ init_ssl (const struct options *options)
           /* Reparse the PKCS #12 file with password */
           ca = NULL;
           if (!PKCS12_parse(p12, password, &pkey, &cert, &ca))
-             msg (M_SSLERR, "Error parsing PKCS#12 file %s", options->pkcs12_file);
+	    {
+	      PKCS12_free(p12);
+	      msg (M_WARN|M_SSL, "Error parsing PKCS#12 file %s", options->pkcs12_file);
+	      goto err;
+	    }
         }
       PKCS12_free(p12);
 
@@ -856,7 +875,8 @@ init_ssl (const struct options *options)
 		  if (management && (ERR_GET_REASON (ERR_peek_error()) == EVP_R_BAD_DECRYPT))
 		    management_auth_failure (management, UP_TYPE_PRIVATE_KEY);
 #endif
-		  msg (M_SSLERR, "Cannot load private key file %s", options->priv_key_file);
+		  msg (M_WARN|M_SSL, "Cannot load private key file %s", options->priv_key_file);
+		  goto err;
 		}
 	      warn_if_group_others_accessible (options->priv_key_file);
 
@@ -910,7 +930,15 @@ init_ssl (const struct options *options)
 	msg (M_SSLERR, "Problem with cipher list: %s", options->cipher_list);
     }
 
+  ERR_clear_error ();
+
   return ctx;
+
+ err:
+  ERR_clear_error ();
+  if (ctx)
+    SSL_CTX_free (ctx);
+  return NULL;
 }
 
 /*
@@ -1175,6 +1203,7 @@ bio_write (struct tls_multi* multi, BIO *bio, const uint8_t *data, int size, con
 	      msg (D_TLS_ERRORS | M_SSL, "TLS ERROR: BIO write %s error",
 		   desc);
 	      ret = -1;
+	      ERR_clear_error ();
 	    }
 	}
       else if (i != size)
@@ -1182,6 +1211,7 @@ bio_write (struct tls_multi* multi, BIO *bio, const uint8_t *data, int size, con
 	  msg (D_TLS_ERRORS | M_SSL,
 	       "TLS ERROR: BIO write %s incomplete %d/%d", desc, i, size);
 	  ret = -1;
+	  ERR_clear_error ();
 	}
       else
 	{			/* successful write */
@@ -1234,6 +1264,7 @@ bio_read (struct tls_multi* multi, BIO *bio, struct buffer *buf, int maxlen, con
 		   desc);
 	      buf->len = 0;
 	      ret = -1;
+	      ERR_clear_error ();
 	    }
 	}
       else if (!i)
@@ -2445,7 +2476,7 @@ key_method_2_write (struct buffer *buf, struct tls_session *session)
 	goto error;
       if (!write_string (buf, auth_user_pass.password, -1))
 	goto error;
-      purge_user_pass (&auth_user_pass);
+      purge_user_pass (&auth_user_pass, false);
     }
 
   /*
@@ -2517,9 +2548,9 @@ key_method_1_read (struct buffer *buf, struct tls_session *session)
   /* compare received remote options string
      with our locally computed options string */
   if (!session->opt->disable_occ &&
-      !options_cmp_equal_safe (BPTR (buf), session->opt->remote_options, buf->len))
+      !options_cmp_equal_safe ((char *) BPTR (buf), session->opt->remote_options, buf->len))
     {
-      options_warning_safe (BPTR (buf), session->opt->remote_options, buf->len);
+      options_warning_safe ((char *) BPTR (buf), session->opt->remote_options, buf->len);
     }
 #endif
 
@@ -2763,7 +2794,7 @@ tls_process (struct tls_multi *multi,
 	msg (D_TLS_DEBUG_LOW, "TLS: tls_process: killed expiring key");
   }
 
-  //mutex_cycle (multi->mutex);
+  /*mutex_cycle (multi->mutex);*/
 
   do
     {
@@ -2948,7 +2979,7 @@ tls_process (struct tls_multi *multi,
 		  state_change = true;
 		  dmsg (D_TLS_DEBUG, "TLS -> Incoming Plaintext");
 		}
-#if 0 // show null plaintext reads
+#if 0 /* show null plaintext reads */
 	      if (!status)
 		msg (M_INFO, "TLS plaintext read -> NULL return");
 #endif
@@ -3046,7 +3077,7 @@ tls_process (struct tls_multi *multi,
 		}
 	    }
 	}
-      //mutex_cycle (multi->mutex);
+      /*mutex_cycle (multi->mutex);*/
     }
   while (state_change);
 
@@ -3099,6 +3130,7 @@ tls_process (struct tls_multi *multi,
   }
 
 error:
+  ERR_clear_error ();
   ks->state = S_ERROR;
   msg (D_TLS_ERRORS, "TLS Error: TLS handshake failed");
   INCR_ERROR;
@@ -3129,6 +3161,8 @@ tls_multi_process (struct tls_multi *multi,
   bool error = false;
 
   perf_push (PERF_TLS_MULTI_PROCESS);
+
+  ERR_clear_error ();
 
   /*
    * Process each session object having state of S_INITIAL or greater,
@@ -3183,7 +3217,7 @@ tls_multi_process (struct tls_multi *multi,
 		reset_session (multi, session);
 	    }
 	}
-      //mutex_cycle (multi->mutex);
+      /*mutex_cycle (multi->mutex);*/
     }
 
   update_time ();
@@ -3709,6 +3743,7 @@ tls_pre_decrypt (struct tls_multi *multi,
   return ret;
 
  error:
+  ERR_clear_error ();
   ++multi->n_soft_errors;
   goto done;
 }
@@ -3815,7 +3850,11 @@ tls_pre_decrypt_lite (const struct tls_auth_standalone *tas,
 	ret = true;
       }
     }
+  gc_free (&gc);
+  return ret;
+
  error:
+  ERR_clear_error ();
   gc_free (&gc);
   return ret;
 }
@@ -3893,6 +3932,8 @@ tls_send_payload (struct tls_multi *multi,
   struct key_state *ks;
   bool ret = false;
 
+  ERR_clear_error ();
+
   ASSERT (multi);
 
   session = &multi->session[TM_ACTIVE];
@@ -3903,6 +3944,8 @@ tls_send_payload (struct tls_multi *multi,
       if (key_state_write_plaintext_const (multi, ks, data, size) == 1)
 	ret = true;
     }
+
+  ERR_clear_error ();
 
   return ret;
 }
@@ -3915,6 +3958,8 @@ tls_rec_payload (struct tls_multi *multi,
   struct key_state *ks;
   bool ret = false;
 
+  ERR_clear_error ();
+
   ASSERT (multi);
 
   session = &multi->session[TM_ACTIVE];
@@ -3926,6 +3971,8 @@ tls_rec_payload (struct tls_multi *multi,
 	ret = true;
       ks->plaintext_read_buf.len = 0;
     }
+
+  ERR_clear_error ();
 
   return ret;
 }

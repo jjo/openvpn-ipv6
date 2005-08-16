@@ -35,7 +35,7 @@
 # Change these to point to your OpenSSL, LZO, and
 # (optionally) dmalloc top-level directories.
 
-OPENSSL = /c/src/openssl-0.9.7f
+OPENSSL = /c/src/openssl-0.9.7g
 LZO = /c/src/lzo-1.08
 DMALLOC = /c/src/dmalloc-5.4.2
 

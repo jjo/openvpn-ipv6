@@ -976,8 +976,19 @@ do_deferred_options (struct context *c, const unsigned int found)
       do_init_timers (c, true);
       msg (D_PUSH, "OPTIONS IMPORT: timers and/or timeouts modified");
     }
+
+#ifdef ENABLE_OCC
   if (found & OPT_P_EXPLICIT_NOTIFY)
-    msg (D_PUSH, "OPTIONS IMPORT: explicit notify parm(s) modified");
+    {
+      if (c->options.proto != PROTO_UDPv4 && c->options.explicit_exit_notification)
+	{
+	  msg (D_PUSH, "OPTIONS IMPORT: --explicit-exit-notify can only be used with --proto udp");
+	  c->options.explicit_exit_notification = 0;
+	}
+      else
+	msg (D_PUSH, "OPTIONS IMPORT: explicit notify parm(s) modified");
+    }
+#endif
 
   if (found & OPT_P_SHAPER)
     {
@@ -1053,6 +1064,11 @@ socket_restart_pause (struct context *c)
 #ifdef ENABLE_DEBUG
   if (GREMLIN_CONNECTION_FLOOD_LEVEL (c->options.gremlin))
     sec = 0;
+#endif
+
+#if P2MP
+  if (auth_retry_get () == AR_NOINTERACT)
+    sec = 10;
 #endif
 
   if (do_hold (NULL))
@@ -1239,6 +1255,28 @@ do_init_crypto_tls_c1 (struct context *c)
        * SSL context.
        */
       c->c1.ks.ssl_ctx = init_ssl (options);
+      if (!c->c1.ks.ssl_ctx)
+	{
+#if P2MP
+	  switch (auth_retry_get ())
+	    {
+	    case AR_NONE:
+	      msg (M_FATAL, "Error: private key password verification failed");
+	      break;
+	    case AR_INTERACT:
+	      ssl_purge_auth ();
+	    case AR_NOINTERACT:
+	      c->sig->signal_received = SIGUSR1; /* SOFT-SIGUSR1 -- Password failure error */
+	      break;
+	    default:
+	      ASSERT (0);
+	    }
+	  c->sig->signal_text = "private-key-password-failure";
+	  return;
+#else
+	  msg (M_FATAL, "Error: private key password verification failed");
+#endif
+	}
 
       /* Get cipher & hash algorithms */
       init_key_type (&c->c1.ks.key_type, options->ciphername,
@@ -1275,6 +1313,8 @@ do_init_crypto_tls (struct context *c, const unsigned int flags)
 
   /* initialize persistent component */
   do_init_crypto_tls_c1 (c);
+  if (IS_SIG (c))
+    return;
 
   /* Sanity check on IV, sequence number, and cipher mode options */
   check_replay_iv_consistency (&c->c1.ks.key_type, options->replay,
@@ -1505,7 +1545,7 @@ do_option_warnings (struct context *c)
 {
   const struct options *o = &c->options;
 
-#if 1 // JYFIXME -- port warning
+#if 1 /* JYFIXME -- port warning */
   if (!o->port_option_used && (o->local_port == OPENVPN_PORT && o->remote_port == OPENVPN_PORT))
     msg (M_WARN, "IMPORTANT: OpenVPN's default port number is now %d, based on an official port number assignment by IANA.  OpenVPN 2.0-beta16 and earlier used 5000 as the default port.",
 	 OPENVPN_PORT);
@@ -1737,11 +1777,11 @@ do_compute_occ_strings (struct context *c)
 #ifdef USE_CRYPTO
   msg (D_SHOW_OCC_HASH, "Local Options hash (VER=%s): '%s'",
        options_string_version (c->c2.options_string_local, &gc),
-       md5sum (c->c2.options_string_local,
+       md5sum ((uint8_t*)c->c2.options_string_local,
 	       strlen (c->c2.options_string_local), 9, &gc));
   msg (D_SHOW_OCC_HASH, "Expected Remote Options hash (VER=%s): '%s'",
        options_string_version (c->c2.options_string_remote, &gc),
-       md5sum (c->c2.options_string_remote,
+       md5sum ((uint8_t*)c->c2.options_string_remote,
 	       strlen (c->c2.options_string_remote), 9, &gc));
 #endif
 
@@ -2310,6 +2350,8 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
     else if (child)
       crypto_flags = CF_INIT_TLS_MULTI;
     do_init_crypto (c, crypto_flags);
+    if (IS_SIG (c))
+      goto sig;
   }
 
 #ifdef USE_LZO

@@ -238,7 +238,7 @@ void get_user_pass (struct user_pass *up,
 		    const char *prefix,
 		    const unsigned int flags);
 
-void purge_user_pass (struct user_pass *up);
+void purge_user_pass (struct user_pass *up, const bool force);
 
 /*
  * Process string received by untrusted peer before

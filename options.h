@@ -317,6 +317,7 @@ struct options
   int cf_max;
   int cf_per;
   int max_clients;
+  int max_routes_per_client;
 
   bool client_cert_not_required;
   bool username_as_common_name;
@@ -435,6 +436,7 @@ struct options
 #define OPT_P_CONFIG          (1<<18)
 #define OPT_P_EXPLICIT_NOTIFY (1<<19)
 #define OPT_P_ECHO            (1<<20)
+#define OPT_P_INHERIT         (1<<21)
 
 #define OPT_P_DEFAULT   (~OPT_P_INSTANCE)
 
@@ -542,5 +544,21 @@ int parse_line (const char *line,
 		const int line_num,
 		int msglevel,
 		struct gc_arena *gc);
+
+/*
+ * Manage auth-retry variable
+ */
+
+#if P2MP
+
+#define AR_NONE       0
+#define AR_INTERACT   1
+#define AR_NOINTERACT 2
+
+int auth_retry_get (void);
+bool auth_retry_set (const int msglevel, const char *option);
+const char *auth_retry_print (void);
+
+#endif
 
 #endif

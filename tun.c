@@ -933,6 +933,8 @@ close_tun_generic (struct tuntap *tt)
 /* #warning IPv6 OFF */
 #endif
 
+#if !PEDANTIC
+
 void
 open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, struct tuntap *tt)
 {
@@ -1057,6 +1059,16 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
     }
   open_tun_generic (dev, dev_type, dev_node, ipv6, false, true, tt);
 }
+
+#else
+
+void
+open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6, struct tuntap *tt)
+{
+  ASSERT (0);
+}
+
+#endif
 
 #else
 
@@ -2916,7 +2928,7 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
   const char *device_guid = NULL;
   DWORD len;
 
-  //netcmd_semaphore_lock ();
+  /*netcmd_semaphore_lock ();*/
 
   ipv6_support (ipv6, false, tt);
 
@@ -3243,7 +3255,7 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, bool ipv6
 	tt->ipapi_context_defined = true;
       }
   }
-  //netcmd_semaphore_release ();
+  /*netcmd_semaphore_release ();*/
   gc_free (&gc);
 }
 

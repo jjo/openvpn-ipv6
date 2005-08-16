@@ -60,6 +60,7 @@ struct multi_instance {
   bool defined;
   bool halt;
   int refcount;
+  int route_count;             /* number of routes (including cached routes) owned by this instance */
   time_t created;
   struct timeval wakeup;       /* absolute time */
   struct mroute_addr real;
@@ -77,6 +78,7 @@ struct multi_instance {
   bool did_real_hash;
   bool did_iter;
   bool connection_established_flag;
+  bool did_iroutes;
 
   struct context context;
 };
@@ -139,7 +141,7 @@ struct multi_route
  */
 void tunnel_server (struct context *top);
 
-const char *multi_instance_string (struct multi_instance *mi, bool null, struct gc_arena *gc);
+const char *multi_instance_string (const struct multi_instance *mi, bool null, struct gc_arena *gc);
 
 void multi_bcast (struct multi_context *m,
 		  const struct buffer *buf,
@@ -219,6 +221,37 @@ multi_process_outgoing_link_pre (struct multi_context *m)
 }
 
 /*
+ * Per-client route quota management
+ */
+
+void route_quota_exceeded (const struct multi_context *m, const struct multi_instance *mi);
+
+static inline void
+route_quota_inc (struct multi_instance *mi)
+{
+  ++mi->route_count;
+}
+
+static inline void
+route_quota_dec (struct multi_instance *mi)
+{
+  --mi->route_count;
+}
+
+/* can we add a new route? */
+static inline bool
+route_quota_test (const struct multi_context *m, const struct multi_instance *mi)
+{
+  if (mi->route_count >= mi->context.options.max_routes_per_client)
+    {
+      route_quota_exceeded (m, mi);
+      return false;
+    }
+  else
+    return true;
+}
+
+/*
  * Instance reference counting
  */
 
@@ -242,7 +275,9 @@ multi_instance_dec_refcount (struct multi_instance *mi)
 static inline void
 multi_route_del (struct multi_route *route)
 {
-  multi_instance_dec_refcount (route->instance);
+  struct multi_instance *mi = route->instance;
+  route_quota_dec (mi);
+  multi_instance_dec_refcount (mi);
   free (route);
 }
 
@@ -337,6 +372,7 @@ multi_get_timeout (struct multi_context *m, struct timeval *dest)
 {
   struct timeval tv, current;
 
+  CLEAR (tv);
   m->earliest_wakeup = (struct multi_instance *) schedule_get_earliest_wakeup (m->schedule, &tv);
   if (m->earliest_wakeup)
     {

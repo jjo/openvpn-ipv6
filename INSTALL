@@ -87,6 +87,8 @@ BUILD A TARBALL FROM CVS:
 
 LOOPBACK TESTS (after BUILD):
 
+make check (Run all tests below)
+
 Test Crypto:
 
 ./openvpn --genkey --secret key

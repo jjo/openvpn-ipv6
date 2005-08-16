@@ -517,7 +517,7 @@ struct tls_session
 struct tls_multi
 {
   /* used to coordinate access between main thread and TLS thread */
-  //MUTEX_PTR_DEFINE (mutex);
+  /*MUTEX_PTR_DEFINE (mutex);*/
 
   /* const options and config info */
   struct tls_options opt;
@@ -617,6 +617,7 @@ void pem_password_setup (const char *auth_file);
 int pem_password_callback (char *buf, int size, int rwflag, void *u);
 void auth_user_pass_setup (const char *auth_file);
 void ssl_set_auth_nocache (void);
+void ssl_purge_auth (void);
 
 void tls_set_verify_command (const char *cmd);
 void tls_set_crl_verify (const char *crl);
@@ -674,7 +675,7 @@ const char *protocol_dump (struct buffer *buffer,
 void show_tls_performance_stats(void);
 #endif
 
-//#define EXTRACT_X509_FIELD_TEST
+/*#define EXTRACT_X509_FIELD_TEST*/
 void extract_x509_field_test (void);
 
 #endif /* USE_CRYPTO && USE_SSL */

@@ -49,10 +49,10 @@ typedef unsigned long in_addr_t;
 #endif
 
 /* Append a label to program startup title */
-//#define DEBUG_LABEL "DEBUG1"
+/*#define DEBUG_LABEL "DEBUG1"*/
 
 /* Should we print debug info from driver? */
-//#define TAP_WIN32_DEBUG
+/*#define TAP_WIN32_DEBUG*/
 
 /*
  * Minimum TAP-Win32 version number expected by userspace

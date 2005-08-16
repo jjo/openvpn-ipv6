@@ -358,6 +358,18 @@ COMMAND -- version
 Show the current OpenVPN and Management Interface versions.
 
 
+COMMAND -- auth-retry
+---------------------
+
+Set the --auth-retry setting to control how OpenVPN responds to
+username/password authentication errors.  See the manual page
+for more info.
+
+Command examples:
+
+  auth-retry interact -- Don't exit when bad username/passwords are entered.
+                         Query for new input and retry.
+
 OUTPUT FORMAT
 -------------
 

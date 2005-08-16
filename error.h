@@ -28,7 +28,7 @@
 #include "basic.h"
 #include "thread.h"
 
-//#define ABORT_ON_ERROR
+/* #define ABORT_ON_ERROR */
 
 #define ERR_BUF_SIZE 1024
 
@@ -150,10 +150,12 @@ bool dont_mute (unsigned int flags); /* check muting filter */
 #  define dmsg(flags, args...)
 # endif
 #else
-# ifdef _MSC_VER
-#  pragma message("this compiler appears to lack vararg macros which will cause a significant degradation in efficiency")
-# else
-#  warning this compiler appears to lack vararg macros which will cause a significant degradation in efficiency (you can ignore this warning if you are using LCLINT)
+# if !PEDANTIC
+#  ifdef _MSC_VER
+#   pragma message("this compiler appears to lack vararg macros which will cause a significant degradation in efficiency")
+#  else
+#   warning this compiler appears to lack vararg macros which will cause a significant degradation in efficiency (you can ignore this warning if you are using LCLINT)
+#  endif
 # endif
 # define msg x_msg
 # define dmsg x_msg
