@@ -3,8 +3,24 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
-2005.08.16 -- Version 2.0.1
+2005.08.24 -- Version 2.0.2-rc1
 
+* Fixed regression bug in Win32 installer, introduced in 2.0.1,
+  which incorrectly set OpenVPN service to autostart.
+* Don't package source code zip file in Windows installer
+  in order to reduce the size of the installer.  The source
+  zip file can always be downloaded separately if needed.
+* Fixed bug in route.c in FreeBSD, Darwin, OpenBSD and NetBSD
+  version of get_default_gateway.  Allocated socket for route
+  manipulation is never freed so number of mbufs continuously
+  grow and exhaust system resources after a while (Jaroslav Klaus).
+* Fixed bug where "--proto tcp-server --mode p2p --management
+  host port" would cause the management port to not respond until
+  the OpenVPN peer connects.
+* Modified pkitool script to be /bin/sh compatible (Johnny Lam).
+
+2005.08.16 -- Version 2.0.1
+	
 * Security Fix -- DoS attack against server when run with "verb 0" and
   without "tls-auth".  If a client connection to the server fails
   certificate verification, the OpenSSL error queue is not properly

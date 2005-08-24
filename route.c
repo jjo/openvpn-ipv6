@@ -1380,6 +1380,7 @@ get_default_gateway (in_addr_t *ret)
     {
       warn("writing to routing socket");
       gc_free (&gc);
+      close(s);
       return false;
     }
 
@@ -1387,6 +1388,7 @@ get_default_gateway (in_addr_t *ret)
     l = read(s, (char *)&m_rtmsg, sizeof(m_rtmsg));
   } while (l > 0 && (rtm.rtm_seq != seq || rtm.rtm_pid != pid));
                         
+  close(s);
 
   rtm_aux = &rtm;
 
@@ -1535,6 +1537,7 @@ get_default_gateway (in_addr_t *ret)
     {
       msg (M_WARN, "ROUTE: problem writing to routing socket");
       gc_free (&gc);
+      close(s);
       return false;
     }
 
@@ -1542,6 +1545,7 @@ get_default_gateway (in_addr_t *ret)
     l = read(s, (char *)&m_rtmsg, sizeof(m_rtmsg));
   } while (l > 0 && (rtm.rtm_seq != seq || rtm.rtm_pid != pid));
                         
+  close(s);
 
   rtm_aux = &rtm;
 
@@ -1690,6 +1694,7 @@ get_default_gateway (in_addr_t *ret)
     {
       warn("writing to routing socket");
       gc_free (&gc);
+      close(s);
       return false;
     }
 
@@ -1697,6 +1702,7 @@ get_default_gateway (in_addr_t *ret)
     l = read(s, (char *)&m_rtmsg, sizeof(m_rtmsg));
   } while (l > 0 && (rtm.rtm_seq != seq || rtm.rtm_pid != pid));
                         
+  close(s);
 
   rtm_aux = &rtm;
 

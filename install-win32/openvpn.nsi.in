@@ -10,8 +10,6 @@
 !include "MUI.nsh"
 !include "setpath.nsi"
 
-!define MASTER "y:\openvpn\20\openvpn"
-
 !define HOME "c:\src\openvpn"
 !define BIN "${HOME}\bin"
 
@@ -52,12 +50,6 @@
   
   ;Remember install folder
   InstallDirRegKey HKCU "Software\${PRODUCT_NAME}" ""
-
-  !define SOURCE_ZIP_DEST "openvpn-${VERSION}.zip"
-  !define SOURCE_ZIP_SRC "${MASTER}\${SOURCE_ZIP_DEST}"
-
-# For testing only
-#!define SOURCE_ZIP_SRC "c:\src\openvpn\install-win32\null.zip"
 
 ;--------------------------------
 ;Modern UI Configuration
@@ -110,8 +102,6 @@
   LangString DESC_SecService ${LANG_ENGLISH} "Install the OpenVPN service wrapper (openvpnserv.exe)"
 
   LangString DESC_SecOpenSSLUtilities ${LANG_ENGLISH} "Install the OpenSSL Utilities (used for generating public/private key pairs)."
-
-  LangString DESC_SecOpenVPNSource ${LANG_ENGLISH} "Install (but do not unzip) the OpenVPN source distribution zip file."
 
   LangString DESC_SecAddPath ${LANG_ENGLISH} "Add OpenVPN executable directory to the current user's PATH."
 
@@ -206,20 +196,20 @@ Section "OpenVPN RSA Certificate Management Scripts" SecOpenVPNEasyRSA
   SetOutPath "$INSTDIR\easy-rsa"
 
   File "${HOME}\install-win32\openssl.cnf.sample"
-  File "${MASTER}\easy-rsa\Windows\vars.bat.sample"
+  File "${HOME}\easy-rsa\Windows\vars.bat.sample"
 
-  File "${MASTER}\easy-rsa\Windows\init-config.bat"
+  File "${HOME}\easy-rsa\Windows\init-config.bat"
 
-  File "${MASTER}\easy-rsa\Windows\README.txt"
-  File "${MASTER}\easy-rsa\Windows\build-ca.bat"
-  File "${MASTER}\easy-rsa\Windows\build-dh.bat"
-  File "${MASTER}\easy-rsa\Windows\build-key-server.bat"
-  File "${MASTER}\easy-rsa\Windows\build-key.bat"
-  File "${MASTER}\easy-rsa\Windows\build-key-pkcs12.bat"
-  File "${MASTER}\easy-rsa\Windows\clean-all.bat"
-  File "${MASTER}\easy-rsa\Windows\index.txt.start"
-  File "${MASTER}\easy-rsa\Windows\revoke-full.bat"
-  File "${MASTER}\easy-rsa\Windows\serial.start"
+  File "${HOME}\easy-rsa\Windows\README.txt"
+  File "${HOME}\easy-rsa\Windows\build-ca.bat"
+  File "${HOME}\easy-rsa\Windows\build-dh.bat"
+  File "${HOME}\easy-rsa\Windows\build-key-server.bat"
+  File "${HOME}\easy-rsa\Windows\build-key.bat"
+  File "${HOME}\easy-rsa\Windows\build-key-pkcs12.bat"
+  File "${HOME}\easy-rsa\Windows\clean-all.bat"
+  File "${HOME}\easy-rsa\Windows\index.txt.start"
+  File "${HOME}\easy-rsa\Windows\revoke-full.bat"
+  File "${HOME}\easy-rsa\Windows\serial.start"
 
 SectionEnd
 
@@ -319,14 +309,6 @@ Section "Add Shortcuts to Start Menu" SecAddShortcuts
   WriteINIStr "$SMPROGRAMS\OpenVPN\OpenVPN HOWTO.url" "InternetShortcut" "URL" "http://openvpn.net/howto.html"
   WriteINIStr "$SMPROGRAMS\OpenVPN\OpenVPN Web Site.url" "InternetShortcut" "URL" "http://openvpn.net/"
   CreateShortCut "$SMPROGRAMS\OpenVPN\Uninstall OpenVPN.lnk" "$INSTDIR\Uninstall.exe"
-
-SectionEnd
-
-Section "OpenVPN Source Code" SecOpenVPNSource
-
-  SetOverwrite on
-  SetOutPath "$INSTDIR"
-  File "${SOURCE_ZIP_SRC}"
 
 SectionEnd
 
@@ -440,14 +422,8 @@ Section -post
     !insertmacro WriteRegStringIfUndef HKCR "OpenVPNFile\shell\run" "" "Start OpenVPN on this config file"
     !insertmacro WriteRegStringIfUndef HKCR "OpenVPNFile\shell\run\command" "" '"$INSTDIR\bin\openvpn.exe" --pause-exit --config "%1"'
 
- noass:
-  ; Create start menu link to source distribution zip file   
-  IfFileExists "$SMPROGRAMS\OpenVPN" "" noshortcuts
-    IfFileExists "$INSTDIR\${SOURCE_ZIP_DEST}" "" nosourcezip
-      CreateShortCut "$SMPROGRAMS\OpenVPN\OpenVPN Source Code Distribution.lnk" "$INSTDIR\${SOURCE_ZIP_DEST}" ""
-
     ; Create start menu shortcuts to addtap.bat and deltapall.bat
- nosourcezip:
+ noass:
     IfFileExists "$INSTDIR\bin\addtap.bat" "" trydeltap
       CreateShortCut "$SMPROGRAMS\OpenVPN\Add a new TAP-Win32 virtual ethernet adapter.lnk" "$INSTDIR\bin\addtap.bat" ""
 
@@ -497,7 +473,6 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SecTAP} $(DESC_SecTAP)
   !insertmacro MUI_DESCRIPTION_TEXT ${SecOpenSSLUtilities} $(DESC_SecOpenSSLUtilities)
   !insertmacro MUI_DESCRIPTION_TEXT ${SecOpenSSLDLLs} $(DESC_SecOpenSSLDLLs)
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecOpenVPNSource} $(DESC_SecOpenVPNSource)
   !insertmacro MUI_DESCRIPTION_TEXT ${SecAddPath} $(DESC_SecAddPath)
   !insertmacro MUI_DESCRIPTION_TEXT ${SecAddShortcuts} $(DESC_SecAddShortcuts)
   !insertmacro MUI_DESCRIPTION_TEXT ${SecService} $(DESC_SecService)
@@ -556,7 +531,6 @@ Section "Uninstall"
 
   Delete "$INSTDIR\bin\openssl.exe"
 
-  Delete "$INSTDIR\${SOURCE_ZIP_DEST}"
   Delete "$INSTDIR\INSTALL-win32.txt"
   Delete "$INSTDIR\openvpn.ico"
   Delete "$INSTDIR\license.txt"

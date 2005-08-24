@@ -571,7 +571,7 @@ socket_listen_accept (socket_descriptor_t sd,
 
       FD_ZERO (&reads);
       FD_SET (sd, &reads);
-      tv.tv_sec = 5;
+      tv.tv_sec = 0;
       tv.tv_usec = 0;
 
       status = select (sd + 1, &reads, NULL, NULL, &tv);
@@ -587,7 +587,10 @@ socket_listen_accept (socket_descriptor_t sd,
 	msg (D_LINK_ERRORS | M_ERRNO_SOCK, "TCP: select() failed");
 
       if (status <= 0)
-	continue;
+	{
+	  openvpn_sleep (1);
+	  continue;
+	}
 
       new_sd = socket_do_accept (sd, remote, nowait);
 
