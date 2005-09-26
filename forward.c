@@ -357,6 +357,23 @@ check_fragment_dowork (struct context *c)
 #endif
 
 /*
+ * Buffer reallocation, for use with null encryption.
+ */
+static inline void
+buffer_turnover (const uint8_t *orig_buf, struct buffer *dest_stub, struct buffer *src_stub, struct buffer *storage)
+{
+  if (orig_buf == src_stub->data && src_stub->data != storage->data)
+    {
+      buf_assign (storage, src_stub);
+      *dest_stub = *storage;
+    }
+  else
+    {
+      *dest_stub = *src_stub;
+    }
+}
+
+/*
  * Compress, fragment, encrypt and HMAC-sign an outgoing packet.
  * Input: c->c2.buf
  * Output: c->c2.to_link
@@ -431,15 +448,7 @@ encrypt_sign (struct context *c, bool comp_frag)
 #endif
 
   /* if null encryption, copy result to read_tun_buf */
-  if (orig_buf == c->c2.buf.data && c->c2.buf.data != b->read_tun_buf.data)
-    {
-      buf_assign (&b->read_tun_buf, &c->c2.buf);
-      c->c2.to_link = b->read_tun_buf;
-    }
-  else
-    {
-      c->c2.to_link = c->c2.buf;
-    }
+  buffer_turnover (orig_buf, &c->c2.to_link, &c->c2.buf, &b->read_tun_buf);
 }
 
 /*
@@ -648,6 +657,7 @@ process_incoming_link (struct context *c)
   struct gc_arena gc = gc_new ();
   bool decrypt_status;
   struct link_socket_info *lsi = get_link_socket_info (c);
+  const uint8_t *orig_buf = c->c2.buf.data;
 
   perf_push (PERF_PROC_IN_LINK);
 
@@ -792,7 +802,7 @@ process_incoming_link (struct context *c)
 	process_received_occ_msg (c);
 #endif
 
-      c->c2.to_tun = c->c2.buf;
+      buffer_turnover (orig_buf, &c->c2.to_tun, &c->c2.buf, &c->c2.buffers->read_link_buf);
 
       /* to_tun defined + unopened tuntap can cause deadlock */
       if (!tuntap_defined (c->c1.tuntap))

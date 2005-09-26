@@ -3,6 +3,13 @@ Copyright (C) 2002-2005 OpenVPN Solutions LLC <info@openvpn.net>
 
 $Id$
 
+2005.09.25 -- Version 2.0.3-rc1
+
+* openvpn_plugin_abort_v1 function wasn't being properly
+  registered on Windows.
+* Fixed a bug where --mode server --proto tcp-server --cipher none
+  operation could cause tunnel packet truncation.
+
 2005.08.25 -- Version 2.0.2
 
 * No change from 2.0.2-rc1.

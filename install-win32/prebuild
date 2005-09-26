@@ -11,7 +11,7 @@ H=/c/src
 
 # Output NSIS-ready tree here (will be deleted
 # if already exists).
-OUT=$H/openvpn
+OUT=$H/openvpn-build
 
 # Source distribution is here.  Can be the top
 # level directory of exploded tarball.

@@ -196,7 +196,7 @@ plugin_init_item (struct plugin *p, const struct plugin_option *o, const char **
   dll_resolve_symbol (p->module, (void*)&p->open,  "openvpn_plugin_open_v1", p->so_pathname, PLUGIN_SYMBOL_REQUIRED);
   dll_resolve_symbol (p->module, (void*)&p->func,  "openvpn_plugin_func_v1", p->so_pathname, PLUGIN_SYMBOL_REQUIRED);
   dll_resolve_symbol (p->module, (void*)&p->close, "openvpn_plugin_close_v1", p->so_pathname, PLUGIN_SYMBOL_REQUIRED);
-  dll_resolve_symbol (p->module, (void*)&p->close, "openvpn_plugin_abort_v1", p->so_pathname, 0);
+  dll_resolve_symbol (p->module, (void*)&p->abort, "openvpn_plugin_abort_v1", p->so_pathname, 0);
 #endif
 
   dmsg (D_PLUGIN_DEBUG, "PLUGIN_INIT: PRE");
