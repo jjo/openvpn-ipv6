@@ -1230,7 +1230,7 @@ get_user_pass (struct user_pass *up,
 	      if ((flags & GET_USER_PASS_NOFATAL) != 0)
 		return false;
 	      else
-		msg (M_FATAL, "ERROR: could not read %s username/password/ok from management interface", prefix);
+		msg (M_FATAL, "ERROR: could not read %s username/password/ok/string from management interface", prefix);
 	    }
 	}
       else

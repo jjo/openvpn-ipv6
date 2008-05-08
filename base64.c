@@ -39,7 +39,7 @@
 
 #include "syshead.h"
 
-#ifdef ENABLE_HTTP_PROXY
+#if defined(ENABLE_HTTP_PROXY) || defined(ENABLE_PKCS11)
 
 #include "base64.h"
 
@@ -143,7 +143,7 @@ base64_decode(const char *str, void *data)
     return q - (unsigned char *) data;
 }
 
-#endif /* NTLM */
+#endif /* NTLM, PKCS#11 */
 
 #else
 static void dummy(void) {}

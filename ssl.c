@@ -1210,7 +1210,7 @@ init_ssl (const struct options *options)
       if (options->pkcs11_providers[0])
         {
          /* Load Certificate and Private Key */
-	 if (!SSL_CTX_use_pkcs11 (ctx, options->pkcs11_id))
+	 if (!SSL_CTX_use_pkcs11 (ctx, options->pkcs11_id_management, options->pkcs11_id))
 	   {
 	     msg (M_WARN, "Cannot load certificate \"%s\" using PKCS#11 interface", options->pkcs11_id);
 	     goto err;
