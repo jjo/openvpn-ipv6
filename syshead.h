@@ -272,6 +272,26 @@
 
 #endif /* TARGET_NETBSD */
 
+#ifdef TARGET_DRAGONFLY
+
+#ifdef HAVE_SYS_UIO_H
+#include <sys/uio.h>
+#endif
+
+#ifdef HAVE_NETINET_IN_SYSTM_H
+#include <netinet/in_systm.h>
+#endif
+
+#ifdef HAVE_NETINET_IP_H
+#include <netinet/ip.h>
+#endif
+
+#ifdef HAVE_NET_TUN_IF_TUN_H
+#include <net/tun/if_tun.h>
+#endif
+
+#endif /* TARGET_DRAGONFLY */
+
 #ifdef WIN32
 #include <iphlpapi.h>
 #include <WinInet.h>

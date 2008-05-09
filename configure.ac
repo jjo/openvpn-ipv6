@@ -255,6 +255,9 @@ case "$target" in
 	OPENVPN_ADD_LIBS(-lgdi32)
 	OPENVPN_ADD_LIBS(-lwsock32)
 	;;
+*dragonfly*)
+	AC_DEFINE(TARGET_DRAGONFLY, 1, [Are we running on DragonFlyBSD?])
+	;;
 	
 esac
 
@@ -285,7 +288,7 @@ AC_CHECK_HEADERS(sys/time.h sys/socket.h sys/ioctl.h sys/stat.h dnl
 		 sys/mman.h fcntl.h sys/file.h stdlib.h stdint.h dnl
 		 stdarg.h unistd.h signal.h stdio.h string.h dnl
 		 strings.h ctype.h errno.h syslog.h pwd.h grp.h dnl
-		 net/if_tun.h stropts.h sys/sockio.h dnl
+		 net/if_tun.h net/tun/if_tun.h stropts.h sys/sockio.h dnl
 		 netinet/in.h netinet/in_systm.h dnl
 		 netinet/tcp.h arpa/inet.h dnl
 		 netdb.h sys/uio.h linux/if_tun.h linux/sockios.h dnl
