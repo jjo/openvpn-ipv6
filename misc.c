@@ -206,7 +206,7 @@ run_up_down (const char *command,
       ASSERT (arg);
 
       buf_printf (&cmd,
-		  "%s %d %d %s %s %s",
+		  "\"%s\" %d %d %s %s %s",
 		  arg,
 		  tun_mtu, link_mtu,
 		  ifconfig_local, ifconfig_remote,
@@ -225,7 +225,7 @@ run_up_down (const char *command,
       setenv_str (es, "script_type", script_type);
 
       buf_printf (&cmd,
-		  "%s %s %d %d %s %s %s",
+		  "%s \"%s\" %d %d %s %s %s",
 		  command,
 		  arg,
 		  tun_mtu, link_mtu,
