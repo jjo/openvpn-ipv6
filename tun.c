@@ -1248,7 +1248,7 @@ close_tun (struct tuntap *tt)
 	      }
 #else
 	    openvpn_snprintf (command_line, sizeof (command_line),
-			IFCONFIG_PATH "%s addr 0.0.0.0",
+			IFCONFIG_PATH " %s 0.0.0.0",
 			tt->actual_name
 			);
 #endif
