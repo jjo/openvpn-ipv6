@@ -432,6 +432,20 @@ AC_CHECK_FUNCS(socket recv recvfrom send sendto listen dnl
 	       [AC_MSG_ERROR([Required library function not found])])
 
 dnl
+dnl Check for res_init
+dnl
+AC_TRY_LINK([
+    #include <resolv.h>
+  ], [
+    res_init ();
+  ], [
+    AC_MSG_RESULT([res_init DEFINED])
+    AC_DEFINE([HAVE_RES_INIT], 1, [Indicates if res_init is available])
+  ], [
+    AC_MSG_RESULT([res_init UNDEFINED])
+  ])
+
+dnl
 dnl check libraries
 dnl
 

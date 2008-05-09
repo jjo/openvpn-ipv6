@@ -138,6 +138,9 @@ getaddr (unsigned int flags,
       while (true)
 	{
 	  /* try hostname lookup */
+#if defined(HAVE_RES_INIT)
+	  res_init ();
+#endif
 	  h = gethostbyname (hostname);
 
 	  if (signal_received)

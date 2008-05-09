@@ -133,6 +133,10 @@
 #include <netinet/in.h>
 #endif
 
+#ifdef HAVE_RESOLV_H
+#include <resolv.h>
+#endif
+
 #ifdef HAVE_SYS_POLL_H
 #include <sys/poll.h>
 #endif
