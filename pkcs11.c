@@ -37,6 +37,7 @@
 #include "basic.h"
 #include "error.h"
 #include "manage.h"
+#include "base64.h"
 #include "pkcs11.h"
 
 static
