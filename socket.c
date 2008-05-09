@@ -2121,11 +2121,13 @@ link_socket_read_tcp (struct link_socket *sock,
 
 #if ENABLE_IP_PKTINFO
 
+#pragma pack(1) /* needed to keep structure size consistent for 32 vs. 64-bit architectures */
 struct openvpn_pktinfo
 {
   struct cmsghdr cmsghdr;
   struct in_pktinfo in_pktinfo;
 };
+#pragma pack()
 
 static socklen_t
 link_socket_read_udp_posix_recvmsg (struct link_socket *sock,
