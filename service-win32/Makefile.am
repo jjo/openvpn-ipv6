@@ -35,12 +35,6 @@ openvpnserv_SOURCES = \
 nodist_openvpnserv_SOURCES = \
 	service.h service.c
 
-else
-
-dist_noinst_DATA = openvpnserv.c
-
-endif
-
 # msys sed does not accept \r
 service.c:	$(srcdir)/service.patch
 	sed 's/\xd//g' "${WIN32_SDK_SERVICE}/service.c" > service.c
@@ -49,3 +43,9 @@ service.c:	$(srcdir)/service.patch
 
 service.h:	service.c
 openvpnserv.c:	service.h
+
+else
+
+dist_noinst_DATA = openvpnserv.c
+
+endif
