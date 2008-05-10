@@ -22,12 +22,6 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifdef WIN32
-#include "config-win32.h"
-#else
-#include "config.h"
-#endif
-
 #include "syshead.h"
 
 #include "buffer.h"
@@ -438,6 +432,7 @@ openvpn_system (const char *command, const struct env_set *es, unsigned int flag
 void
 warn_if_group_others_accessible (const char* filename)
 {
+#ifndef WIN32
 #ifdef HAVE_STAT
 #if ENABLE_INLINE_FILES
   if (strcmp (filename, INLINE_FILE_TAG))
@@ -454,6 +449,7 @@ warn_if_group_others_accessible (const char* filename)
 	    msg (M_WARN, "WARNING: file '%s' is group or others accessible", filename);
 	}
     }
+#endif
 #endif
 }
 

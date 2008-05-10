@@ -30,15 +30,9 @@
  * over the same TCP/UDP port.
  */
 
-#ifdef WIN32
-#include "config-win32.h"
-#else
-#include "config.h"
-#endif
+#include "syshead.h"
 
 #if defined(USE_CRYPTO) && defined(USE_SSL)
-
-#include "syshead.h"
 
 #include "ssl.h"
 #include "error.h"

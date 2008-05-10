@@ -25,6 +25,28 @@
 #ifndef SYSHEAD_H
 #define SYSHEAD_H
 
+/*
+ * Only include if not during configure
+ */
+#ifndef PACKAGE_NAME
+#ifdef _MSC_VER
+#include "config-win32.h"
+#else
+#include "config.h"
+#endif
+#endif
+
+#if defined(_WIN32) && !defined(WIN32)
+#define WIN32
+#endif
+
+#ifdef WIN32
+#include <windows.h>
+#define sleep(x) Sleep((x)*1000)
+#define random rand
+#define srandom srand
+#endif
+
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
@@ -298,7 +320,7 @@
 
 #ifdef WIN32
 #include <iphlpapi.h>
-#include <WinInet.h>
+#include <wininet.h>
 #endif
 
 #ifdef HAVE_SYS_MMAN_H

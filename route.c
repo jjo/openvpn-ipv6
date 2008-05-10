@@ -26,12 +26,6 @@
  * Support routines for adding/deleting network routes.
  */
 
-#ifdef WIN32
-#include "config-win32.h"
-#else
-#include "config.h"
-#endif
-
 #include "syshead.h"
 
 #include "common.h"

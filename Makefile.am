@@ -28,13 +28,11 @@ AUTOMAKE_OPTIONS = foreign
 
 sbin_PROGRAMS = openvpn
 
-nodist_openvpn_SOURCES = config.h
-
 TESTS = t_lpback.sh t_cltsrv.sh
-dist_noinst_SCRIPTS = $(TESTS)
 
 .PHONY: plugin
 
+nodist_openvpn_SOURCES = config.h
 openvpn_SOURCES = \
         base64.c base64.h \
 	basic.h \
@@ -80,6 +78,7 @@ openvpn_SOURCES = \
 	pool.c pool.h \
 	proto.c proto.h \
 	proxy.c proxy.h \
+	ieproxy.h ieproxy.c \
         ps.c ps.h \
 	push.c push.h \
 	reliable.c reliable.h \
@@ -94,44 +93,50 @@ openvpn_SOURCES = \
 	status.c status.h \
 	syshead.h \
 	thread.c thread.h \
-	tun.c tun.h
+	tun.c tun.h \
+	win32.h win32.c \
+	cryptoapi.h cryptoapi.c
 
 LDADD = @LIBOBJS@
 
-man_MANS = openvpn.8
+SUBDIRS = \
+	images \
+	service-win32 \
+	install-win32
 
 EXTRA_DIST = \
-	doclean \
-	$(man_MANS) \
-	COPYRIGHT.GPL \
-	PORTS \
-	openvpn.spec \
 	easy-rsa \
 	sample-config-files \
 	sample-keys \
 	sample-scripts \
-	gentoo \
 	suse \
-	openvpn.spec.in \
-	config-win32.h \
-	win32.h \
-	win32.c \
-	cryptoapi.h \
-	cryptoapi.c \
-	makefile.w32 \
-        makefile.w32-vc \
-	INSTALL-win32.txt \
 	tap-win32 \
-	install-win32 \
-	service-win32 \
 	contrib \
 	debug \
-	plugin \
-        management \
-	images \
-	ieproxy.c \
-	ieproxy.h \
+	plugin
+
+dist_noinst_HEADERS = \
+	config-win32.h
+
+dist_noinst_SCRIPTS = \
+	$(TESTS) \
+	doclean \
 	domake-win
+
+dist_noinst_DATA = \
+	openvpn.spec \
+	COPYRIGHT.GPL \
+	PORTS
 
 dist-hook:
 	cd $(distdir) && for i in $(EXTRA_DIST) ; do find $$i -name .svn -type d -prune -exec rm -rf '{}' ';' ; rm -f `find $$i -type f | grep -E '(^|\/)\.?\#|\~$$|\.s?o$$'` ; done
+
+if WIN32
+dist_noinst_DATA += INSTALL-win32.txt openvpn.8
+nodist_html_DATA = openvpn.8.html
+openvpn.8.html: $(srcdir)/openvpn.8
+	$(MAN2HTML) < $(srcdir)/openvpn.8 > openvpn.8.html
+else
+dist_doc_DATA = INSTALL-win32.txt
+dist_man_MANS = openvpn.8
+endif

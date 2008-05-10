@@ -32,7 +32,11 @@
 // common to both.
 //===============================================
 
-#include "../autodefs/defs.h"
+#ifdef _MSC_VER
+#include "config-win32.h"
+#else
+#include "config.h"
+#endif
 
 //=============
 // TAP IOCTLs
@@ -81,4 +85,4 @@
 // simultaneously.
 //=========================================================
 
-#define TAP_COMPONENT_ID PRODUCT_TAP_ID
+#define TAP_COMPONENT_ID TAP_ID

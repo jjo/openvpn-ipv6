@@ -31,12 +31,6 @@
  * SUCH DAMAGE.
  */
 
-#ifdef WIN32
-#include "config-win32.h"
-#else
-#include "config.h"
-#endif
-
 #include "syshead.h"
 
 #if defined(ENABLE_HTTP_PROXY) || defined(ENABLE_PKCS11)

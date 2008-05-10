@@ -325,23 +325,23 @@
  extern "C" {
  #endif
  
-+#include "../autodefs/defs.h"
++#include "config.h"
  
  //////////////////////////////////////////////////////////////////////////////
  //// todo: change to desired strings
  ////
  // name of the executable
 -#define SZAPPNAME            "Simple"
-+#define SZAPPNAME            PRODUCT_UNIX_NAME "serv"
++#define SZAPPNAME            PACKAGE "serv"
  // internal name of the service
 -#define SZSERVICENAME        "SimpleService"
-+#define SZSERVICENAME        PRODUCT_NAME "Service"
++#define SZSERVICENAME        PACKAGE_NAME "Service"
  // displayed name of the service
 -#define SZSERVICEDISPLAYNAME "Simple Service"
-+#define SZSERVICEDISPLAYNAME PRODUCT_NAME " Service"
++#define SZSERVICEDISPLAYNAME PACKAGE_NAME " Service"
  // list of service dependencies - "dep1\0dep2\0\0"
 -#define SZDEPENDENCIES       ""
-+#define SZDEPENDENCIES       PRODUCT_TAP_ID "\0Dhcp\0\0"
++#define SZDEPENDENCIES       TAP_ID "\0Dhcp\0\0"
  //////////////////////////////////////////////////////////////////////////////
  
  

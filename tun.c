@@ -30,12 +30,6 @@
  * from VTun by Maxim Krasnyansky <max_mk@yahoo.com>.
  */
 
-#ifdef WIN32
-#include "config-win32.h"
-#else
-#include "config.h"
-#endif
-
 #include "syshead.h"
 
 #include "tun.h"
