@@ -32,10 +32,10 @@
 // common to both.
 //===============================================
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(TAP_DRIVER_MAJOR_VERSION)
 #include "config-win32.h"
 #else
-#include "config.h"
+#include "../config.h"
 #endif
 
 //=============

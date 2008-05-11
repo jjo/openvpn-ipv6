@@ -796,7 +796,7 @@ fi
 
 dnl enable strict compiler warnings
 if test "$STRICT" = "yes"; then
-   CFLAGS="$CFLAGS -Wall -Wpointer-arith -Wsign-compare -Wno-unused-parameter -Wno-unused-function"
+   CFLAGS="$CFLAGS -Wall -Wno-unused-parameter -Wno-unused-function"
 fi
 
 dnl enable pedantic compiler warnings
