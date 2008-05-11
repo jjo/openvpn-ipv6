@@ -8,30 +8,26 @@ H=`pwd`
 if gcc --version &>/dev/null && [ -d "$OPENSSL_DIR" ] && [ -d "$LZO_DIR" ] && [ -d "$PKCS11_HELPER_DIR" ]; then
     # build OpenVPN binary
 
-    [ "$CLEAN" = "yes" ] && ./doclean
-
     if ! [ -f Makefile ]; then
 	autoreconf -i -v \
 	&& ./configure \
 	    --enable-strict \
-	    --prefix=$H/dest \
+	    --prefix=$H/windest \
 	    MAN2HTML=true \
 	    --with-ssl-headers=$H/$OPENSSL_DIR/include \
 	    --with-ssl-lib=$H/$OPENSSL_DIR/out \
 	    --with-lzo-headers=$H/$LZO_DIR/include \
 	    --with-lzo-lib=$H/$LZO_DIR \
 	    --with-pkcs11-helper-headers=$H/$PKCS11_HELPER_DIR/usr/local/include \
-	    --with-pkcs11-helper-lib=$H/$PKCS11_HELPER_DIR/usr/local/lib \
-	    --enable-win32-service \
-	    --with-win32-sdk-service-sample=$H/$SVC_TEMPLATE
+	    --with-pkcs11-helper-lib=$H/$PKCS11_HELPER_DIR/usr/local/lib
     fi
 
     make -j $MAKE_JOBS && make install
 
     # copy OpenVPN and service executables to GENOUT/bin
     mkdir -p $GENOUT/bin &>/dev/null
-    cp dest/sbin/openvpn.exe $GENOUT/bin
-    cp dest/sbin/openvpnserv.exe $GENOUT/bin
+    cp windest/sbin/openvpn.exe $GENOUT/bin
+    cp windest/sbin/openvpnserv.exe $GENOUT/bin
     if [ -z "$NO_STRIP" ]; then
 	strip $GENOUT/bin/openvpn.exe
 	strip $GENOUT/bin/openvpnserv.exe

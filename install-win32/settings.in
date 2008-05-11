@@ -50,10 +50,6 @@
 # Build debugging version of TAP driver
 ;!define PRODUCT_TAP_DEBUG
 
-# Service template files service.[ch] (get from Platform SDK).
-# If undefined, don't build openvpnserv.exe
-!define SVC_TEMPLATE "../svc-template"
-
 # DDK Version.
 # DDK distribution is assumed to be in C:\WINDDK\${DDKVER}
 !define DDKVER	     6001.17121
