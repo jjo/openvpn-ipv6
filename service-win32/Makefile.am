@@ -22,30 +22,20 @@
 #  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
-EXTRA_DIST = service.patch
+MAINTAINERCLEANFILES = $(srcdir)/Makefile.in
 
-dist_noinst_SCRIPTS = mkpatch
-
-if ENABLE_WIN32_SERVICE
+if WIN32
 
 sbin_PROGRAMS = openvpnserv
 
 openvpnserv_SOURCES = \
-	openvpnserv.c
-nodist_openvpnserv_SOURCES = \
+	openvpnserv.c \
 	service.h service.c
-
-# msys sed does not accept \r
-service.c:	$(srcdir)/service.patch
-	sed 's/\xd//g' "${WIN32_SDK_SERVICE}/service.c" > service.c
-	sed 's/\xd//g' "${WIN32_SDK_SERVICE}/service.h" > service.h
-	$(PATCH) < $(srcdir)/service.patch
-
-service.h:	service.c
-openvpnserv.c:	service.h
 
 else
 
-dist_noinst_DATA = openvpnserv.c
+dist_noinst_DATA = \
+	openvpnserv.c \
+	service.h service.c
 
 endif

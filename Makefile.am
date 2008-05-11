@@ -22,17 +22,54 @@
 #  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 
+LDADD = @LIBOBJS@
+.PHONY: plugin
+
 # This option prevents autoreconf from overriding our COPYING and
 # INSTALL targets:
 AUTOMAKE_OPTIONS = foreign
 
-sbin_PROGRAMS = openvpn
+MAINTAINERCLEANFILES = \
+	config.log config.status \
+	$(srcdir)/Makefile.in \
+	$(srcdir)/config.h.in $(srcdir)/config.h.in~ $(srcdir)/configure \
+	$(srcdir)/install-sh $(srcdir)/ltmain.sh $(srcdir)/missing \
+	$(srcdir)/depcomp $(srcdir)/aclocal.m4 \
+	$(srcdir)/config.guess $(srcdir)/config.sub
+CLEANFILES = openvpn.8.html
+
+EXTRA_DIST = \
+	easy-rsa \
+	sample-config-files \
+	sample-keys \
+	sample-scripts \
+	suse \
+	tap-win32 \
+	contrib \
+	debug \
+	plugin
+
+SUBDIRS = \
+	images \
+	service-win32 \
+	install-win32
 
 TESTS = t_lpback.sh t_cltsrv.sh
+sbin_PROGRAMS = openvpn
 
-.PHONY: plugin
+dist_noinst_HEADERS = \
+	config-win32.h
 
-nodist_openvpn_SOURCES = config.h
+dist_noinst_SCRIPTS = \
+	$(TESTS) \
+	doclean \
+	domake-win
+
+dist_noinst_DATA = \
+	openvpn.spec \
+	COPYRIGHT.GPL \
+	PORTS
+
 openvpn_SOURCES = \
         base64.c base64.h \
 	basic.h \
@@ -97,36 +134,6 @@ openvpn_SOURCES = \
 	win32.h win32.c \
 	cryptoapi.h cryptoapi.c
 
-LDADD = @LIBOBJS@
-
-SUBDIRS = \
-	images \
-	service-win32 \
-	install-win32
-
-EXTRA_DIST = \
-	easy-rsa \
-	sample-config-files \
-	sample-keys \
-	sample-scripts \
-	suse \
-	tap-win32 \
-	contrib \
-	debug \
-	plugin
-
-dist_noinst_HEADERS = \
-	config-win32.h
-
-dist_noinst_SCRIPTS = \
-	$(TESTS) \
-	doclean \
-	domake-win
-
-dist_noinst_DATA = \
-	openvpn.spec \
-	COPYRIGHT.GPL \
-	PORTS
 
 dist-hook:
 	cd $(distdir) && for i in $(EXTRA_DIST) ; do find $$i -name .svn -type d -prune -exec rm -rf '{}' ';' ; rm -f `find $$i -type f | grep -E '(^|\/)\.?\#|\~$$|\.s?o$$'` ; done

@@ -170,12 +170,6 @@ AC_ARG_ENABLE(iproute2,
    test $enableval = "yes" && AC_DEFINE(CONFIG_FEATURE_IPROUTE, 1, [enable iproute2 support])   
 )
 
-AC_ARG_ENABLE(win32-service,
-   [  --enable-win32-service  Enable compilation of win32 service for OpenVPN],
-   [ENABLE_WIN32_SERVICE="$enableval"],
-   [ENABLE_WIN32_SERVICE="no"]
-)
-
 AC_ARG_ENABLE(strict,
    [  --enable-strict         Enable strict compiler warnings (debugging option)],
    [STRICT="$enableval"],
@@ -260,12 +254,6 @@ AC_ARG_WITH(mem-check,
    [MEMCHECK="$withval"]
 )
 
-AC_ARG_WITH(win32-sdk-service-sample,
-   [  --with-win32-sdk-service-sample=PATH  Where Microsoft Platform SDK service sample resides],
-   [WIN32_SDK_SERVICE="$withval"],
-   [WIN32_SDK_SERVICE="no"]
-)
-
 dnl fix search path, to allow compilers to find syshead.h
 CPPFLAGS="$CPPFLAGS -I${srcdir}"
 
@@ -324,12 +312,6 @@ if test "${WIN32}" = "yes"; then
 	AC_ARG_VAR([MAN2HTML], [man2html utility])
 	AC_CHECK_PROGS([MAN2HTML], [man2html])
 	test -z "${MAN2HTML}" && AC_MSG_ERROR([man2html is required for win32])
-fi
-
-if test "${ENABLE_WIN32_SERVICE}" = "yes"; then
-	AC_ARG_VAR([PATCH], [patch utility])
-	AC_PATH_PROGS([PATCH], [patch])
-	test -z "${PATCH}" && AC_MSG_ERROR([patch is required for win32 service])
 fi
 
 dnl Checks for header files.
@@ -819,10 +801,6 @@ if test "$PASSWORD_SAVE" = "yes"; then
    AC_DEFINE(ENABLE_PASSWORD_SAVE, 1, [Allow --askpass and --auth-user-pass passwords to be read from a file])
 fi
 
-if test "${ENABLE_WIN32_SERVICE}" = "yes" -a "${WIN32_SDK_SERVICE}" = "no"; then
-   AC_MSG_ERROR([In order to compile service --with-win32-sdk-service-sample is required])
-fi
-
 TAP_ID="PRODUCT_TAP_ID"
 TAP_WIN32_MIN_MAJOR="PRODUCT_TAP_WIN32_MIN_MAJOR"
 TAP_WIN32_MIN_MINOR="PRODUCT_TAP_WIN32_MIN_MINOR"
@@ -834,10 +812,8 @@ AC_SUBST(TAP_WIN32_MIN_MAJOR)
 AC_SUBST(TAP_WIN32_MIN_MINOR)
 
 win32datadir="\${datadir}/${PACKAGE}-win32"
-AC_SUBST(WIN32_SDK_SERVICE)
 AC_SUBST(win32datadir)
 AM_CONDITIONAL(WIN32, test "${WIN32}" = "yes")
-AM_CONDITIONAL(ENABLE_WIN32_SERVICE, test "${ENABLE_WIN32_SERVICE}" = "yes")
 
 # workaround for <autoconf-2.60
 if test -z "${docdir}"; then
