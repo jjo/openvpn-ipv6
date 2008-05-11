@@ -35,7 +35,8 @@ MAINTAINERCLEANFILES = \
 	$(srcdir)/config.h.in $(srcdir)/config.h.in~ $(srcdir)/configure \
 	$(srcdir)/install-sh $(srcdir)/ltmain.sh $(srcdir)/missing \
 	$(srcdir)/depcomp $(srcdir)/aclocal.m4 \
-	$(srcdir)/config.guess $(srcdir)/config.sub
+	$(srcdir)/config.guess $(srcdir)/config.sub \
+	$(srcdir)/config-win32.h $(srcdir)/openvpn.spec
 CLEANFILES = openvpn.8.html
 
 EXTRA_DIST = \
@@ -68,7 +69,8 @@ dist_noinst_SCRIPTS = \
 dist_noinst_DATA = \
 	openvpn.spec \
 	COPYRIGHT.GPL \
-	PORTS
+	PORTS \
+	INSTALL-win32.txt
 
 openvpn_SOURCES = \
         base64.c base64.h \
@@ -139,11 +141,10 @@ dist-hook:
 	cd $(distdir) && for i in $(EXTRA_DIST) ; do find $$i -name .svn -type d -prune -exec rm -rf '{}' ';' ; rm -f `find $$i -type f | grep -E '(^|\/)\.?\#|\~$$|\.s?o$$'` ; done
 
 if WIN32
-dist_noinst_DATA += INSTALL-win32.txt openvpn.8
+dist_noinst_DATA += openvpn.8
 nodist_html_DATA = openvpn.8.html
 openvpn.8.html: $(srcdir)/openvpn.8
 	$(MAN2HTML) < $(srcdir)/openvpn.8 > openvpn.8.html
 else
-dist_doc_DATA = INSTALL-win32.txt
 dist_man_MANS = openvpn.8
 endif

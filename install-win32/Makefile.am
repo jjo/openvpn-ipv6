@@ -51,7 +51,7 @@ nodist_keys_DATA = \
 tmp:
 	mkdir tmp
 
-tmp/client.ovpn:	tmp $(top_srcdir)//sample-config-files/client.conf
+tmp/client.ovpn:	tmp $(top_srcdir)/sample-config-files/client.conf
 	cp $(top_srcdir)/sample-config-files/client.conf tmp/client.ovpn
 
 tmp/server.ovpn:	tmp $(top_srcdir)/sample-config-files/server.conf
