@@ -1066,8 +1066,8 @@ multi_learn_in_addr_t (struct multi_context *m,
   struct mroute_addr addr;
 
   CLEAR (remote_si);
-  remote_si.sa.sin_family = AF_INET;
-  remote_si.sa.sin_addr.s_addr = htonl (a);
+  remote_si.addr.in4.sin_family = AF_INET;
+  remote_si.addr.in4.sin_addr.s_addr = htonl (a);
   ASSERT (mroute_extract_openvpn_sockaddr (&addr, &remote_si, false));
 
   if (netbits >= 0)
@@ -2489,9 +2489,9 @@ management_callback_kill_by_addr (void *arg, const in_addr_t addr, const int por
   int count = 0;
 
   CLEAR (saddr);
-  saddr.sa.sin_family = AF_INET;
-  saddr.sa.sin_addr.s_addr = htonl (addr);
-  saddr.sa.sin_port = htons (port);
+  saddr.addr.in4.sin_family = AF_INET;
+  saddr.addr.in4.sin_addr.s_addr = htonl (addr);
+  saddr.addr.in4.sin_port = htons (port);
   if (mroute_extract_openvpn_sockaddr (&maddr, &saddr, true))
     {
       hash_iterator_init (m->iter, &hi, true);
@@ -2642,6 +2642,12 @@ tunnel_server (struct context *top)
 {
   ASSERT (top->options.mode == MODE_SERVER);
 
+#ifdef USE_PF_INET6
+  if (proto_is_dgram(top->options.ce.proto))
+    tunnel_server_udp(top);
+  else
+    tunnel_server_tcp(top);
+#else
   switch (top->options.ce.proto) {
   case PROTO_UDPv4:
     tunnel_server_udp (top);
@@ -2652,6 +2658,7 @@ tunnel_server (struct context *top)
   default:
     ASSERT (0);
   }
+#endif
 }
 
 #else
