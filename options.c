@@ -2880,6 +2880,7 @@ usage_version (void)
   msg (M_INFO|M_NOPREFIX, "%s", title_string);
   msg (M_INFO|M_NOPREFIX, "Originally developed by James Yonan");
   msg (M_INFO|M_NOPREFIX, "Copyright (C) 2002-2009 OpenVPN Technologies, Inc. <sales@openvpn.net>");
+  msg (M_INFO|M_NOPREFIX, "IPv6-payload patch release 20100114-1");
   openvpn_exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
 
