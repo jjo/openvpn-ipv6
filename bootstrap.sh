@@ -29,7 +29,7 @@ GIT_REV=$(git rev-list ${GIT_BRANCH} -1 | cut -b-12)
 echo "Updating version.m4"
 GIT_VERSIONM4=$(git ls-tree master version.m4 | awk '{print $3}')
 git cat-file blob ${GIT_VERSIONM4} | \
-    sed "s#define(PRODUCT_VERSION,\[.*\])#define\(PRODUCT_VERSION,\[(testing-${GIT_REV})]\)\]#" > version.m4
+    sed "s#define(PRODUCT_VERSION,\[.*\])#define\(PRODUCT_VERSION,\[testing-${GIT_REV}]\)\]#" > version.m4
 
 # Do autotools stuff
 echo "Running autotools"
