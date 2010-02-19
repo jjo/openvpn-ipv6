@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Which remote branch to base the local allmerged branch on
 GIT_REMOTEBRANCH=origin/allmerged
