@@ -73,7 +73,7 @@ const char title_string[] =
 #ifdef ENABLE_PKCS11
   " [PKCS11]"
 #endif
-  " [IPv6 payload 20100228-1]"
+  " [IPv6 payload 20100307-1]"
   " built on " __DATE__
 ;
 
