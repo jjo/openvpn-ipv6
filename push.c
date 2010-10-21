@@ -180,6 +180,23 @@ send_push_reply (struct context *c)
   bool push_sent = false;
 
   buf_printf (&buf, "%s", cmd);
+  msg( M_INFO, "send_push_reply(): safe_cap=%d", safe_cap );
+
+  if ( c->c2.push_ifconfig_ipv6_defined )
+    {
+      /* IPv6 is put into buffer first, could be lengthy */
+      /* TODO: push "/netbits" as well, to allow non-/64 subnet sizes
+       *       (needs changes in options.c, options.h, and other places)
+       */
+      buf_printf( &buf, ",ifconfig-ipv6 %s %s",
+		    print_in6_addr( c->c2.push_ifconfig_ipv6_local, 0, &gc),
+		    print_in6_addr( c->c2.push_ifconfig_ipv6_remote, 0, &gc) );
+      if (BLEN (&buf) >= safe_cap)
+	{
+	  msg (M_WARN, "--push ifconfig-ipv6 option is too long");
+	  goto fail;
+	}
+    }
 
   while (e)
     {
