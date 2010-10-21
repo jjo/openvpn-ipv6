@@ -1810,7 +1810,9 @@ open_tun (const char *dev, const char *dev_type, const char *dev_node, struct tu
 	  strerror(errno));
       }
 
+#ifdef IFF_MULTICAST /* openbsd 4.x doesn't have this */
       info.flags |= IFF_MULTICAST;
+#endif
 
       if (ioctl (tt->fd, TUNSIFINFO, &info) < 0) {
 	msg (M_WARN | M_ERRNO, "Can't set interface info: %s",

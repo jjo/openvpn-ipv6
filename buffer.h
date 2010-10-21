@@ -278,6 +278,11 @@ bool buf_printf (struct buffer *buf, const char *format, ...)
     ;
 
 /*
+ * puts append to a buffer with overflow check
+ */
+bool buf_puts (struct buffer *buf, const char *str);
+
+/*
  * Like snprintf but guarantees null termination for size > 0
  */
 int openvpn_snprintf(char *str, size_t size, const char *format, ...)
