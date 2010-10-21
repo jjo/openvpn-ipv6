@@ -28,7 +28,7 @@
 ;!define DMALLOC_DIR	  "../dmalloc-5.4.2"
 
 # Prebuilt TAP drivers and tapinstall
-!define TAPBINSRC "../tap_dist"
+!define TAPBINSRC "../tap_dist-2.2"
 
 # Directory containing python script for signing .exe files
 !define SIGNTOOL        "../signtool"
