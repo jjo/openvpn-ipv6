@@ -264,15 +264,26 @@ struct man_connection {
   struct command_line *in;
   struct buffer_list *out;
 
-#ifdef MANAGEMENT_DEF_AUTH
+#ifdef MANAGEMENT_IN_EXTRA
 # define IEC_UNDEF       0
 # define IEC_CLIENT_AUTH 1
 # define IEC_CLIENT_PF   2
+# define IEC_RSA_SIGN    3
   int in_extra_cmd;
+  struct buffer_list *in_extra;
+#ifdef MANAGEMENT_DEF_AUTH
   unsigned long in_extra_cid;
   unsigned int in_extra_kid;
-  struct buffer_list *in_extra;
   int env_filter_level;
+#endif
+#ifdef MANAGMENT_EXTERNAL_KEY
+# define EKS_UNDEF   0
+# define EKS_SOLICIT 1
+# define EKS_INPUT   2
+# define EKS_READY   3
+  int ext_key_state;
+  struct buffer_list *ext_key_input;
+#endif
 #endif
   struct event_set *es;
 
@@ -285,6 +296,10 @@ struct man_connection {
   const char *up_query_type;
   int up_query_mode;
   struct user_pass up_query;
+
+#ifdef MANAGMENT_EXTERNAL_KEY
+  struct buffer_list *rsa_sig;
+#endif
 };
 
 struct management
@@ -314,6 +329,9 @@ struct management *management_init (void);
 # define MF_CLIENT_PF         (1<<7)
 #endif
 # define MF_UNIX_SOCK       (1<<8)
+#ifdef MANAGMENT_EXTERNAL_KEY
+# define MF_EXTERNAL_KEY    (1<<9)
+#endif
 
 bool management_open (struct management *man,
 		      const char *addr,
@@ -372,6 +390,12 @@ void management_learn_addr (struct management *management,
 			    struct man_def_auth_context *mdac,
 			    const struct mroute_addr *addr,
 			    const bool primary);
+#endif
+
+#ifdef MANAGMENT_EXTERNAL_KEY
+
+char *management_query_rsa_sig (struct management *man, const char *b64_data);
+
 #endif
 
 static inline bool
