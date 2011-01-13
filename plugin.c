@@ -232,8 +232,10 @@ plugin_init_item (struct plugin *p, const struct plugin_option *o)
 
   PLUGIN_SYM (open1, "openvpn_plugin_open_v1", 0);
   PLUGIN_SYM (open2, "openvpn_plugin_open_v2", 0);
+  PLUGIN_SYM (open3, "openvpn_plugin_open_v3", 0);
   PLUGIN_SYM (func1, "openvpn_plugin_func_v1", 0);
   PLUGIN_SYM (func2, "openvpn_plugin_func_v2", 0);
+  PLUGIN_SYM (func3, "openvpn_plugin_func_v3", 0);
   PLUGIN_SYM (close, "openvpn_plugin_close_v1", PLUGIN_SYMBOL_REQUIRED);
   PLUGIN_SYM (abort, "openvpn_plugin_abort_v1", 0);
   PLUGIN_SYM (client_constructor, "openvpn_plugin_client_constructor_v1", 0);
@@ -241,10 +243,10 @@ plugin_init_item (struct plugin *p, const struct plugin_option *o)
   PLUGIN_SYM (min_version_required, "openvpn_plugin_min_version_required_v1", 0);
   PLUGIN_SYM (initialization_point, "openvpn_plugin_select_initialization_point_v1", 0);
 
-  if (!p->open1 && !p->open2)
+  if (!p->open1 && !p->open2 && !p->open3)
     msg (M_FATAL, "PLUGIN: symbol openvpn_plugin_open_vX is undefined in plugin: %s", p->so_pathname);
 
-  if (!p->func1 && !p->func2)
+  if (!p->func1 && !p->func2 && !p->func3)
     msg (M_FATAL, "PLUGIN: symbol openvpn_plugin_func_vX is undefined in plugin: %s", p->so_pathname);
 
   /*
@@ -296,7 +298,21 @@ plugin_open_item (struct plugin *p,
       /*
        * Call the plugin initialization
        */
-      if (p->open2)
+      if (p->open3) {
+        struct openvpn_plugin_args_open_in args = { .type_mask = p->plugin_type_mask,
+                                                    .argv      = o->argv,
+                                                    .envp      = envp };
+        struct openvpn_plugin_args_open_return retargs;
+
+        CLEAR(retargs);
+        if ((*p->open3)(OPENVPN_PLUGINv3_STRUCTVER, &args, &retargs) == OPENVPN_PLUGIN_FUNC_SUCCESS) {
+          p->plugin_type_mask = retargs.type_mask;
+          p->plugin_handle = retargs.handle;
+          retlist = retargs.return_list;
+        } else {
+          p->plugin_handle = NULL;
+        }
+      } else if (p->open2)
 	p->plugin_handle = (*p->open2)(&p->plugin_type_mask, o->argv, envp, retlist);
       else if (p->open1)
 	p->plugin_handle = (*p->open1)(&p->plugin_type_mask, o->argv, envp);
@@ -329,7 +345,9 @@ plugin_call_item (const struct plugin *p,
 		  const int type,
 		  const struct argv *av,
 		  struct openvpn_plugin_string_list **retlist,
-		  const char **envp)
+		  const char **envp,
+		  int certdepth,
+		  X509 *current_cert)
 {
   int status = OPENVPN_PLUGIN_FUNC_SUCCESS;
 
@@ -348,7 +366,20 @@ plugin_call_item (const struct plugin *p,
       /*
        * Call the plugin work function
        */
-      if (p->func2)
+      if (p->func3) {
+        struct openvpn_plugin_args_func_in args = { .type    = type,
+                                                    .argv    = (const char **) a.argv,
+                                                    .envp    = envp,
+                                                    .handle  = p->plugin_handle,
+						    .per_client_context = per_client_context,
+						    .current_cert_depth = (current_cert ? certdepth : -1),
+						    .current_cert = current_cert };
+        struct openvpn_plugin_args_func_return retargs;
+
+        CLEAR(retargs);
+        status = (*p->func3)(OPENVPN_PLUGINv3_STRUCTVER, &args, &retargs);
+        retlist = retargs.return_list;
+      } else if (p->func2)
 	status = (*p->func2)(p->plugin_handle, type, (const char **)a.argv, envp, per_client_context, retlist);
       else if (p->func1)
 	status = (*p->func1)(p->plugin_handle, type, (const char **)a.argv, envp);
@@ -543,7 +574,9 @@ plugin_call (const struct plugin_list *pl,
 	     const int type,
 	     const struct argv *av,
 	     struct plugin_return *pr,
-	     struct env_set *es)
+	     struct env_set *es,
+             int certdepth,
+	     X509 *current_cert)
 {
   if (pr)
     plugin_return_init (pr);
@@ -568,7 +601,8 @@ plugin_call (const struct plugin_list *pl,
 					       type,
 					       av,
 					       pr ? &pr->list[i] : NULL,
-					       envp);
+					       envp,
+					       certdepth, current_cert);
 	  switch (status)
 	    {
 	    case OPENVPN_PLUGIN_FUNC_SUCCESS:
