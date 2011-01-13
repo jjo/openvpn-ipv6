@@ -95,6 +95,7 @@ struct connection_entry
 #ifdef ENABLE_SOCKS
   const char *socks_proxy_server;
   int socks_proxy_port;
+  const char *socks_proxy_authfile;
   bool socks_proxy_retry;
 #endif
 
@@ -358,11 +359,6 @@ struct options
   struct plugin_option_list *plugin_list;
 #endif
 
-#ifdef USE_PTHREAD
-  int n_threads;
-  int nice_work;
-#endif
-
 #if P2MP
 
 #if P2MP_SERVER
@@ -529,8 +525,10 @@ struct options
      within n seconds of handshake initiation. */
   int handshake_window;
 
+#ifdef ENABLE_X509ALTUSERNAME
   /* Field used to be the username in X509 cert. */
   char *x509_username_field;
+#endif
 
   /* Old key allowed to live n seconds after new key goes active */
   int transition_window;

@@ -73,9 +73,6 @@ const char title_string[] =
 #ifdef PRODUCT_TAP_DEBUG
   " [TAPDBG]"
 #endif
-#ifdef USE_PTHREAD
-  " [PTHREAD]"
-#endif
 #ifdef ENABLE_PKCS11
   " [PKCS11]"
 #endif
@@ -139,8 +136,11 @@ static const char usage_message[] =
   "                  AGENT user-agent\n"
 #endif
 #ifdef ENABLE_SOCKS
-  "--socks-proxy s [p]: Connect to remote host through a Socks5 proxy at address\n"
-  "                  s and port p (default port = 1080).\n"
+  "--socks-proxy s [p] [up] : Connect to remote host through a Socks5 proxy at\n"
+  "                  address s and port p (default port = 1080).\n"
+  "                  If proxy authentication is required,\n"
+  "                  up is a file containing username/password on 2 lines, or\n"
+  "                  'stdin' to prompt for console.\n"
   "--socks-proxy-retry : Retry indefinitely on Socks proxy errors.\n"
 #endif
   "--resolv-retry n: If hostname resolve fails for --remote, retry\n"
@@ -313,13 +313,6 @@ static const char usage_message[] =
   "--suppress-timestamps : Don't log timestamps to stdout/stderr.\n"
   "--writepid file : Write main process ID to file.\n"
   "--nice n        : Change process priority (>0 = lower, <0 = higher).\n"
-#if 0
-#ifdef USE_PTHREAD
-  "--nice-work n   : Change thread priority of work thread.  The work\n"
-  "                  thread is used for background processing such as\n"
-  "                  RSA key number crunching.\n"
-#endif
-#endif
   "--echo [parms ...] : Echo parameters to log output.\n"
   "--verb n        : Set output verbosity to n (default=%d):\n"
   "                  (Level 3 is recommended if you want a good summary\n"
@@ -536,8 +529,10 @@ static const char usage_message[] =
   "--key file      : Local private key in .pem format.\n"
   "--pkcs12 file   : PKCS#12 file containing local private key, local certificate\n"
   "                  and optionally the root CA certificate.\n"
+#ifdef ENABLE_X509ALTUSERNAME
   "--x509-username-field : Field used in x509 certificat to be username.\n"
   "                        Default is CN.\n"
+#endif
 #ifdef WIN32
   "--cryptoapicert select-string : Load the certificate and private key from the\n"
   "                  Windows Certificate System Store.\n"
@@ -760,9 +755,6 @@ init_options (struct options *o, const bool init_gc)
   o->tuntap_options.dhcp_masq_offset = 0;       /* use network address as internal DHCP server address */
   o->route_method = ROUTE_METHOD_ADAPTIVE;
 #endif
-#ifdef USE_PTHREAD
-  o->n_threads = 1;
-#endif
 #if P2MP_SERVER
   o->real_hash_size = 256;
   o->virtual_hash_size = 256;
@@ -794,7 +786,9 @@ init_options (struct options *o, const bool init_gc)
   o->renegotiate_seconds = 3600;
   o->handshake_window = 60;
   o->transition_window = 3600;
+#ifdef ENABLE_X509ALTUSERNAME
   o->x509_username_field = X509_USERNAME_FIELD_DEFAULT;
+#endif
 #endif
 #endif
 #ifdef ENABLE_PKCS11
@@ -984,9 +978,6 @@ is_persist_option (const struct options *o)
       || o->persist_key
       || o->persist_local_ip
       || o->persist_remote_ip
-#ifdef USE_PTHREAD
-      || o->n_threads >= 2
-#endif
     ;
 }
 
@@ -3128,7 +3119,9 @@ usage_version (void)
 #ifdef CONFIGURE_CALL
   msg (M_INFO|M_NOPREFIX, "\n%s\n", CONFIGURE_CALL);
 #endif
+#ifdef CONFIGURE_DEFINES
   msg (M_INFO|M_NOPREFIX, "Compile time defines: %s", CONFIGURE_DEFINES);
+#endif
 #endif
   openvpn_exit (OPENVPN_EXIT_STATUS_USAGE); /* exit point */
 }
@@ -3164,6 +3157,7 @@ positive_atoi (const char *str)
   return i < 0 ? 0 : i;
 }
 
+#ifdef WIN32  /* This function is only used when compiling on Windows */
 static unsigned int
 atou (const char *str)
 {
@@ -3171,6 +3165,7 @@ atou (const char *str)
   sscanf (str, "%u", &val);
   return val;
 }
+#endif
 
 static inline bool
 space (unsigned char c)
@@ -4463,26 +4458,6 @@ add_option (struct options *options,
       goto err;
 #endif
     }
-#ifdef USE_PTHREAD
-  else if (streq (p[0], "nice-work") && p[1])
-    {
-      VERIFY_PERMISSION (OPT_P_NICE);
-      options->nice_work = atoi (p[1]);
-    }
-  else if (streq (p[0], "threads") && p[1])
-    {
-      int n_threads;
-
-      VERIFY_PERMISSION (OPT_P_GENERAL);
-      n_threads = positive_atoi (p[1]);
-      if (n_threads < 1)
-	{
-	  msg (msglevel, "--threads parameter must be at least 1");
-	  goto err;
-	}
-      options->n_threads = n_threads;
-    }
-#endif
   else if (streq (p[0], "shaper") && p[1])
     {
 #ifdef HAVE_GETTIMEOFDAY
@@ -4736,6 +4711,7 @@ add_option (struct options *options,
 	  options->ce.socks_proxy_port = 1080;
 	}
       options->ce.socks_proxy_server = p[1];
+      options->ce.socks_proxy_authfile = p[3]; /* might be NULL */
     }
   else if (streq (p[0], "socks-proxy-retry"))
     {
@@ -6267,13 +6243,16 @@ add_option (struct options *options,
 	}
       options->key_method = key_method;
     }
+#ifdef ENABLE_X509ALTUSERNAME
   else if (streq (p[0], "x509-username-field") && p[1])
     {
       char *s = p[1];
       VERIFY_PERMISSION (OPT_P_GENERAL);
-      while ((*s = toupper(*s)) != '\0') s++; /* Uppercase if necessary */
+      if( strncmp ("ext:",s,4) != 0 )
+        while ((*s = toupper(*s)) != '\0') s++; /* Uppercase if necessary */
       options->x509_username_field = p[1];
     }
+#endif /* ENABLE_X509ALTUSERNAME */
 #endif /* USE_SSL */
 #endif /* USE_CRYPTO */
 #ifdef ENABLE_PKCS11

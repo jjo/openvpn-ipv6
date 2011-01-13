@@ -43,7 +43,6 @@
 #include "common.h"
 #include "integer.h"
 #include "socket.h"
-#include "thread.h"
 #include "misc.h"
 #include "fdmisc.h"
 #include "interval.h"
@@ -522,6 +521,61 @@ extract_x509_field_ssl (X509_NAME *x509, const char *field_name, char *out, int 
   }
 }
 
+#ifdef ENABLE_X509ALTUSERNAME
+static
+bool extract_x509_extension(X509 *cert, char *fieldname, char *out, int size)
+{
+  bool retval = false;
+  X509_EXTENSION *pExt;
+  char *buf = 0;
+  int length = 0;
+  GENERAL_NAMES *extensions;
+  int nid = OBJ_txt2nid(fieldname);
+
+  extensions = (GENERAL_NAMES *)X509_get_ext_d2i(cert, nid, NULL, NULL);
+  if ( extensions )
+    {
+      int numalts;
+      int i;
+      /* get amount of alternatives,
+       * RFC2459 claims there MUST be at least
+       * one, but we don't depend on it...
+       */
+
+      numalts = sk_GENERAL_NAME_num(extensions);
+
+      /* loop through all alternatives */
+      for (i=0; i<numalts; i++)
+        {
+          /* get a handle to alternative name number i */
+          const GENERAL_NAME *name = sk_GENERAL_NAME_value (extensions, i );
+
+          switch (name->type)
+            {
+              case GEN_EMAIL:
+                ASN1_STRING_to_UTF8((unsigned char**)&buf, name->d.ia5);
+                if ( strlen (buf) != name->d.ia5->length )
+                  {
+                    msg (D_TLS_ERRORS, "ASN1 ERROR: string contained terminating zero");
+                    OPENSSL_free (buf);
+                  } else {
+                    strncpynt(out, buf, size);
+                    OPENSSL_free(buf);
+                    retval = true;
+                  }
+                break;
+              default:
+                msg (D_TLS_ERRORS, "ASN1 ERROR: can not handle field type %i",
+                     name->type);
+                break;
+            }
+          }
+        sk_GENERAL_NAME_free (extensions);
+    }
+  return retval;
+}
+#endif
+
 /*
  * Save X509 fields to environment, using the naming convention:
  *
@@ -807,6 +861,20 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
   string_replace_leading (subject, '-', '_');
 
   /* extract the username (default is CN) */
+#ifdef ENABLE_X509ALTUSERNAME
+  if (strncmp("ext:",x509_username_field,4) == 0)
+    {
+      if (!extract_x509_extension (ctx->current_cert, x509_username_field+4, common_name, sizeof(common_name)))
+        {
+          msg (D_TLS_ERRORS, "VERIFY ERROR: could not extract %s extension from X509 subject string ('%s') "
+                             "-- note that the username length is limited to %d characters",
+                             x509_username_field+4,
+                             subject,
+                             TLS_USERNAME_LEN);
+          goto err;
+        }
+    } else
+#endif
   if (!extract_x509_field_ssl (X509_get_subject_name (ctx->current_cert), x509_username_field, common_name, sizeof(common_name)))
     {
       if (!ctx->error_depth)
@@ -1004,7 +1072,7 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
       if (opt->verify_export_cert)
         {
           gc = gc_new();
-          if (tmp_file=get_peer_cert(ctx, opt->verify_export_cert,&gc))
+          if ((tmp_file=get_peer_cert(ctx, opt->verify_export_cert,&gc)))
            {
              setenv_str(opt->es, "peer_cert", tmp_file);
            }
@@ -2083,7 +2151,11 @@ init_ssl (const struct options *options)
     }
   else
 #endif
+#ifdef ENABLE_X509ALTUSERNAME
   x509_username_field = (char *) options->x509_username_field;
+#else
+  x509_username_field = X509_USERNAME_FIELD_DEFAULT;
+#endif
   SSL_CTX_set_verify (ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
 			verify_callback);
 
@@ -4253,8 +4325,6 @@ tls_process (struct tls_multi *multi,
 	msg (D_TLS_DEBUG_LOW, "TLS: tls_process: killed expiring key");
   }
 
-  /*mutex_cycle (multi->mutex);*/
-
   do
     {
       update_time ();
@@ -4541,7 +4611,6 @@ tls_process (struct tls_multi *multi,
 		}
 	    }
 	}
-      /*mutex_cycle (multi->mutex);*/
     }
   while (state_change);
 
@@ -4695,7 +4764,6 @@ tls_multi_process (struct tls_multi *multi,
 		reset_session (multi, session);
 	    }
 	}
-      /*mutex_cycle (multi->mutex);*/
     }
 
   update_time ();

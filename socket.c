@@ -26,7 +26,6 @@
 
 #include "socket.h"
 #include "fdmisc.h"
-#include "thread.h"
 #include "misc.h"
 #include "gremlin.h"
 #include "plugin.h"
@@ -2415,9 +2414,7 @@ print_sockaddr_ex (const struct openvpn_sockaddr *addr,
 	{
 	  const int port= ntohs (addr->addr.in4.sin_port);
 	  buf_puts (&out, "[AF_INET]");
-	  mutex_lock_static (L_INET_NTOA);
 	  buf_puts (&out, (addr_is_defined ? inet_ntoa (addr->addr.in4.sin_addr) : "[undef]"));
-	  mutex_unlock_static (L_INET_NTOA);
 
 	  if (((flags & PS_SHOW_PORT) || (addr_is_defined && (flags & PS_SHOW_PORT_IF_DEFINED)))
 	      && port)
@@ -2533,9 +2530,7 @@ print_in_addr_t (in_addr_t addr, unsigned int flags, struct gc_arena *gc)
       CLEAR (ia);
       ia.s_addr = (flags & IA_NET_ORDER) ? addr : htonl (addr);
 
-      mutex_lock_static (L_INET_NTOA);
       buf_printf (&out, "%s", inet_ntoa (ia));
-      mutex_unlock_static (L_INET_NTOA);
     }
   return BSTR (&out);
 }
@@ -2543,7 +2538,6 @@ print_in_addr_t (in_addr_t addr, unsigned int flags, struct gc_arena *gc)
 /*
  * Convert an in6_addr in host byte order
  * to an ascii representation of an IPv6 address
- * (we reuse the L_INET_NTOA mutex, no contention here)
  */
 const char *
 print_in6_addr (struct in6_addr a6, unsigned int flags, struct gc_arena *gc)
@@ -2554,10 +2548,8 @@ print_in6_addr (struct in6_addr a6, unsigned int flags, struct gc_arena *gc)
   if ( memcmp(&a6, &in6addr_any, sizeof(a6)) != 0 || 
        !(flags & IA_EMPTY_IF_UNDEF))
     {
-      mutex_lock_static (L_INET_NTOA);
       inet_ntop (AF_INET6, &a6, tmp_out_buf, sizeof(tmp_out_buf)-1);
       buf_printf (&out, "%s", tmp_out_buf );
-      mutex_unlock_static (L_INET_NTOA);
     }
   return BSTR (&out);
 }
@@ -2609,9 +2601,7 @@ setenv_sockaddr (struct env_set *es, const char *name_prefix, const struct openv
       else
 	openvpn_snprintf (name_buf, sizeof (name_buf), "%s", name_prefix);
 
-      mutex_lock_static (L_INET_NTOA);
       setenv_str (es, name_buf, inet_ntoa (addr->addr.in4.sin_addr));
-      mutex_unlock_static (L_INET_NTOA);
 
       if ((flags & SA_IP_PORT) && addr->addr.in4.sin_port)
 	{
