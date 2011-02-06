@@ -32,7 +32,6 @@ AC_CONFIG_SRCDIR(syshead.h)
 
 dnl Guess host type.
 AC_CANONICAL_HOST
-AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE(openvpn, [$PACKAGE_VERSION])
 
 AC_ARG_WITH(cygwin-native,
@@ -48,7 +47,7 @@ case "${host}" in
 		WIN32="yes"
 		cross_compiling="yes"
 	;;
-	*-cygwin*)
+	*-*-cygwin*)
 		AC_MSG_CHECKING([cygwin mode to use])
 		if test "${CYGWIN_NATIVE}" = "yes"; then
 			AC_MSG_RESULT([Using native win32])
@@ -133,6 +132,12 @@ AC_ARG_ENABLE(multihome,
    [  --disable-multihome     Disable multi-homed UDP server support (--multihome)],
    [MULTIHOME="$enableval"],
    [MULTIHOME="yes"]
+)
+
+AC_ARG_ENABLE(ipv6,
+   [  --disable-ipv6          Disable UDP/IPv6 support],
+   [PF_INET6="$enableval"],
+   [PF_INET6="yes"]
 )
 
 AC_ARG_ENABLE(port-share,
@@ -267,6 +272,13 @@ AC_ARG_WITH(route-path,
 )
 AC_DEFINE_UNQUOTED(ROUTE_PATH, "$ROUTE", [Path to route tool])
 
+AC_ARG_WITH(netstat-path,
+   [  --with-netstat-path=PATH  Path to netstat tool],
+   [NETSTAT="$withval"],
+   [AC_PATH_PROG([NETSTAT], [netstat], [netstat], [$PATH:/usr/local/sbin:/usr/sbin:/sbin:/etc])]
+)
+AC_DEFINE_UNQUOTED(NETSTAT_PATH, "$NETSTAT", [Path to netstat tool])
+
 AC_ARG_WITH(mem-check,
    [  --with-mem-check=TYPE  Build with debug memory checking, TYPE = dmalloc or valgrind],
    [MEMCHECK="$withval"]
@@ -275,38 +287,38 @@ AC_ARG_WITH(mem-check,
 dnl fix search path, to allow compilers to find syshead.h
 CPPFLAGS="$CPPFLAGS -I${srcdir}"
 
-dnl check target OS
-openvpn_target=$target
-if test $target_alias; then
-  openvpn_target=$target_alias
+dnl check host OS
+openvpn_host=$host
+if test $host_alias; then
+  openvpn_host=$host_alias
 fi
-AC_DEFINE_UNQUOTED(TARGET_ALIAS, "$openvpn_target", [A string representing our target])
-case "$target" in
-*linux*)
+AC_DEFINE_UNQUOTED(TARGET_ALIAS, "$openvpn_host", [A string representing our host])
+case "$host" in
+*-*-linux*)
 	AC_DEFINE(TARGET_LINUX, 1, [Are we running on Linux?])
 	dnl RH9 SSL headers workaround
         if test -z $CS_HDR_DIR && test "$CRYPTO" = "yes"; then
            CPPFLAGS="$CPPFLAGS $(pkg-config --cflags openssl 2>/dev/null)"
         fi
 	;;
-*solaris*)
+*-*-solaris*)
 	AC_DEFINE(TARGET_SOLARIS, 1, [Are we running on Solaris?])
 	;;
-*openbsd*)
+*-*-openbsd*)
 	AC_DEFINE(TARGET_OPENBSD, 1, [Are we running on OpenBSD?])
 	;;
-*freebsd*)
+*-*-freebsd*)
 	AC_DEFINE(TARGET_FREEBSD, 1, [Are we running on FreeBSD?])
 	;;
-*netbsd*)
+*-*-netbsd*)
 	AC_DEFINE(TARGET_NETBSD, 1, [Are we running NetBSD?])
 	;;
-*darwin*)
+*-*-darwin*)
 	dnl some Mac OS X tendering (we use vararg macros...)
 	AC_DEFINE(TARGET_DARWIN, 1, [Are we running on Mac OS X?])
 	CPPFLAGS="$CPPFLAGS -no-cpp-precomp"
 	;;
-*mingw*)
+*-mingw*)
 	AC_DEFINE(TARGET_WIN32, 1, [Are we running WIN32?])
 	OPENVPN_ADD_LIBS(-lgdi32)
 	OPENVPN_ADD_LIBS(-lws2_32)
@@ -315,7 +327,7 @@ case "$target" in
 	OPENVPN_ADD_LIBS(-liphlpapi)
 	OPENVPN_ADD_LIBS(-lwinmm)
 	;;
-*dragonfly*)
+*-*-dragonfly*)
 	AC_DEFINE(TARGET_DRAGONFLY, 1, [Are we running on DragonFlyBSD?])
 	;;
 	
@@ -369,7 +381,10 @@ if test "${WIN32}" != "yes"; then
 		 linux/types.h sys/poll.h sys/epoll.h err.h dnl
    )
    AC_CHECK_HEADERS(net/if.h,,,
-		 [#ifdef HAVE_SYS_SOCKET_H 
+		 [#ifdef HAVE_SYS_TYPES_H
+		  # include <sys/types.h>
+		  #endif
+		  #ifdef HAVE_SYS_SOCKET_H
 		  # include <sys/socket.h>
 		  #endif
 		 ])
@@ -550,6 +565,16 @@ LDFLAGS="$LDFLAGS -Wl,--fatal-warnings"
 AC_CHECK_FUNC(epoll_create, AC_DEFINE(HAVE_EPOLL_CREATE, 1, [epoll_create function is defined]))
 LDFLAGS="$OLDLDFLAGS"
 
+dnl ipv6 support
+if test "$PF_INET6" = "yes"; then
+  AC_CHECKING([for struct sockaddr_in6 for IPv6 support])
+  AC_CHECK_TYPE(
+      [struct sockaddr_in6],
+      [AC_DEFINE(USE_PF_INET6, 1, [struct sockaddr_in6 is needed for IPv6 peer support])],
+      [],
+      [#include "syshead.h"])
+fi
+
 dnl
 dnl check for valgrind tool
 dnl
@@ -574,7 +599,7 @@ if test "$PTHREAD" = "yes"; then
   AC_MSG_RESULT([********* WARNING: pthread support is experimental for OpenVPN 2.0])
   ACX_PTHREAD(
         [
-	    case "$target" in
+	    case "$host" in
 	    *openbsd*)
 		AC_MSG_RESULT([WARNING: pthread support on OpenBSD is unstable!])
 		CFLAGS="$CFLAGS -pthread"
@@ -911,6 +936,7 @@ if test -z "${htmldir}"; then
 fi
 # end workaround
 
+AC_CONFIG_FILES([t_client.sh], [chmod +x t_client.sh])
 AC_OUTPUT([
 	Makefile
 	openvpn.spec

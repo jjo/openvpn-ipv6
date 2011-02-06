@@ -28,6 +28,10 @@
 /*
  * Only include if not during configure
  */
+#ifdef WIN32
+/* USE_PF_INET6: win32 ipv6 exists only after 0x0501 (XP) */
+#define WINVER 0x0501
+#endif
 #ifndef PACKAGE_NAME
 #ifdef _MSC_VER
 #include "config-win32.h"
@@ -85,6 +89,10 @@
 #endif
 
 #ifdef HAVE_SYS_SOCKET_H
+# if defined(TARGET_LINUX) && !defined(_GNU_SOURCE)
+   /* needed for peercred support on glibc-2.8 */
+#  define _GNU_SOURCE
+# endif
 #include <sys/socket.h>
 #endif
 
@@ -338,6 +346,9 @@
 #ifdef WIN32
 #include <iphlpapi.h>
 #include <wininet.h>
+/* The following two headers are needed of USE_PF_INET6 */
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #endif
 
 #ifdef HAVE_SYS_MMAN_H
