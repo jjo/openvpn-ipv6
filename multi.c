@@ -1066,8 +1066,8 @@ multi_learn_in_addr_t (struct multi_context *m,
   struct mroute_addr addr;
 
   CLEAR (remote_si);
-  remote_si.sa.sin_family = AF_INET;
-  remote_si.sa.sin_addr.s_addr = htonl (a);
+  remote_si.addr.in4.sin_family = AF_INET;
+  remote_si.addr.in4.sin_addr.s_addr = htonl (a);
   ASSERT (mroute_extract_openvpn_sockaddr (&addr, &remote_si, false));
 
   if (netbits >= 0)
@@ -1530,9 +1530,14 @@ multi_connection_established (struct multi_context *m, struct multi_instance *mi
       if (plugin_defined (mi->context.plugins, OPENVPN_PLUGIN_CLIENT_CONNECT))
 	{
 	  struct argv argv = argv_new ();
-	  const char *dc_file = create_temp_filename (mi->context.options.tmp_dir, "cc", &gc);
+	  const char *dc_file = create_temp_file (mi->context.options.tmp_dir, "cc", &gc);
+
+          if( !dc_file ) {
+            cc_succeeded = false;
+            goto script_depr_failed;
+          }
+
 	  argv_printf (&argv, "%s", dc_file);
-	  delete_file (dc_file);
 	  if (plugin_call (mi->context.plugins, OPENVPN_PLUGIN_CLIENT_CONNECT, &argv, NULL, mi->context.c2.es) != OPENVPN_PLUGIN_FUNC_SUCCESS)
 	    {
 	      msg (M_WARN, "WARNING: client-connect plugin call failed");
@@ -1543,6 +1548,7 @@ multi_connection_established (struct multi_context *m, struct multi_instance *mi
 	      multi_client_connect_post (m, mi, dc_file, option_permissions_mask, &option_types_found);
 	      ++cc_succeeded_count;
 	    }
+        script_depr_failed:
 	  argv_reset (&argv);
 	}
 
@@ -1578,9 +1584,11 @@ multi_connection_established (struct multi_context *m, struct multi_instance *mi
 
 	  setenv_str (mi->context.c2.es, "script_type", "client-connect");
 
-	  dc_file = create_temp_filename (mi->context.options.tmp_dir, "cc", &gc);
-
-	  delete_file (dc_file);
+	  dc_file = create_temp_file (mi->context.options.tmp_dir, "cc", &gc);
+          if( !dc_file ) {
+            cc_succeeded = false;
+            goto script_failed;
+          }
 
 	  argv_printf (&argv, "%sc %s",
 		       mi->context.options.client_connect_script,
@@ -1593,7 +1601,7 @@ multi_connection_established (struct multi_context *m, struct multi_instance *mi
 	    }
 	  else
 	    cc_succeeded = false;
-
+        script_failed:
 	  argv_reset (&argv);
 	}
 
@@ -2496,9 +2504,9 @@ management_callback_kill_by_addr (void *arg, const in_addr_t addr, const int por
   int count = 0;
 
   CLEAR (saddr);
-  saddr.sa.sin_family = AF_INET;
-  saddr.sa.sin_addr.s_addr = htonl (addr);
-  saddr.sa.sin_port = htons (port);
+  saddr.addr.in4.sin_family = AF_INET;
+  saddr.addr.in4.sin_addr.s_addr = htonl (addr);
+  saddr.addr.in4.sin_port = htons (port);
   if (mroute_extract_openvpn_sockaddr (&maddr, &saddr, true))
     {
       hash_iterator_init (m->iter, &hi, true);
@@ -2675,16 +2683,24 @@ tunnel_server (struct context *top)
 {
   ASSERT (top->options.mode == MODE_SERVER);
 
-  switch (top->options.ce.proto) {
-  case PROTO_UDPv4:
-    tunnel_server_udp (top);
-    break;
-  case PROTO_TCPv4_SERVER:
-    tunnel_server_tcp (top);
-    break;
-  default:
-    ASSERT (0);
-  }
+#ifdef USE_PF_INET6
+  if (proto_is_dgram(top->options.ce.proto))
+    tunnel_server_udp(top);
+  else
+    tunnel_server_tcp(top);
+#else
+  switch (top->options.ce.proto)
+    {
+    case PROTO_UDPv4:
+      tunnel_server_udp (top);
+      break;
+    case PROTO_TCPv4_SERVER:
+      tunnel_server_tcp (top);
+      break;
+    default:
+      ASSERT (0);
+    }
+#endif
 }
 
 #else

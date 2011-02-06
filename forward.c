@@ -766,7 +766,7 @@ process_incoming_link (struct context *c)
 
   /* log incoming packet */
 #ifdef LOG_RW
-  if (c->c2.log_rw)
+  if (c->c2.log_rw && c->c2.buf.len > 0)
     fprintf (stderr, "R");
 #endif
   msg (D_LINK_RW, "%s READ [%d] from %s: %s",
@@ -976,7 +976,7 @@ process_incoming_tun (struct context *c)
     c->c2.tun_read_bytes += c->c2.buf.len;
 
 #ifdef LOG_RW
-  if (c->c2.log_rw)
+  if (c->c2.log_rw && c->c2.buf.len > 0)
     fprintf (stderr, "r");
 #endif
 
@@ -1168,8 +1168,9 @@ process_outgoing_link (struct context *c)
 		 size);
 	}
 
-      /* indicate activity regarding --inactive parameter */
-      register_activity (c, size);
+      /* if not a ping/control message, indicate activity regarding --inactive parameter */
+      if (c->c2.buf.len > 0 )
+        register_activity (c, size);
     }
   else
     {
