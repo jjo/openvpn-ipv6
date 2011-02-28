@@ -1063,7 +1063,7 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
   /* run --tls-verify script */
   if (opt->verify_command)
     {
-      const char *tmp_file;
+      const char *tmp_file = NULL;
       struct gc_arena gc;
       int ret;
 
