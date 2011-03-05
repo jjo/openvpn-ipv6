@@ -106,6 +106,7 @@ struct multi_context {
   struct schedule *schedule;
   struct mbuf_set *mbuf;
   struct multi_tcp *mtcp;
+  struct multi_sock *msock;
   struct ifconfig_pool *ifconfig_pool;
   struct frequency_limit *new_connection_limiter;
   struct mroute_helper *route_helper;
@@ -155,7 +156,7 @@ void tunnel_server (struct context *top);
 const char *multi_instance_string (const struct multi_instance *mi, bool null, struct gc_arena *gc);
 
 /*
- * Called by mtcp.c, mudp.c, or other (to be written) protocol drivers
+ * Called by mtcp.c, mudp.c, msock.c or other (to be written) protocol drivers
  */
 
 void multi_init (struct multi_context *m, struct context *t, bool tcp_mode, int thread_mode);
