@@ -23,11 +23,13 @@
  *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#if NOT_YET
+
 #include "syshead.h"
 
 #if P2MP_SERVER
 
-#include "msock.h"
+#include "mlisten.h"
 
 #include "multi.h"
 #include "forward-inline.h"
@@ -150,4 +152,5 @@ tunnel_server_msock (struct context *top)
   close_instance (top);
 }
 
+#endif
 #endif

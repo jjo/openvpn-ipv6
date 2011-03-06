@@ -553,7 +553,7 @@ ep_wait (struct event_set *es, const struct timeval *tv, struct event_set_return
 	    esr->rwflags |= EVENT_READ;
 	  if (ev->events & EPOLLOUT)
 	    esr->rwflags |= EVENT_WRITE;
-	  esr->arg = ev->data.ptr;
+	  esr->arg.ptr = ev->data.ptr;
 	  dmsg (D_EVENT_WAIT, "EP_WAIT[%d] rwflags=0x%04x ev=0x%08x arg=" ptr_format,
 	       i, esr->rwflags, ev->events, (ptr_type)ev->data.ptr);
 	  ++ev;
@@ -741,9 +741,9 @@ po_wait (struct event_set *es, const struct timeval *tv, struct event_set_return
 		out->rwflags |= EVENT_READ;
 	      if (pfdp->revents & POLLOUT)
 		out->rwflags |= EVENT_WRITE;
-	      out->arg = pos->args[i];
+	      out->arg.ptr = pos->args[i];
 	      dmsg (D_EVENT_WAIT, "PO_WAIT[%d,%d] fd=%d rev=0x%08x rwflags=0x%04x arg=" ptr_format " %s",
-		   i, j, pfdp->fd, pfdp->revents, out->rwflags, (ptr_type)out->arg, pos->fast ? "" : "[scalable]");
+		   i, j, pfdp->fd, pfdp->revents, out->rwflags, (ptr_type)out->arg.ptr, pos->fast ? "" : "[scalable]");
 	      ++out;
 	      ++j;
 	    }
@@ -907,9 +907,9 @@ se_wait_return (struct se_set *ses,
 	    out->rwflags |= EVENT_READ;
 	  if (w)
 	    out->rwflags |= EVENT_WRITE;
-	  out->arg = ses->args[i];
+	  out->arg.ptr = ses->args[i];
 	  dmsg (D_EVENT_WAIT, "SE_WAIT[%d,%d] rwflags=0x%04x arg=" ptr_format,
-	       i, j, out->rwflags, (ptr_type)out->arg);
+	       i, j, out->rwflags, (ptr_type)out->arg.ptr);
 	  ++out;
 	  ++j;
 	}

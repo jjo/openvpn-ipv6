@@ -1477,7 +1477,7 @@ io_wait_dowork (struct context *c, const unsigned int flags)
 	      for (i = 0; i < status; ++i)
 		{
 		  const struct event_set_return *e = &esr[i];
-		  c->c2.event_set_status |= ((e->rwflags & 3) << *((int*)e->arg));
+		  c->c2.event_set_status |= ((e->rwflags & 3) << *((int*)e->arg.ptr));
 		}
 	    }
 	  else if (status == 0)

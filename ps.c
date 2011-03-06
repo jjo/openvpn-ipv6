@@ -685,14 +685,14 @@ port_share_proxy (const in_addr_t hostaddr, const int port, const socket_descrip
 	      for (i = 0; i < n_events; ++i)
 		{
 		  const struct event_set_return *e = &esr[i];
-		  if (e->arg == sd_control_marker)
+		  if (e->arg.ptr == sd_control_marker)
 		    {
 		      if (!control_message_from_parent (sd_control, &list, es, hostaddr, port))
 			goto done;
 		    }
 		  else
 		    {
-		      struct proxy_connection *pc = (struct proxy_connection *)e->arg;
+		      struct proxy_connection *pc = (struct proxy_connection *)e->arg.ptr;
 		      if (pc->defined)
 			proxy_connection_io_dispatch (pc, e->rwflags, es);
 		    }

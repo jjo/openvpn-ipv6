@@ -820,6 +820,11 @@ if test "$MULTI" = "yes"; then
    AC_DEFINE(ENABLE_CLIENT_SERVER, 1, [Enable client/server capability])
 fi
 
+dnl enable multi-listen mode
+if test "$MLISTEN" = "yes"; then
+   AC_DEFINE(ENABLE_MLISTEN, 1, [Enable multi-listen support])
+fi
+
 dnl enable client mode only, not server
 if test "$MULTI_SERVER" = "no"; then
    AC_DEFINE(ENABLE_CLIENT_ONLY, 1, [Enable client capability only])

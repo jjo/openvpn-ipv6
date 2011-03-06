@@ -106,7 +106,9 @@ struct multi_context {
   struct schedule *schedule;
   struct mbuf_set *mbuf;
   struct multi_tcp *mtcp;
+#ifdef ENABLE_MLISTEN
   struct multi_sock *msock;
+#endif
   struct ifconfig_pool *ifconfig_pool;
   struct frequency_limit *new_connection_limiter;
   struct mroute_helper *route_helper;

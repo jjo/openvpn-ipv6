@@ -591,9 +591,9 @@ multi_tcp_process_io (struct multi_context *m)
       struct event_set_return *e = &mtcp->esr[i];
 
       /* incoming data for instance? */
-      if (e->arg >= MTCP_N)
+      if (e->arg.ptr >= MTCP_N)
 	{
-	  struct multi_instance *mi = (struct multi_instance *) e->arg;
+	  struct multi_instance *mi = (struct multi_instance *) e->arg.ptr;
 	  if (mi)
 	    {
 	      if (e->rwflags & EVENT_WRITE)
@@ -605,7 +605,7 @@ multi_tcp_process_io (struct multi_context *m)
       else
 	{
 #ifdef ENABLE_MANAGEMENT
-	  if (e->arg == MTCP_MANAGEMENT)
+	  if (e->arg.ptr == MTCP_MANAGEMENT)
 	    {
 	      ASSERT (management);
 	      management_io (management);
@@ -613,7 +613,7 @@ multi_tcp_process_io (struct multi_context *m)
 	  else
 #endif
 	  /* incoming data on TUN? */
-	  if (e->arg == MTCP_TUN)
+	  if (e->arg.ptr == MTCP_TUN)
 	    {
 	      if (e->rwflags & EVENT_WRITE)
 		multi_tcp_action (m, NULL, TA_TUN_WRITE, false);
@@ -621,7 +621,7 @@ multi_tcp_process_io (struct multi_context *m)
 		multi_tcp_action (m, NULL, TA_TUN_READ, false);
 	    }
 	  /* new incoming TCP client attempting to connect? */
-	  else if (e->arg == MTCP_SOCKET)
+	  else if (e->arg.ptr == MTCP_SOCKET)
 	    {
 	      struct multi_instance *mi;
 	      ASSERT (m->top.c2.link_socket);
@@ -631,7 +631,7 @@ multi_tcp_process_io (struct multi_context *m)
 		multi_tcp_action (m, mi, TA_INITIAL, false);
 	    }
 	  /* signal received? */
-	  else if (e->arg == MTCP_SIG)
+	  else if (e->arg.ptr == MTCP_SIG)
 	    {
 	      get_signal (&m->top.sig->signal_received);
 	    }
