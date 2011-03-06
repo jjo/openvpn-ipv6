@@ -86,6 +86,12 @@ AC_ARG_ENABLE(multi,
    [MULTI="yes"]
 )
 
+AC_ARG_ENABLE(mlisten,
+   [  --disable-mlisten       Disable multi-listen support],
+   [MLISTEN="$enableval"],
+   [MLISTEN="yes"]
+)
+
 AC_ARG_ENABLE(server,
    [  --disable-server        Disable server support only (but retain client support)],
    [MULTI_SERVER="$enableval"],

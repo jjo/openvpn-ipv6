@@ -46,6 +46,9 @@ struct multi_tcp
 #ifdef ENABLE_MANAGEMENT
   unsigned int management_persist_flags;
 #endif
+#ifdef ENABLE_MLISTEN
+  int ml_index;
+#endif
 };
 
 struct multi_instance;
