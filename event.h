@@ -75,15 +75,14 @@ struct event_set_functions
   int  (*wait)(struct event_set *es, const struct timeval *tv, struct event_set_return *out, int outlen);
 };
 
-#define EVENT_TYPE_INVALID -1
-#define EVENT_TYPE_NONE     0
-#define EVENT_TYPE_MTCP     1
+typedef int (*event_handler_t)(struct event_set_return *);
 struct event_set_return
 {
+  event_handler_t esr_handler;
   unsigned int rwflags;
-  struct {
-    int event_type;
-    void *ptr;
+  union {
+      int i;
+      void *ptr;
   } arg;
 };
 
@@ -141,7 +140,6 @@ static inline void
 event_set_return_init (struct event_set_return *esr)
 {
   esr->rwflags = 0;
-  esr->arg.event_type = EVENT_TYPE_NONE;
   esr->arg.ptr = NULL;
 }
 
