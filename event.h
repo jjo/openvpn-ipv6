@@ -75,10 +75,11 @@ struct event_set_functions
   int  (*wait)(struct event_set *es, const struct timeval *tv, struct event_set_return *out, int outlen);
 };
 
-typedef int (*event_handler_t)(struct event_set_return *);
+typedef int (*event_handler_t)(void *esr_handler_data, struct event_set_return *esr);
 struct event_set_return
 {
   event_handler_t esr_handler;
+  void *esr_handler_data;
   unsigned int rwflags;
   union {
       int i;
@@ -140,6 +141,7 @@ static inline void
 event_set_return_init (struct event_set_return *esr)
 {
   esr->rwflags = 0;
+  esr->esr_handler = NULL;
   esr->arg.ptr = NULL;
 }
 

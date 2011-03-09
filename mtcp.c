@@ -580,6 +580,22 @@ multi_tcp_action (struct multi_context *m, struct multi_instance *mi, int action
   } while (action != TA_UNDEF);
 }
 
+
+int multi_tcp_esr_handler(void *esr_handler_data, struct event_set_return *e)
+{
+  struct multi_context *m=esr_handler_data;
+  struct multi_instance *mi = (struct multi_instance *) e->arg.ptr;
+  ASSERT(m);
+  if (mi)
+    {
+      if (e->rwflags & EVENT_WRITE)
+	multi_tcp_action (m, mi, TA_SOCKET_WRITE_READY, false);
+      else if (e->rwflags & EVENT_READ)
+	multi_tcp_action (m, mi, TA_SOCKET_READ, false);
+    }
+}
+
+
 static void
 multi_tcp_process_io (struct multi_context *m)
 {
@@ -590,6 +606,10 @@ multi_tcp_process_io (struct multi_context *m)
     {
       struct event_set_return *e = &mtcp->esr[i];
 
+      if (e->esr_handler) {
+	e->esr_handler(e->esr_handler_data, e);
+	continue;
+      }
       /* incoming data for instance? */
       if (e->arg.ptr >= MTCP_N)
 	{
