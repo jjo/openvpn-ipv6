@@ -33,11 +33,7 @@
 #define WINVER 0x0501
 #endif
 #ifndef PACKAGE_NAME
-#ifdef _MSC_VER
-#include "config-win32.h"
-#else
 #include "config.h"
-#endif
 #endif
 
 /* branch prediction hints */

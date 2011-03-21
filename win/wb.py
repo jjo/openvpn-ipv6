@@ -44,6 +44,11 @@ def system(cmd):
     print "RUN:", cmd
     os.system(cmd)
 
+def run_in_vs_shell(cmd):
+    """Make sure environment variables are setup before running command"""
+    os.environ['PATH'] += ";%s\\VC" % (os.path.normpath(config['MSVC']),)
+    system('cmd /c "vcvarsall.bat x86 && %s"' % (cmd,))
+
 def parse_version_m4(kv, version_m4):
     '''Parse define lines in version.m4'''
     r = re.compile(r'^define\((\w+),\[(.*)\]\)$')
@@ -96,7 +101,6 @@ def parse_build_params(kv, settings_in):
                 kv[g[0]] = g[1] or ''
     f.close()
 
-
 def dict_def(dict, newdefs):
     ret = dict.copy()
     ret.update(newdefs)
@@ -106,6 +110,15 @@ def build_autodefs(kv, autodefs_in, autodefs_out):
     preprocess(kv,
                in_fn=autodefs_in,
                out_fn=autodefs_out,
+               quote_begin='@',
+               quote_end='@',
+               head_comment='/* %s */\n\n' % autogen)
+
+def build_config_h(kv):
+    """Generate static win/config.h to config.h to mimic autotools behavior"""
+    preprocess(kv,
+               in_fn=mod_fn('config.h.in'),
+               out_fn=home_fn('config.h'),
                quote_begin='@',
                quote_end='@',
                head_comment='/* %s */\n\n' % autogen)
@@ -157,8 +170,6 @@ win/settings.in format. This done to allow importing them in win/openvpn.nsi"""
          fout.write(line)
 
     fout.close()
-
-
 
 def preprocess(kv, in_fn, out_fn, quote_begin=None, quote_end=None, if_prefix=None, head_comment=None):
     def repfn(m):
