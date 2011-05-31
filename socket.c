@@ -40,12 +40,10 @@ const int proto_overhead[] = { /* indexed by PROTO_x */
   IPv4_UDP_HEADER_SIZE, /* IPv4 */
   IPv4_TCP_HEADER_SIZE,
   IPv4_TCP_HEADER_SIZE,
-#ifdef USE_PF_INET6
   IPv6_UDP_HEADER_SIZE, /* IPv6 */
   IPv6_TCP_HEADER_SIZE,
   IPv6_TCP_HEADER_SIZE,
   IPv6_TCP_HEADER_SIZE,
-#endif
 };
 
 /*
@@ -282,7 +280,6 @@ getaddr_multi (unsigned int flags,
   return (flags & GETADDR_HOST_ORDER) ? ntohl (ia.s_addr) : ia.s_addr;
 }
 
-#ifdef USE_PF_INET6
 /*
  * Translate IPv6 addr or hostname into struct addrinfo
  * If resolve error, try again for
@@ -475,7 +472,6 @@ getaddr6 (unsigned int flags,
   gc_free (&gc);
   return success;
 }
-#endif /* USE_PF_INET6 */
 
 /*
  * We do our own inet_aton because the glibc function
@@ -647,7 +643,6 @@ update_remote (const char* host,
 	    }
 	}
       break;
-#ifdef USE_PF_INET6
     case AF_INET6:
       if (host && addr)
         {
@@ -672,7 +667,6 @@ update_remote (const char* host,
             }
         }
       break;
-#endif
     default:
         ASSERT(0);
   }
@@ -878,7 +872,6 @@ create_socket_udp (const unsigned int flags)
   return sd;
 }
 
-#ifdef USE_PF_INET6
 static socket_descriptor_t
 create_socket_udp6 (const unsigned int flags)
 {
@@ -917,7 +910,6 @@ create_socket_tcp6 (void)
   return sd;
 }
 
-#endif
 static void
 create_socket (struct link_socket *sock)
 {
@@ -937,7 +929,6 @@ create_socket (struct link_socket *sock)
     {
       sock->sd = create_socket_tcp ();
     }
-#ifdef USE_PF_INET6
   else if (sock->info.proto == PROTO_TCPv6_SERVER
 	   || sock->info.proto == PROTO_TCPv6_CLIENT)
     {
@@ -948,7 +939,6 @@ create_socket (struct link_socket *sock)
       sock->sd = create_socket_udp6 (sock->sockflags);
       sock->sockflags |= SF_GETADDRINFO_DGRAM;
     }
-#endif
   else
     {
       ASSERT (0);
@@ -1287,19 +1277,15 @@ socket_connect (socket_descriptor_t *sd,
       if (*signal_received)
 	goto done;
 
-#ifdef USE_PF_INET6
       switch(local->addr.sa.sa_family)
 	{
 	case PF_INET6:
 	  *sd = create_socket_tcp6 ();
 	  break;
 	case PF_INET:
-#endif
 	  *sd = create_socket_tcp ();
-#ifdef USE_PF_INET6
 	  break;
 	}
-#endif
 
       if (bind_local)
         socket_bind (*sd, local, "TCP Client");
@@ -1365,12 +1351,10 @@ resolve_bind_local (struct link_socket *sock)
   /* resolve local address if undefined */
   if (!addr_defined (&sock->info.lsa->local))
     {
-#ifdef USE_PF_INET6
       /* may return AF_{INET|INET6} guessed from local_host */
       switch(addr_guess_family(sock->info.proto, sock->local_host))
 	{
 	case AF_INET:
-#endif
 	  sock->info.lsa->local.addr.in4.sin_family = AF_INET;
 	  sock->info.lsa->local.addr.in4.sin_addr.s_addr =
 	    (sock->local_host ? getaddr (GETADDR_RESOLVE | GETADDR_WARN_ON_SIGNAL | GETADDR_FATAL,
@@ -1380,7 +1364,6 @@ resolve_bind_local (struct link_socket *sock)
 					 NULL)
 	     : htonl (INADDR_ANY));
 	  sock->info.lsa->local.addr.in4.sin_port = htons (sock->local_port);
-#ifdef USE_PF_INET6
 	  break;
 	case AF_INET6:
 	    {
@@ -1412,7 +1395,6 @@ resolve_bind_local (struct link_socket *sock)
 	    }
 	  break;
 	}
-#endif /* USE_PF_INET6 */
     }
   
   /* bind to local address/port */
@@ -1435,24 +1417,19 @@ resolve_remote (struct link_socket *sock,
 		volatile int *signal_received)
 {
   struct gc_arena gc = gc_new ();
-#ifdef USE_PF_INET6
   int af;
-#endif
 
   if (!sock->did_resolve_remote)
     {
       /* resolve remote address if undefined */
       if (!addr_defined (&sock->info.lsa->remote))
 	{
-#ifdef USE_PF_INET6
           af = addr_guess_family(sock->info.proto, sock->remote_host);
           switch(af)
             {
               case AF_INET:
-#endif
                 sock->info.lsa->remote.addr.in4.sin_family = AF_INET;
                 sock->info.lsa->remote.addr.in4.sin_addr.s_addr = 0;
-#ifdef USE_PF_INET6
                 break;
               case AF_INET6:
                 CLEAR(sock->info.lsa->remote.addr.in6);
@@ -1460,7 +1437,6 @@ resolve_remote (struct link_socket *sock,
                 sock->info.lsa->remote.addr.in6.sin6_addr = in6addr_any;
                 break;
             }
-#endif
 
 	  if (sock->remote_host)
 	    {
@@ -1503,18 +1479,15 @@ resolve_remote (struct link_socket *sock,
 		  ASSERT (0);
 		}
 
-#ifdef USE_PF_INET6
               switch(af)
                 {
                   case AF_INET:
-#endif
                     sock->info.lsa->remote.addr.in4.sin_addr.s_addr = getaddr (
                           flags,
                           sock->remote_host,
                           retry,
                           &status,
                           signal_received);
-#ifdef USE_PF_INET6
                     break;
                   case AF_INET6:
                     status = getaddr6 (
@@ -1526,7 +1499,6 @@ resolve_remote (struct link_socket *sock,
                         &sock->info.lsa->remote.addr.in6);
                     break;
                 }
-#endif
 
 	      dmsg (D_SOCKET_DEBUG, "RESOLVE_REMOTE flags=0x%04x phase=%d rrs=%d sig=%d status=%d",
 		   flags,
@@ -1547,19 +1519,15 @@ resolve_remote (struct link_socket *sock,
 		  goto done;
 		}
 	    }
-#ifdef USE_PF_INET6
           switch(af)
             {
               case AF_INET:
-#endif
                 sock->info.lsa->remote.addr.in4.sin_port = htons (sock->remote_port);
-#ifdef USE_PF_INET6
                 break;
               case AF_INET6:
                 sock->info.lsa->remote.addr.in6.sin6_port = htons (sock->remote_port);
                 break;
             }
-#endif
 	}
   
       /* should we re-use previous active remote address? */
@@ -1677,9 +1645,7 @@ link_socket_init_phase1 (struct link_socket *sock,
     {
       ASSERT (accept_from);
       ASSERT (sock->info.proto == PROTO_TCPv4_SERVER
-#ifdef USE_PF_INET6
 	      || sock->info.proto == PROTO_TCPv6_SERVER
-#endif
 	     );
       ASSERT (!sock->inetd);
       sock->sd = accept_from->sd;
@@ -1738,10 +1704,7 @@ link_socket_init_phase1 (struct link_socket *sock,
   if (sock->inetd)
     {
       ASSERT (sock->info.proto != PROTO_TCPv4_CLIENT
-#ifdef USE_PF_INET6
-	      && sock->info.proto != PROTO_TCPv6_CLIENT
-#endif
-      );
+	      && sock->info.proto != PROTO_TCPv6_CLIENT);
       ASSERT (socket_defined (inetd_socket_descriptor));
       sock->sd = inetd_socket_descriptor;
     }
@@ -1791,13 +1754,9 @@ link_socket_init_phase2 (struct link_socket *sock,
   if (sock->inetd)
     {
       if (sock->info.proto == PROTO_TCPv4_SERVER
-#ifdef USE_PF_INET6
-	  || sock->info.proto == PROTO_TCPv6_SERVER
-#endif
-      ) {
+	  || sock->info.proto == PROTO_TCPv6_SERVER) {
 	/* AF_INET as default (and fallback) for inetd */
 	sock->info.lsa->actual.dest.addr.sa.sa_family = AF_INET;
-#ifdef USE_PF_INET6
 #ifdef HAVE_GETSOCKNAME
 	  {
 	    /* inetd: hint family type for dest = local's */
@@ -1816,7 +1775,6 @@ link_socket_init_phase2 (struct link_socket *sock,
 	msg (M_WARN, "inetd(%s): this OS does not provide the getsockname() "
 	     "function, using AF_INET",
 	     proto2ascii(sock->info.proto, false));
-#endif
 #endif
 	sock->sd =
 	  socket_listen_accept (sock->sd,
@@ -1841,10 +1799,7 @@ link_socket_init_phase2 (struct link_socket *sock,
 
       /* TCP client/server */
       if (sock->info.proto == PROTO_TCPv4_SERVER
-#ifdef USE_PF_INET6
-	  ||sock->info.proto == PROTO_TCPv6_SERVER
-#endif
-	)
+	  ||sock->info.proto == PROTO_TCPv6_SERVER)
 	{
 	  switch (sock->mode)
 	    {
@@ -1880,10 +1835,7 @@ link_socket_init_phase2 (struct link_socket *sock,
 	    }
 	}
       else if (sock->info.proto == PROTO_TCPv4_CLIENT
-#ifdef USE_PF_INET6
-               ||sock->info.proto == PROTO_TCPv6_CLIENT
-#endif
-              )
+	       ||sock->info.proto == PROTO_TCPv6_CLIENT)
 	{
 
 #ifdef GENERAL_PROXY_SUPPORT
@@ -2179,9 +2131,7 @@ link_socket_bad_incoming_addr (struct buffer *buf,
   switch(from_addr->dest.addr.sa.sa_family)
     {
     case AF_INET:
-#ifdef USE_PF_INET6
     case AF_INET6:
-#endif
       msg (D_LINK_ERRORS,
 	   "TCP/UDP: Incoming packet rejected from %s[%d], expected peer address: %s (allow this incoming source address/port by removing --remote or adding --float)",
 	   print_link_socket_actual (from_addr, &gc),
@@ -2212,12 +2162,8 @@ link_socket_current_remote (const struct link_socket_info *info)
  * by now just ignore it
  *
  */
-#ifdef USE_PF_INET6
   if (lsa->actual.dest.addr.sa.sa_family != AF_INET)
     return IPV4_INVALID_ADDR;
-#else
-  ASSERT (lsa->actual.dest.addr.sa.sa_family == AF_INET);
-#endif
 
   if (link_socket_actual_defined (&lsa->actual))
     return ntohl (lsa->actual.dest.addr.in4.sin_addr.s_addr);
@@ -2455,11 +2401,9 @@ print_sockaddr_ex (const struct openvpn_sockaddr *addr,
   if (!addr_is_defined) {
     return "[undef]";
   }
-#ifdef USE_PF_INET6
   switch(addr->addr.sa.sa_family)
     {
     case AF_INET:
-#endif
 	{
 	  const int port= ntohs (addr->addr.in4.sin_port);
 	  buf_puts (&out, "[AF_INET]");
@@ -2476,7 +2420,6 @@ print_sockaddr_ex (const struct openvpn_sockaddr *addr,
 	      buf_printf (&out, "%d", port);
 	    }
 	}
-#ifdef USE_PF_INET6
       break;
     case AF_INET6:
 	{
@@ -2502,7 +2445,6 @@ print_sockaddr_ex (const struct openvpn_sockaddr *addr,
     default:
       ASSERT(0);
     }
-#endif
   return BSTR (&out);
 }
 
@@ -2530,11 +2472,9 @@ print_link_socket_actual_ex (const struct link_socket_actual *act,
 #if ENABLE_IP_PKTINFO
       if ((flags & PS_SHOW_PKTINFO) && addr_defined_ipi(act))
 	{
-#ifdef USE_PF_INET6
 	  switch(act->dest.addr.sa.sa_family)
 	    {
 	    case AF_INET:
-#endif
 		{
 		  struct openvpn_sockaddr sa;
 		  CLEAR (sa);
@@ -2552,7 +2492,6 @@ print_link_socket_actual_ex (const struct link_socket_actual *act,
 			      print_sockaddr_ex (&sa, separator, 0, gc),
 			      ifname);
 		}
-#ifdef USE_PF_INET6
 	      break;
 	    case AF_INET6:
 		{
@@ -2570,8 +2509,6 @@ print_link_socket_actual_ex (const struct link_socket_actual *act,
 		}
 	      break;
 	    }
-#endif /* USE_PF_INET6 */
-
 	}
 #endif
       return BSTR (&out);
@@ -2655,12 +2592,10 @@ setenv_sockaddr (struct env_set *es, const char *name_prefix, const struct openv
 {
   char name_buf[256];
 
-#ifdef USE_PF_INET6
   char buf[128];
   switch(addr->addr.sa.sa_family)
     {
     case AF_INET:
-#endif
       if (flags & SA_IP_PORT)
 	openvpn_snprintf (name_buf, sizeof (name_buf), "%s_ip", name_prefix);
       else
@@ -2673,7 +2608,6 @@ setenv_sockaddr (struct env_set *es, const char *name_prefix, const struct openv
 	  openvpn_snprintf (name_buf, sizeof (name_buf), "%s_port", name_prefix);
 	  setenv_int (es, name_buf, ntohs (addr->addr.in4.sin_port));
 	}
-#ifdef USE_PF_INET6
       break;
     case AF_INET6:
       openvpn_snprintf (name_buf, sizeof (name_buf), "%s_ip6", name_prefix);
@@ -2688,7 +2622,6 @@ setenv_sockaddr (struct env_set *es, const char *name_prefix, const struct openv
 	}
       break;
     }
-#endif
 }
 
 void
@@ -2732,12 +2665,10 @@ static const struct proto_names proto_names[PROTO_N] = {
   {"tcp-server", "TCPv4_SERVER",0,1, AF_INET},
   {"tcp-client", "TCPv4_CLIENT",0,1, AF_INET},
   {"tcp",        "TCPv4",0,1, AF_INET},
-#ifdef USE_PF_INET6
   {"udp6"       ,"UDPv6",1,1, AF_INET6},
   {"tcp6-server","TCPv6_SERVER",0,1, AF_INET6},
   {"tcp6-client","TCPv6_CLIENT",0,1, AF_INET6},
   {"tcp6"       ,"TCPv6",0,1, AF_INET6},
-#endif
 };
 
 bool
@@ -2819,14 +2750,11 @@ proto2ascii_all (struct gc_arena *gc)
 int
 addr_guess_family(int proto, const char *name) 
 {
-#ifdef USE_PF_INET6
   unsigned short ret;
-#endif
   if (proto)
     {
       return proto_sa_family(proto);	/* already stamped */
     } 
-#ifdef USE_PF_INET6
   else
     {
       struct addrinfo hints , *ai;
@@ -2841,7 +2769,6 @@ addr_guess_family(int proto, const char *name)
 	  return ret;
 	}
     }
-#endif
   return AF_INET;	/* default */
 }
 const char *
@@ -2873,10 +2800,8 @@ proto_remote (int proto, bool remote)
       {
 	case PROTO_TCPv4_SERVER: return PROTO_TCPv4_CLIENT;
 	case PROTO_TCPv4_CLIENT: return PROTO_TCPv4_SERVER;
-#ifdef USE_PF_INET6
 	case PROTO_TCPv6_SERVER: return PROTO_TCPv6_CLIENT;
 	case PROTO_TCPv6_CLIENT: return PROTO_TCPv6_SERVER;
-#endif
       }
     }
   return proto;
@@ -2946,19 +2871,15 @@ struct openvpn_in4_pktinfo
   struct in_addr pi4;
 #endif
 };
-#ifdef USE_PF_INET6
 struct openvpn_in6_pktinfo
 {
   struct cmsghdr cmsghdr;
   struct in6_pktinfo pi6;
 };
-#endif
 
 union openvpn_pktinfo {
 	struct openvpn_in4_pktinfo msgpi4;
-#ifdef USE_PF_INET6
 	struct openvpn_in6_pktinfo msgpi6;
-#endif
 };
 #pragma pack()
 
@@ -3010,7 +2931,6 @@ link_socket_read_udp_posix_recvmsg (struct link_socket *sock,
 #error ENABLE_IP_PKTINFO is set without IP_PKTINFO xor IP_RECVDSTADDR (fix syshead.h)
 #endif
 	}
-#ifdef USE_PF_INET6
       else if (cmsg != NULL
 	  && CMSG_NXTHDR (&mesg, cmsg) == NULL
 	  && cmsg->cmsg_level == IPPROTO_IPV6 
@@ -3021,7 +2941,6 @@ link_socket_read_udp_posix_recvmsg (struct link_socket *sock,
 	  from->pi.in6.ipi6_ifindex = pkti6->ipi6_ifindex;
 	  from->pi.in6.ipi6_addr = pkti6->ipi6_addr;
 	}
-#endif
     }
   return fromlen;
 }
@@ -3119,7 +3038,6 @@ link_socket_write_udp_posix_sendmsg (struct link_socket *sock,
 #endif
         break;
       }
-#ifdef USE_PF_INET6
     case AF_INET6:
       {
         struct openvpn_in6_pktinfo msgpi6;
@@ -3138,7 +3056,6 @@ link_socket_write_udp_posix_sendmsg (struct link_socket *sock,
         pkti6->ipi6_addr = to->pi.in6.ipi6_addr;
         break;
       }
-#endif
     default: ASSERT(0);
     }
   return sendmsg (sock->sd, &mesg, 0);
@@ -3240,11 +3157,9 @@ socket_recv_queue (struct link_socket *sock, int maxsize)
       if (proto_is_udp(sock->info.proto))
 	{
 	  sock->reads.addr_defined = true;
-#ifdef USE_PF_INET6
 	  if (sock->info.proto == PROTO_UDPv6)
 	    sock->reads.addrlen = sizeof (sock->reads.addr6);
 	  else
-#endif
 	    sock->reads.addrlen = sizeof (sock->reads.addr);
 	  status = WSARecvFrom(
 			       sock->sd,
@@ -3277,15 +3192,9 @@ socket_recv_queue (struct link_socket *sock, int maxsize)
 
       if (!status) /* operation completed immediately? */
 	{
-#ifdef USE_PF_INET6
 	  int addrlen = af_addr_size(sock->info.lsa->local.addr.sa.sa_family);
 	  if (sock->reads.addr_defined && sock->reads.addrlen != addrlen)
 	    bad_address_length (sock->reads.addrlen, addrlen);
-#else
-	  if (sock->reads.addr_defined && sock->reads.addrlen != sizeof (sock->reads.addr))
-	    bad_address_length (sock->reads.addrlen, sizeof (sock->reads.addr));
-#endif
-
 	  sock->reads.iostate = IOSTATE_IMMEDIATE_RETURN;
 
 	  /* since we got an immediate return, we must signal the event object ourselves */
@@ -3347,14 +3256,12 @@ socket_send_queue (struct link_socket *sock, struct buffer *buf, const struct li
 	{
 	  /* set destination address for UDP writes */
 	  sock->writes.addr_defined = true;
-#ifdef USE_PF_INET6
 	  if (sock->info.proto == PROTO_UDPv6)
 	    {
 	      sock->writes.addr6 = to->dest.addr.in6;
 	      sock->writes.addrlen = sizeof (sock->writes.addr6);
 	    }
 	  else
-#endif
 	    {
 	      sock->writes.addr = to->dest.addr.in4;
 	      sock->writes.addrlen = sizeof (sock->writes.addr);
@@ -3510,7 +3417,6 @@ socket_finalize (SOCKET s,
   if (from)
     {
       if (ret >= 0 && io->addr_defined)
-#ifdef USE_PF_INET6
 	{
 	  /* TODO(jjo): streamline this mess */
 	  /* in this func we dont have relevant info about the PF_ of this
@@ -3522,7 +3428,8 @@ socket_finalize (SOCKET s,
 	    {
 	    case sizeof(struct sockaddr_in):
 	    case sizeof(struct sockaddr_in6):
-	    /* TODO(jjo): for some reason (?) I'm getting 24,28 for AF_INET6 */ 
+	    /* TODO(jjo): for some reason (?) I'm getting 24,28 for AF_INET6
+	     * under WIN32*/
 	    case sizeof(struct sockaddr_in6)-4:
 	      break;
 	    default:
@@ -3539,13 +3446,6 @@ socket_finalize (SOCKET s,
 	      break;
 	    }
 	}
-#else
-	{
-	  if (io->addrlen != sizeof (io->addr))
-	    bad_address_length (io->addrlen, sizeof (io->addr));
-	  from->dest.addr.in4 = io->addr;
-	}
-#endif
       else
 	CLEAR (from->dest.addr);
     }
