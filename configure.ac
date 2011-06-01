@@ -427,6 +427,15 @@ if test "${WIN32}" != "yes"; then
 	 # include <linux/types.h>
 	 #endif
 	])
+else
+   AC_CHECK_HEADERS(ntddndis.h,,,
+		 [#ifdef HAVE_SYS_TYPES_H
+		  # include <sys/types.h>
+		  #endif
+		  #ifdef HAVE_NETINET_IN_H
+		  # include <netinet/in.h>
+		  #endif
+		 ])
 fi
 
 AC_CACHE_SAVE
