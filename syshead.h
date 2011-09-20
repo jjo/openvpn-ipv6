@@ -348,7 +348,10 @@
 
 #ifdef WIN32
 #include <iphlpapi.h>
+/* mingw32msvc doesn't have this: */
+#ifndef SKIP_NTDDNDIS_H
 #include <ntddndis.h>
+#endif
 #include <wininet.h>
 /* The following two headers are needed of PF_INET6 */
 #include <winsock2.h>
