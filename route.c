@@ -1537,10 +1537,11 @@ add_route_ipv6 (struct route_ipv6 *r6, const struct tuntap *tt, unsigned int fla
 
 #if defined(TARGET_LINUX)
 #ifdef CONFIG_FEATURE_IPROUTE
-  argv_printf (&argv, "%s -6 route add %s/%d dev %s",
+  argv_printf (&argv, "%s -6 route add %s/%d via %s dev %s",
   	      iproute_path,
 	      network,
 	      r6->netbits,
+	      gateway,
 	      device);
   if (r6->metric_defined)
     argv_printf_cat (&argv, " metric %d", r6->metric);
